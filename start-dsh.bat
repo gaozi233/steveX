@@ -33,7 +33,7 @@ REM  chcp, and then executes fragments of the comments as commands.
 REM ====================================================================
 
 set "CI=true"
-set "HARNESS=%~dp0src\agent\deepseek-harness-master"
+set "HARNESS=%~dp0src\agent\deepseek-harness"
 title dsh - DeepSeek Harness
 
 if not exist "%HARNESS%\package.json" goto :no_harness
@@ -65,7 +65,7 @@ echo         "%HARNESS%"
 goto :fail
 
 :no_node
-echo [ERROR] node was not found on PATH. Install Node.js 24 or newer.
+echo [ERROR] node was not found on PATH. Install Node.js 22.19.x or 24.x+ (package.json engines).
 goto :fail
 
 :no_deps
