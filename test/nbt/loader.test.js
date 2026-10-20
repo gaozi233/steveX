@@ -284,3 +284,20 @@ test('空数据源：目录存在但没有区文件 → 0 条记录且成功', a
     NBT.removeDir(root)
   }
 })
+
+test('SOURCE_UNSTABLE: index entry without a region file is rejected', async () => {
+  const root = NBT.makeTempDir()
+  try {
+    const store = path.join(root, 'terrain_union')
+    fs.mkdirSync(store, { recursive: true })
+    NBT.writeIndex(store, { 'minecraft:overworld': { '0,0': 1000 } })
+
+    const loader = createSourceLoader({ visionRoot: root, retries: 0 })
+    await assert.rejects(
+      loader.load('terrain'),
+      (error) => error.code === 'SOURCE_UNSTABLE' && error.message.includes('minecraft:overworld/0,0')
+    )
+  } finally {
+    NBT.removeDir(root)
+  }
+})

@@ -123,8 +123,13 @@ async function loadSharded(def, visionRoot) {
 
   // 索引只是交叉核对的门控；缺失时按区文件自报的 updatedAt 退化出版本戳
   let index = null
+  let unseenIndexEntries = null
   if (indexStatBefore && indexStatBefore.isFile()) {
     index = extractIndex((await readParsed(indexPath)).value)
+    unseenIndexEntries = new Set()
+    for (const [dim, regions] of index) {
+      for (const regionKey of regions.keys()) unseenIndexEntries.add(`${dim}\u0000${regionKey}`)
+    }
   }
 
   const dirents = await fs.readdir(storeDir, { withFileTypes: true })
@@ -160,13 +165,15 @@ async function loadSharded(def, visionRoot) {
 
       if (index) {
         const perDim = index.get(dim)
-        const indexed = perDim ? perDim.get(`${regionX},${regionZ}`) : undefined
+        const regionKey = `${regionX},${regionZ}`
+        const indexed = perDim ? perDim.get(regionKey) : undefined
         if (indexed !== updatedAt) {
           throw new QueryError(
             'SOURCE_UNSTABLE',
             `region ${file}: updatedAt ${updatedAt} does not match index entry ${indexed}`
           )
         }
+        unseenIndexEntries.delete(`${dim}\u0000${regionKey}`)
       }
 
       maxUpdatedAt = Math.max(maxUpdatedAt, updatedAt)
@@ -177,6 +184,11 @@ async function loadSharded(def, visionRoot) {
   }
 
   // containers 的末影箱：跨维全局、无坐标（§4.1）
+  if (unseenIndexEntries && unseenIndexEntries.size > 0) {
+    const missing = [...unseenIndexEntries][0].replace('\u0000', '/')
+    throw new QueryError('SOURCE_UNSTABLE', `index references missing region ${missing}`)
+  }
+
   if (def.enderFile && enderStatBefore && enderStatBefore.isFile()) {
     const enderRoot = (await readParsed(enderPath)).value
     const enderRecords = def.extractEnder(enderRoot)
