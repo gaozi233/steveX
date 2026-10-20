@@ -6,10 +6,10 @@ const skill = {
   name: 'attack',
   description: 'Attack the nearest entity',
   args,
-  async handler(agent, _args) {
-    const entity = agent.bot.nearestEntity()
+  async handler(bot, _args) {
+    const entity = bot.nearestEntity()
     if (!entity) return { ok: false, error: 'No entity nearby' }
-    await agent.bot.attack(entity)
+    await bot.attack(entity)
     return { ok: true, output: `Attacked ${entity.name || entity.type}` }
   }
 }

@@ -13,6 +13,8 @@ module.exports = {
     const target = Object.values(bot.players).find(p => p.username.toLowerCase() === targetName)
     if (!target || !target.entity) return { ok: false, error: `Player "${targetName}" not found or too far` }
 
+    if (bot._followInterval) clearInterval(bot._followInterval)
+
     const followTask = () => {
       if (!target.entity) return
       const pos = target.entity.position
@@ -21,14 +23,14 @@ module.exports = {
 
     // Follow every 1s
     const interval = setInterval(followTask, 1000)
+    bot._followInterval = interval
     followTask()
 
     // Store interval on entity for cleanup
-    target.entity._followInterval = interval
-
     bot.once('entityGone', (gone) => {
       if (gone === target.entity) {
         clearInterval(interval)
+        if (bot._followInterval === interval) bot._followInterval = null
         bot.pathfinder.stop()
       }
     })

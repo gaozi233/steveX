@@ -6,10 +6,11 @@ const skill = {
   name: 'eat',
   description: 'Eat the currently held food item',
   args,
-  async handler(agent, _args) {
-    if (!agent.bot.heldItem) return { ok: false, error: 'No item in hand' }
-    await agent.bot.consume()
-    return { ok: true, output: `Ate ${agent.bot.heldItem.name}` }
+  async handler(bot, _args) {
+    if (!bot.heldItem) return { ok: false, error: 'No item in hand' }
+    const itemName = bot.heldItem.name
+    await bot.consume()
+    return { ok: true, output: `Ate ${itemName}` }
   }
 }
 
