@@ -2,7 +2,7 @@
 
 > **Research branch:** `research/visual-world-model` explores a Fabric-based visual world-state model. It does not replace the Mineflayer runtime retained on `main`; reusable interfaces should return to `main` through focused pull requests.
 
-一个**自包含**的 Minecraft LLM Agent 系统：单个文件夹内包含全部代码，可在另一台机器重建整条链路（含 Minecraft 客户端）。
+一个**可复现部署**的 Minecraft LLM Agent 系统：仓库保留 SteveX 与 Fabric mod 源码，第三方 Agent 基座通过锁定依赖安装，可在另一台机器重建整条链路（含 Minecraft 客户端）。
 
 底层感知/动作**不再用 mineflayer**，而是透传采集端 mod（`stevex-template-1.21.11`，跑在 Minecraft 客户端内）的 **WebSocket JSON-RPC API（51 个方法，端口 25550）**——"一个客户端 = 一个 agent 的身体 + 眼睛"。
 
@@ -38,6 +38,8 @@ steveX/
     mod/               #   ModWSClient + 51 方法清单（methods.js）
     web/               #   Express 8090 + 透传路由 /api/mod/* + WS 广播 + 前端
     agent/             #   AgentManager / SteveXAgent（每 agent = 一条 mod 连接）
+  dsh-plugins/         # steveX 自有的 DSH 插件（不修改 DSH 核心）
+  integrations/dsh/    # DSH 版本、边界与历史补丁说明
   vendor/              # 自包含：两个 Fabric mod（源码 + gradle wrapper，无构建产物）
     stevex-template-1.21.11/      # 采集端（真实世界）
     stevex-test-template-1.21.11/ # 记忆世界 restorer
@@ -46,6 +48,20 @@ steveX/
   configs/             # defaults + environments（agents 的 mod: host/port）
 ```
 
+## DSH Agent 基座
+
+DSH 不再以完整源码放在 `src/agent/deepseek-harness/`。项目通过
+`devDependencies` 精确锁定 `@deepseek-ai/dsh@0.2.1-rc.2`，执行一次
+`npm install` 即可初始化。双击 `start-dsh.bat` 默认启动 Web profile，或运行：
+
+```powershell
+npm run dsh -- web
+npm run dsh -- headless "do a task"
+```
+
+SteveX 的定制放在 `dsh-plugins/`，升级 DSH 时不会被覆盖。版本边界、插件安装
+和历史源码补丁见 [`integrations/dsh/README.md`](integrations/dsh/README.md)。
+
 > `vendor/` 内的两个 mod **保持原名且同级**——记忆端 `MemoryConfig.java` 靠这个相对布局自动探测采集端数据（`../..` → `stevex-template-1.21.11/run/stevex/vision`）。**改名会断开数据流**，此时需在记忆端 `run/config/stevex-test/memory.json` 显式配置 `sourceFile/terrainFile/entityFile/memoryCellsFile`。
 
 ## 环境要求
@@ -53,7 +69,7 @@ steveX/
 | 依赖 | 版本 | 说明 |
 |---|---|---|
 | JDK | **21+**（21–25 均可） | mod 构建/运行 |
-| Node.js | ≥18 | steveX 本体 |
+| Node.js | ≥18（DSH 已在 22.21 验证） | steveX 本体与 DSH npm 依赖 |
 | 网络 | 首次构建需要 | gradle 自动下载 Gradle 9.5.1、Fabric 依赖与 **Minecraft 客户端 jar** |
 
 无需预装 Minecraft：`gradlew runClient` 会自动完成客户端重建。

@@ -18,7 +18,7 @@
 
 ## 安装（DSH profile）
 
-本包位于 vendored harness **之外**（`steveX/dsh-plugins/router/`），DSH 升级不会覆盖它。
+本包位于 npm 安装的 DSH **之外**（`steveX/dsh-plugins/router/`），DSH 升级不会覆盖它。
 
 1. 将本包打包/链接为本地包（或在 profile 的 workspace 中引用）。
 2. 用 `dsh plugin --profile <profile> add <package>` 安装，或将该包的条目插入 profile 的 `cordis.yml`（见 `cordis.patch.yml`）。

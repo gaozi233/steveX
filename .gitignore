@@ -34,13 +34,5 @@ vendor/**/run/
 __pycache__/
 *.pyc
 
-# Vendored DeepSeek Harness (src/agent/deepseek-harness)
-# Entire subtree is tracked (~14000 files) because we modify it in-tree. Build
-# artifacts and dependencies are ignored by the harness's own nested .gitignore,
-# verified to cover: node_modules/ · lib/ · apps/web/dist/ · .env · .sessions/ ·
-# .storages/ · dist-exe/ · *.tsbuildinfo · .pnpm-store/.
-# Deliberately no path-level rules here: adding one would hide source we intend
-# to edit. Upstream github.com/deepseek-ai/deepseek-harness, v0.2.1-rc.2.
-# Upstream tracks the two desktop `.env.*.example` templates; the `.env.*` rule
-# above would otherwise silently hide them.
-!src/agent/deepseek-harness/apps/desktop/.env.*.example
+# DSH is an exact npm dependency. Keep upstream source checkouts outside this
+# repository; steveX-owned plugins remain under dsh-plugins/.

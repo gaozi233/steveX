@@ -1,0 +1,17 @@
+diff --git a/scripts/client-build-environment.ts b/scripts/client-build-environment.ts
+index 6c616cff..4a0285d1 100644
+--- a/scripts/client-build-environment.ts
++++ b/scripts/client-build-environment.ts
+@@ -100,6 +100,12 @@ export function repositoryGitDirty(root: string): boolean | undefined {
+     cwd: root,
+     encoding: 'utf8',
+     stdio: ['ignore', 'pipe', 'pipe'],
++    // [steveX local patch] The vendored harness is replaced in place before the
++    // replacement is committed, so this worktree temporarily carries ~14k
++    // pending deletions (old path) plus the new untracked tree. That output
++    // exceeds spawnSync's 1 MiB default maxBuffer and fails with ENOBUFS.
++    // Keep a generous limit; harmless once the replacement is committed.
++    maxBuffer: 64 * 1024 * 1024,
+   })
+   if (status.error !== undefined) throw status.error
+   if (status.status !== 0) {

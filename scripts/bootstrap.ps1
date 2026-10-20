@@ -28,13 +28,14 @@ if ($major -lt 21) {
 Write-Host "  JDK 版本满足要求（>=21）" -ForegroundColor Green
 
 # ── 2) Node 依赖 ──
-if (-not (Test-Path (Join-Path $Root 'node_modules'))) {
-    Write-Host "  首次运行，安装 node 依赖..."
+$dshCommand = Join-Path $Root 'node_modules/.bin/dsh.cmd'
+if (-not (Test-Path $dshCommand)) {
+    Write-Host "  安装或更新 node 依赖（含 DSH）..."
     Push-Location $Root
     npm install
     Pop-Location
 } else {
-    Write-Host "  node_modules 已存在，跳过 npm install"
+    Write-Host "  node_modules 与 DSH 已就绪，跳过 npm install"
 }
 
 # ── 3) 启动指引 ──
@@ -44,3 +45,4 @@ Write-Host "  一键启动整条链路:   npm run start:all"
 Write-Host "  或手动分步:         npm run mc:capture  →  npm start  →  npm run mc:memory"
 Write-Host "  Web 面板:           http://localhost:8090"
 Write-Host "  API 验证:           node test_mod_api.js --stevex"
+Write-Host "  DSH Web:            npm run dsh -- web"
