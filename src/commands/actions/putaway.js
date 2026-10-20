@@ -9,6 +9,8 @@ module.exports = {
     if (args.length < 1) return { ok: false, error: 'Usage: putaway <slot>' }
     const slot = parseInt(args[0], 10)
     if (isNaN(slot) || slot < 0) return { ok: false, error: 'Invalid slot number' }
+    const slots = bot.currentWindow?.slots || bot.inventory?.slots || []
+    if (!slots[slot]) return { ok: false, error: `Slot ${slot} is empty` }
     await bot.putAway(slot)
     return { ok: true, output: `Put away item from slot ${slot}` }
   }

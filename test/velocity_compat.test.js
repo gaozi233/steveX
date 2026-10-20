@@ -6,13 +6,15 @@ const { Vec3 } = require('vec3')
 const { velocityCompatibility } = require('../src/agent/velocity_compat')
 
 function createBot(version) {
-  return {
+  return Object.assign(new EventEmitter(), {
     version,
     _client: new EventEmitter(),
+    oxygenLevel: 20,
+    entity: { id: 7 },
     entities: {
       7: { velocity: new Vec3(0, 0, 0) }
     }
-  }
+  })
 }
 
 test('1.21.11 velocity packets are already in blocks per tick', () => {
@@ -34,6 +36,30 @@ test('1.21.11 velocity packets are already in blocks per tick', () => {
   })
 
   assert.deepEqual(bot.entities[7].velocity, new Vec3(0.4, 0.2, -0.1))
+})
+
+test('nearby entity metadata cannot overwrite the bot oxygen level', () => {
+  const bot = createBot('1.21.11')
+
+  bot._client.on('entity_metadata', (packet) => {
+    bot.oxygenLevel = packet.oxygenLevel
+  })
+  velocityCompatibility(bot)
+
+  bot._client.emit('entity_metadata', { entityId: 7, oxygenLevel: 400 })
+  bot._client.emit('entity_metadata', { entityId: 9, oxygenLevel: 400 })
+
+  assert.equal(bot.oxygenLevel, 20)
+})
+
+test('spawn normalizes oxygen when initial metadata arrived before plugins loaded', () => {
+  const bot = createBot('1.21.11')
+  bot.oxygenLevel = 400
+
+  velocityCompatibility(bot)
+  bot.emit('spawn')
+
+  assert.equal(bot.oxygenLevel, 20)
 })
 
 test('legacy velocity decoding remains owned by Mineflayer', () => {

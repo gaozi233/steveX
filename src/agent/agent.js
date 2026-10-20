@@ -173,6 +173,10 @@ class SteveXAgent {
     }
 
     if (this.bot) {
+      if (this.bot._followInterval) {
+        clearInterval(this.bot._followInterval)
+        this.bot._followInterval = null
+      }
       this.currentAction = 'Disconnecting'
       this.bot.end()
     }
