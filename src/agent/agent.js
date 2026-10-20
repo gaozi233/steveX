@@ -1,6 +1,7 @@
 const mineflayer = require('mineflayer')
 const { pathfinder, Movements } = require('mineflayer-pathfinder')
 const mcDataLoader = require('minecraft-data')
+const { installVelocityCompatibility } = require('./velocity_compat')
 
 class SteveXAgent {
   /**
@@ -37,6 +38,7 @@ class SteveXAgent {
     })
 
     this.bot.loadPlugin(pathfinder)
+    installVelocityCompatibility(this.bot)
     this.registerEvents()
   }
 
