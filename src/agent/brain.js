@@ -13,7 +13,7 @@ class Brain {
     this.agent = agent
     this.bus = bus
     this.llm = new DeepSeekClient({
-      apiKey: llmCfg.apiKey || 'local',
+      apiKey: llmCfg.apiKey || '',
       model: llmCfg.model,
       baseUrl: llmCfg.baseUrl,
       timeoutMs: llmCfg.timeoutMs || 60000,
@@ -22,6 +22,7 @@ class Brain {
     this.intervalMs = opts.intervalMs || 5000
     this.history = []
     this.running = false
+    this.timer = null
     const list = loadCommands().list
     this.table = list
       .map(c => `${c.name}${c.usage && c.usage !== c.name ? ' ' + c.usage.replace(c.name + ' ', '') : ''}`)
@@ -100,17 +101,19 @@ class Brain {
     const loop = async () => {
       if (!this.running) return
       if (!this.agent.isOnline()) {
-        setTimeout(loop, this.intervalMs)
+        this.timer = setTimeout(loop, this.intervalMs)
         return
       }
       await this.tick()
-      setTimeout(loop, this.intervalMs)
+      if (this.running) this.timer = setTimeout(loop, this.intervalMs)
     }
-    setTimeout(loop, 2000)
+    this.timer = setTimeout(loop, 2000)
   }
 
   stop() {
     this.running = false
+    if (this.timer) clearTimeout(this.timer)
+    this.timer = null
   }
 }
 

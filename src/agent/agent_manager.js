@@ -54,7 +54,7 @@ class AgentManager {
 
   disconnectAgent(name) {
     const agent = this.agents.get(name)
-    if (!agent || !agent.isOnline()) return false
+    if (!agent) return false
 
     agent.shutdown()
     this.agents.delete(name)

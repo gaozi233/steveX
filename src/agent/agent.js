@@ -164,6 +164,11 @@ class SteveXAgent {
 
   /** Gracefully disconnect the bot from the server. */
   shutdown() {
+    if (this.brainLoop) {
+      this.brainLoop.stop()
+      this.brainLoop = null
+    }
+
     if (this.bot) {
       this.currentAction = 'Disconnecting'
       this.bot.end()
