@@ -1,7 +1,7 @@
 const mineflayer = require('mineflayer')
 const { pathfinder, Movements } = require('mineflayer-pathfinder')
 const mcDataLoader = require('minecraft-data')
-const { installVelocityCompatibility } = require('./velocity_compat')
+const { velocityCompatibility } = require('./velocity_compat')
 
 class SteveXAgent {
   /**
@@ -38,7 +38,8 @@ class SteveXAgent {
     })
 
     this.bot.loadPlugin(pathfinder)
-    installVelocityCompatibility(this.bot)
+    // Load after Mineflayer's built-ins so this corrects their legacy scaling.
+    this.bot.loadPlugin(velocityCompatibility)
     this.registerEvents()
   }
 

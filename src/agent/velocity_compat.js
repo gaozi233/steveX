@@ -1,6 +1,6 @@
 const LP_VEC3_VELOCITY_VERSIONS = new Set(['1.21.11'])
 
-function installVelocityCompatibility(bot) {
+function velocityCompatibility(bot) {
   if (!LP_VEC3_VELOCITY_VERSIONS.has(bot.version)) return false
 
   bot._client.on('entity_velocity', (packet) => {
@@ -14,4 +14,4 @@ function installVelocityCompatibility(bot) {
   return true
 }
 
-module.exports = { installVelocityCompatibility }
+module.exports = { velocityCompatibility }
