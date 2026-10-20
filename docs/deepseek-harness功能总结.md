@@ -1,8 +1,9 @@
 # DeepSeek Harness（dsh）已实现功能总结
 
-> **阅读对象**：准备在 `deepseek-harness-master` 基础上改造、编写自己 agent 的工程师。
-> **调查对象**：`src/agent/deepseek-harness-master/`（下文相对路径均以此为根）。
+> **阅读对象**：准备在 `deepseek-harness` 基础上改造、编写自己 agent 的工程师。
+> **调查对象**：`src/agent/deepseek-harness/`（下文相对路径均以此为根）。
 > **快照版本**：`@deepseek-ai/dsh-root` **0.2.0-rc.2**，最新 Agent Note 日期 2026-09-28。
+> **当前 vendored**：**0.2.1-rc.2**（2026-10-18 替换为 `src/agent/deepseek-harness/`；本文未针对该版本重新核对）。
 > **调查日期**：2026-10-02。
 > **本文性质**：状态快照 + 改造地图，**不是**使用手册。凡"文档宣称但代码对不上"的地方，集中记在第 13 节。
 

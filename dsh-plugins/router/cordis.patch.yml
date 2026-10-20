@@ -1,0 +1,16 @@
+# steveX router — stage A (framework only).
+# Prompt content and handler bodies are placeholders until stage B.
+- insert:
+    - id: stevex-router
+      name: '@stevex/dsh-router'
+      config:
+        confidenceThreshold: 0.7
+        clarifyMaxTurns: 2
+        enabledHandlers:
+          - fact
+          - task
+          - default
+          - unsupported
+          - clarify
+        provider:
+          mode: stub
