@@ -6,7 +6,7 @@ const skill = {
   name: 'inventory',
   description: 'List inventory contents',
   args,
-  async handler(agent) {
+  async handler(_b, _a, agent) {
     const items = agent.bot.inventory.items()
     if (items.length === 0) return { ok: true, output: 'Inventory is empty' }
     const list = items.map(i => `${i.name} x${i.count}`).join(', ')

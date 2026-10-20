@@ -11,7 +11,7 @@ const skill = {
   name: 'nearby',
   description: 'List nearby entities, optionally filtered by type',
   args,
-  async handler(agent, args) {
+  async handler(_b, args, agent) {
     const filterType = args.length > 0 ? args[0].toLowerCase() : null
     const entities = Object.values(agent.bot.entities)
       .filter(e => !filterType || e.type === filterType || (e.name && e.name.includes(filterType)))

@@ -16,7 +16,7 @@ const skill = {
   name: 'findblock',
   description: 'Find the nearest block by name',
   args,
-  async handler(agent, args) {
+  async handler(_b, args, agent) {
     if (args.length < 1) return { ok: false, error: 'Usage: findblock <blockName> [radius]' }
     const targetName = args[0].toLowerCase()
     const maxDistance = args[1] ? parseInt(args[1], 10) : 32

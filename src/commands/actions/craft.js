@@ -10,7 +10,7 @@ const skill = {
   name: 'craft',
   description: 'Craft an item from inventory (hand-craftable only)',
   args,
-  async handler(agent, args) {
+  async handler(_b, args, agent) {
     if (args.length < 1) return { ok: false, error: 'Usage: craft <itemName> [count]' }
     const itemName = args[0].toLowerCase()
     const count = args[1] ? parseInt(args[1], 10) : 1
