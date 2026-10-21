@@ -10,7 +10,7 @@ module.exports = {
   async handler(bot, args) {
     if (args.length < 3) return { ok: false, error: 'Usage: lookat <x> <y> <z>' }
     const [lx, ly, lz] = args.map(Number)
-    if (isNaN(lx) || isNaN(ly) || isNaN(lz)) return { ok: false, error: 'Invalid coordinates' }
+    if (![lx, ly, lz].every(Number.isFinite)) return { ok: false, error: 'Coordinates must be finite numbers' }
     await bot.lookAt(new Vec3(lx, ly, lz))
     return { ok: true, output: `Looking at ${lx} ${ly} ${lz}` }
   }

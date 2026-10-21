@@ -38,6 +38,23 @@ function botFixture(uuid) {
   return bot
 }
 
+test('state explicitly reads nonenumerable control getters and local collision cells', () => {
+  const { Vec3 } = require('vec3')
+  const bot = botFixture('body')
+  bot.entity.position = new Vec3(2.5, 64, 4.5)
+  bot.controlState = {}
+  Object.defineProperty(bot.controlState, 'forward', { get: () => true })
+  bot.getControlState = key => key === 'forward'
+  bot.blockAt = p => ({ name: p.y < 64 ? 'stone' : 'air', boundingBox: p.y < 64 ? 'block' : 'empty', shapes: [] })
+  const state = playerState({ bot, isOnline: () => true })
+  assert.equal(state.controls.forward, true)
+  assert.equal(Object.keys(state.controls).length, 7)
+  assert.equal(state.controls.jump, false)
+  assert.equal(state.localTerrain.length, 9)
+  assert.equal(state.localTerrain[4].below.name, 'stone')
+  assert.equal(state.localTerrain[4].overhead.name, 'air')
+})
+
 test('Mineflayer windows preserve components and known empty slots, exclude player inventory and isolate actors', async t => {
   const outputDir = await fs.mkdtemp(path.join(os.tmpdir(), 'stevex-interaction-'))
   t.after(() => fs.rm(outputDir, { recursive: true, force: true }))
