@@ -1,0 +1,12 @@
+version:4671
+enableVsync:false
+fullscreen:false
+maxFps:30
+pauseOnLostFocus:false
+renderDistance:8
+simulationDistance:8
+graphicsMode:1
+onboardAccessibility:false
+joinedFirstServer:true
+showRealmsNotifications:false
+soundCategory_master:0.0

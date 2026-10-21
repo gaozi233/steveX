@@ -8,12 +8,15 @@ class DeepSeekClient {
     this.timeoutMs = options.timeoutMs || 20000
   }
 
-  async chat(messages) {
+  async chat(messages, { signal } = {}) {
+    signal?.throwIfAborted()
     if (!this.apiKey) {
       return 'LLM disabled: missing DEEPSEEK_API_KEY'
     }
 
     const controller = new AbortController()
+    const abort = () => controller.abort(signal.reason)
+    signal?.addEventListener('abort', abort, { once: true })
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs)
 
     try {
@@ -41,6 +44,7 @@ class DeepSeekClient {
       return content || ''
     } finally {
       clearTimeout(timeout)
+      signal?.removeEventListener('abort', abort)
     }
   }
 }

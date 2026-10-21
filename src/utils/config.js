@@ -21,10 +21,16 @@ function deepMerge(target, source) {
   return result
 }
 
+function getEnvironmentConfigPath() {
+  const root = path.resolve(__dirname, '..', '..')
+  return path.resolve(root, process.env.STEVEX_CONFIG || path.join('configs', 'environments', 'app.json'))
+}
+
 function loadConfig() {
   const root = path.resolve(__dirname, '..', '..')
   const defaultPath = path.join(root, 'configs', 'defaults', 'app.json')
-  const envPath = path.join(root, 'configs', 'environments', 'app.json')
+  const envPath = getEnvironmentConfigPath()
+  if (process.env.STEVEX_CONFIG && !fs.existsSync(envPath)) throw new Error(`STEVEX_CONFIG file not found: ${envPath}`)
 
   let config = loadJson(defaultPath)
 
@@ -38,5 +44,6 @@ function loadConfig() {
 }
 
 module.exports = {
-  loadConfig
+  loadConfig,
+  getEnvironmentConfigPath
 }

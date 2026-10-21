@@ -2,8 +2,9 @@ const fs = require('fs/promises')
 const path = require('path')
 const skillRegistry = require('../../runtime/skill_registry.ts')
 
-const ENV_CONFIG_RELATIVE_PATH = path.join('configs', 'environments', 'app.json')
-const ENV_CONFIG_PATH = path.resolve(process.cwd(), ENV_CONFIG_RELATIVE_PATH)
+const { getEnvironmentConfigPath } = require('../../utils/config')
+const ENV_CONFIG_PATH = getEnvironmentConfigPath()
+const ENV_CONFIG_RELATIVE_PATH = path.relative(process.cwd(), ENV_CONFIG_PATH)
 
 /**
  * Register all API routes on the Express app.
@@ -79,9 +80,39 @@ function registerRoutes(app, manager) {
   })
 
   // ---- Reload config ----
-  app.post('/api/reload', (req, res) => {
-    manager.reload()
+  app.post('/api/reload', async (req, res) => {
+    await manager.reload()
     res.json({ ok: true })
+  })
+
+  app.get('/api/renderer/status', async (req, res) => {
+    res.json(manager.renderService ? await manager.renderService.status() : { enabled: false })
+  })
+
+  app.post('/api/agents/:name/observe', async (req, res) => {
+    const result = await manager.captureObservation(req.params.name)
+    res.status(result.ok ? 200 : 400).json(result)
+  })
+
+  app.post('/api/agents/:name/nbt/query', async (req, res) => {
+    if (!manager.agentConfigs.has(req.params.name)) return res.status(404).json({ ok: false, error: 'Agent not found' })
+    if (!manager.renderService) return res.status(400).json({ ok: false, error: 'Renderer is disabled' })
+    try {
+      const data = await manager.renderService.queryNbt(req.params.name, req.body)
+      res.json({ ok: true, ...data })
+    } catch (err) {
+      res.status(400).json({ ok: false, code: err.code || 'QUERY_FAILED', error: err.message })
+    }
+  })
+
+  app.post('/api/agents/:name/brain/:operation', (req, res) => {
+    const agent = manager.agents.get(req.params.name)
+    if (!agent) return res.status(404).json({ ok: false, error: 'Agent not found' })
+    if (req.params.operation === 'stop') { agent.brainLoop?.stop(); return res.json({ ok: true }) }
+    if (req.params.operation !== 'start') return res.status(400).json({ ok: false, error: 'Expected start or stop' })
+    if (!agent.isOnline()) return res.status(400).json({ ok: false, error: 'Agent is offline' })
+    const ok = agent.startBrain(agent.config.brain || {}, manager.eventBus)
+    res.status(ok ? 200 : 400).json({ ok, error: ok ? undefined : agent.brainLoop?.lastError })
   })
 
   // ---- Connect agent ----

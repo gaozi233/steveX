@@ -1,0 +1,24 @@
+{
+  "agents": [
+    {
+      "name": "alpha",
+      "minecraft": { "host": "127.0.0.1", "port": 25565, "username": "SteveXAlpha", "auth": "offline", "version": "1.21.11" },
+      "llm": { "apiKey": "", "model": "deepseek-v4-flash" },
+      "brain": { "enabled": false, "goal": "Explore the nearby area", "intervalMs": 5000 }
+    },
+    {
+      "name": "beta",
+      "minecraft": { "host": "127.0.0.1", "port": 25565, "username": "SteveXBeta", "auth": "offline", "version": "1.21.11" },
+      "llm": { "apiKey": "", "model": "deepseek-v4-flash" },
+      "brain": { "enabled": false }
+    }
+  ],
+  "renderer": {
+    "enabled": true,
+    "url": "ws://127.0.0.1:25550",
+    "memoryNamespace": "local-test-v1",
+    "outputDir": "runs/observations",
+    "captureTimeoutMs": 60000
+  },
+  "web": { "host": "127.0.0.1", "port": 8090 }
+}

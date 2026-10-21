@@ -6,7 +6,9 @@
   "main": "src/main.js",
   "scripts": {
     "start": "node src/main.js",
-    "test": "node --test"
+    "test": "node --test",
+    "mc:renderer": "powershell -ExecutionPolicy Bypass -File scripts/run-renderer.ps1",
+    "mc:memory": "powershell -ExecutionPolicy Bypass -File scripts/run-memory.ps1"
   },
   "engines": {
     "node": ">=22"

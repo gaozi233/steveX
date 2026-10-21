@@ -18,6 +18,7 @@
       }
     }
   ],
+  "renderer": { "enabled": false },
   "web": {
     "host": "localhost",
     "port": 8090

@@ -51,7 +51,7 @@ function setupWebSocket(server, manager) {
   // ── AgentManager eventBus → WebSocket broadcast ──
 
   const eventBus = manager.eventBus
-  if (!eventBus) return
+  if (!eventBus) return wss
 
   eventBus.on('agent:connect', (data) => {
     broadcast(wss, { type: 'agent:connect', name: data.name })
@@ -114,6 +114,7 @@ function setupWebSocket(server, manager) {
       timestamp: data.timestamp
     })
   })
+  return wss
 }
 
 function broadcast(wss, data) {

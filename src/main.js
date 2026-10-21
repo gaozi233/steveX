@@ -9,12 +9,18 @@ for (const name of manager.agentConfigs.keys()) {
   manager.connectAgent(name)
 }
 
-console.log('[info][main] Starting SteveX with config:', manager.config)
+console.log('[info][main] Starting SteveX agents:', [...manager.agentConfigs.keys()])
 
-startWebServer(manager)
+const server = startWebServer(manager)
 
-process.on('SIGINT', () => {
+let closing = false
+async function shutdown() {
+  if (closing) return
+  closing = true
   console.log('[info][main] Shutting down')
-  manager.disconnectAll()
-  process.exit(0)
-})
+  const deadline = setTimeout(() => { console.error('[main] Shutdown timed out while draining tasks'); process.exit(1) }, 10000)
+  try { await manager.close() }
+  finally { server.closeResources(); server.close(); server.closeAllConnections(); clearTimeout(deadline) }
+}
+process.on('SIGINT', shutdown)
+process.on('SIGTERM', shutdown)

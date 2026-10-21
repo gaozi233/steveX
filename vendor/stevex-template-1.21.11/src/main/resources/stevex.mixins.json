@@ -1,0 +1,28 @@
+{
+	"required": true,
+	"package": "name.modid.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"mixins": [
+		"ExampleMixin",
+		"KeyMappingAccessor",
+		"MinecraftAccessor",
+		"SoundEngineAccessor",
+		"SoundManagerAccessor",
+		"AbstractSignEditScreenAccessor",
+		"BookEditScreenAccessor"
+	],
+	"client": [
+		"BackgroundWindowMixin",
+		"BackgroundMouseMixin",
+		"DemandRenderMixin",
+		"DemandFramerateMixin",
+		"LevelRendererMixin",
+		"ChunkSectionsToRenderMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

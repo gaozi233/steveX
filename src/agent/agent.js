@@ -2,6 +2,7 @@ const mineflayer = require('mineflayer')
 const { pathfinder, Movements } = require('mineflayer-pathfinder')
 const mcDataLoader = require('minecraft-data')
 const { velocityCompatibility } = require('./velocity_compat')
+const { ActionExecutor, cancelled } = require('./action_executor')
 
 class SteveXAgent {
   /**
@@ -9,7 +10,7 @@ class SteveXAgent {
    * @param {string} name - agent 名称
    * @param {object} [commands] - 共享命令表 { name -> handler }，由 AgentManager 传入
    */
-  constructor(config, name = 'steveX', commands = {}) {
+  constructor(config, name = 'steveX', commands = {}, options = {}) {
     this.config = config
     this.name = name
     this.bot = null
@@ -17,6 +18,11 @@ class SteveXAgent {
     this.commands = commands
     this.connected = false
     this.connecting = false
+    this.queryNames = options.queryNames || new Set()
+    this.executor = new ActionExecutor(() => this.stopPhysicalActions())
+    this.renderService = options.renderService || null
+    this.observationRevision = 0
+    this.sessionId = require('node:crypto').randomUUID()
 
     // Current action shown on the web console.
     // It will be updated when a command is running.
@@ -58,6 +64,9 @@ class SteveXAgent {
 
     // 统一断连处理：end/kicked 都标记为离线
     const onDisconnect = (reason) => {
+      this.brainLoop?.stop()
+      this.executor.close()
+      this.stopPhysicalActions()
       this.connecting = false
       this.connected = false
       this.currentAction = 'Offline'
@@ -85,15 +94,15 @@ class SteveXAgent {
    * @param {string} input - raw command string
    * @returns {Promise<{ok:boolean,output?:string,error?:string}>}
    */
-  async executeCommand(input) {
-    if (!this.bot) {
+  async executeCommand(input, options = {}) {
+    if (!this.bot || !this.connected) {
       return {
         ok: false,
         error: 'Bot not started'
       }
     }
 
-    const trimmed = input.trim()
+    const trimmed = typeof input === 'string' ? input.trim() : ''
 
     if (!trimmed) {
       return {
@@ -106,7 +115,7 @@ class SteveXAgent {
     const command = parts[0].toLowerCase()
     const args = parts.slice(1)
 
-    const handler = this.commands[command]
+    const handler = Object.hasOwn(this.commands, command) ? this.commands[command] : null
 
     if (!handler) {
       const available = Object.keys(this.commands).sort().join(', ')
@@ -117,33 +126,85 @@ class SteveXAgent {
       }
     }
 
-    // Let the web console show what the agent is doing.
-    this.currentAction = command
-
     try {
-      const result = await handler.call(this, this.bot, args, this)
-      return result
+      options.signal?.throwIfAborted()
+      if (this.queryNames.has(command)) return await handler.call(this, this.bot, args, this, options)
+      if (options.source !== 'brain') this.brainLoop?.stop()
+      if (command === 'stopdig') {
+        const task = this.executor.active
+        if (task && ['dig', 'mine'].includes(task.name)) task.controller.abort(cancelled('Digging stopped'))
+        return await handler.call(this, this.bot, args, this, options)
+      }
+      if (command === 'stop') {
+        this.brainLoop?.stop()
+        this.executor.cancelAll('Stop requested')
+        this.stopPhysicalActions()
+        return { ok: true, output: 'Actions and autonomous brain stopped' }
+      }
+      return await this.executor.run(command, async signal => {
+        if (!this.connected) throw new Error('Agent is offline')
+        this.stopPhysicalActions()
+        this.currentAction = command
+        try {
+          const result = await handler.call(this, this.bot, args, this, { ...options, signal })
+          if (result?.status === 'RUNNING') this.backgroundSource = options.source || 'manual'
+          return result
+        }
+        finally {
+          if (signal.aborted) this.stopPhysicalActions()
+          this.currentAction = this.connected ? (this.bot?._followCleanup ? 'follow' : 'Idle') : 'Offline'
+        }
+      }, { ...options, timeoutMs: options.timeoutMs || this.config.runtime?.actionTimeoutMs || 30000 })
     } catch (err) {
-      console.error(`[error](${this.name}) Command error`, err)
+      if (err.name !== 'AbortError') console.error(`[error](${this.name}) Command error`, err)
 
       return {
         ok: false,
+        cancelled: err.name === 'AbortError',
         error: err.message || String(err)
       }
-    } finally {
-      // Restore to idle after command finishes.
-      // If the bot disconnected during the command, keep it as Offline.
-      this.currentAction = this.connected ? 'Idle' : 'Offline'
     }
+  }
+
+  stopPhysicalActions() {
+    const bot = this.bot
+    if (!bot) return
+    if (bot._followInterval) { clearInterval(bot._followInterval); bot._followInterval = null }
+    bot._followCleanup?.()
+    this.backgroundSource = null
+    if (this.connected && !this.executor.active) this.currentAction = 'Idle'
+    for (const stop of [() => bot.pathfinder?.setGoal(null), () => bot.clearControlStates?.(),
+      () => bot.stopDigging?.(), () => bot.deactivateItem?.()]) {
+      try { stop()?.catch?.(() => {}) } catch (_) {}
+    }
+  }
+
+  stopBrainActions() {
+    if (this.backgroundSource === 'brain') this.stopPhysicalActions()
+  }
+
+  async captureObservation(options = {}) {
+    if (!this.renderService) return { ok: false, error: 'Shared renderer is disabled' }
+    try {
+      const frame = await this.executor.run('capture', async signal => {
+        if (!this.isOnline()) throw new Error('Agent is offline')
+        this.stopPhysicalActions()
+        this.currentAction = 'capture'
+        try { return await this.renderService.capture(this, signal) }
+        finally { this.currentAction = this.connected ? 'Idle' : 'Offline' }
+      }, { ...options, timeoutMs: this.renderService.timeoutMs || 60000 })
+      return { ok: true, observation: { agentId: frame.agentId, agentName: this.name, sessionId: this.sessionId, revision: ++this.observationRevision,
+        observedAt: new Date(frame.timestamp).toISOString(), sources: ['rgb', 'depth', 'client-nbt'], frame } }
+    } catch (error) { return { ok: false, cancelled: error.name === 'AbortError', error: error.message } }
   }
 
   /** Whether the bot is connected and spawned. */
   startBrain(opts = {}, bus = null) {
-    if (this.brainLoop) return
+    if (this.brainLoop) return this.brainLoop.start()
     const { Brain } = require('./brain')
     const llmCfg = this.config?.llm || {}
     this.brainLoop = new Brain(this, llmCfg, bus || { emit: () => {} }, opts)
-    this.brainLoop.start()
+    return this.brainLoop.start()
   }
 
   isOnline() {
@@ -171,6 +232,8 @@ class SteveXAgent {
       this.brainLoop.stop()
       this.brainLoop = null
     }
+    this.executor.close()
+    this.stopPhysicalActions()
 
     if (this.bot) {
       if (this.bot._followInterval) {
