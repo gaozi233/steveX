@@ -1,0 +1,224 @@
+// Legacy native-player API catalog; not the shared renderer's execution allowlist.
+/**
+ * 采集端 mod（stevex-template-1.21.11）WebSocket API 方法清单。
+ *
+ * 共 51 个方法，分组与参数 schema 已按 mod Java 源码逐条核实
+ * （见 steveX_改进方案.md 附录 §十一；websocket 分发在 AgentWebSocketServer /
+ * api\*Api.java 各 handler 内，方法名注册与参数读取是两套并存的 ad hoc 逻辑）。
+ * 上层通过 POST /api/mod/:method 原样透传，mod 侧对未知方法会返回
+ * { ok:false, error:'unknown method: …' }。
+ *
+ * 条目字段：
+ *   method    方法名（含斜杠，透传路径用）
+ *   category  分组键（稳定）：continuous / one-shot / camera / query / system /
+ *             container / chat / sign / book / vision
+ *   description  英文短描述（/api/skills 语义，历史兼容）
+ *   zh        中文说明（Mod API 查询器展示 + 搜索用）。带参方法自带
+ *             "params 填 {…}" 枚举可填键（? 表示可省略）；无参方法无可填。
+ *   paramDefs 参数 schema 数组（权威，供查询器填参与 hints、未来 LLM 工具 schema）：
+ *             { name, type: 'bool'|'int'|'double'|'string', required?, def?, hint, sample? }
+ *             sample = 查询器预填的示例值（可与 def 不同以示可改）；无参数则 []。
+ *
+ * 参数读取语义（来自 mod 源码，直接影响填写建议）：
+ *   - num()/bool() 读取的键：缺省或类型不符时静默回落默认值（def）。
+ *   - (String)/(Number) 强转读取的键：缺省用默认值；类型不符会报错。
+ *   - vision/entity.uuid 是唯一硬性必填（缺/空/非 UUID 都报错）。
+ *   - 无参方法不读任何键，params 填 {} 或省略均可（mod 侧自动按 {} 处理）。
+ */
+
+const METHODS = [
+  // ── 持续按键（9）── 按住需显式 pressed:false 松开；序列结束时服务端也会兜底松开
+  { method: 'key/up', category: 'continuous', description: 'Hold forward',
+    zh: '按住 W 前进；params 填 { pressed }：true=按下持续 / false=松开',
+    paramDefs: [{ name: 'pressed', type: 'bool', def: true, hint: 'true=按下并持续 / false=松开', sample: true }] },
+  { method: 'key/down', category: 'continuous', description: 'Hold back',
+    zh: '按住 S 后退；params 填 { pressed }：true=按下持续 / false=松开',
+    paramDefs: [{ name: 'pressed', type: 'bool', def: true, hint: 'true=按下并持续 / false=松开', sample: true }] },
+  { method: 'key/left', category: 'continuous', description: 'Strafe left',
+    zh: '按住 A 向左平移；params 填 { pressed }：true=按下持续 / false=松开',
+    paramDefs: [{ name: 'pressed', type: 'bool', def: true, hint: 'true=按下并持续 / false=松开', sample: true }] },
+  { method: 'key/right', category: 'continuous', description: 'Strafe right',
+    zh: '按住 D 向右平移；params 填 { pressed }：true=按下持续 / false=松开',
+    paramDefs: [{ name: 'pressed', type: 'bool', def: true, hint: 'true=按下并持续 / false=松开', sample: true }] },
+  { method: 'key/jump', category: 'continuous', description: 'Hold jump',
+    zh: '按住空格 跳跃；params 填 { pressed }：true=按下持续 / false=松开',
+    paramDefs: [{ name: 'pressed', type: 'bool', def: true, hint: 'true=按下并持续 / false=松开', sample: true }] },
+  { method: 'key/sprint', category: 'continuous', description: 'Hold sprint',
+    zh: '按住 Ctrl 疾跑；params 填 { pressed }：true=按下持续 / false=松开',
+    paramDefs: [{ name: 'pressed', type: 'bool', def: true, hint: 'true=按下并持续 / false=松开', sample: true }] },
+  { method: 'key/sneak', category: 'continuous', description: 'Hold sneak',
+    zh: '按住 Shift 潜行；params 填 { pressed }：true=按下持续 / false=松开',
+    paramDefs: [{ name: 'pressed', type: 'bool', def: true, hint: 'true=按下并持续 / false=松开', sample: true }] },
+  { method: 'key/attack', category: 'continuous', description: 'Hold attack',
+    zh: '按住左键 挖掘/攻击；params 填 { pressed }：true=按下持续 / false=松开',
+    paramDefs: [{ name: 'pressed', type: 'bool', def: true, hint: 'true=按下并持续 / false=松开', sample: true }] },
+  { method: 'key/use', category: 'continuous', description: 'Hold use item',
+    zh: '按住右键 使用/进食/拉弓；params 填 { pressed }：true=按下持续 / false=松开',
+    paramDefs: [{ name: 'pressed', type: 'bool', def: true, hint: 'true=按下并持续 / false=松开', sample: true }] },
+
+  // ── 一次性按键 / 杂项（12）── 无参方法：params 填 {} 即可
+  { method: 'key/attack-once', category: 'one-shot', description: 'Attack once',
+    zh: '左键单击一次（空挥/攻击目标），无参数', paramDefs: [] },
+  { method: 'key/use-once', category: 'one-shot', description: 'Use item once',
+    zh: '右键单击一次（放置方块/使用物品），无参数', paramDefs: [] },
+  { method: 'key/drop', category: 'one-shot', description: 'Drop held item',
+    zh: '丢弃手持物品（Q），无参数', paramDefs: [] },
+  { method: 'key/pick-item', category: 'one-shot', description: 'Pick block/item',
+    zh: '拾取准星所指方块/物品（中键），无参数', paramDefs: [] },
+  { method: 'key/inventory', category: 'one-shot', description: 'Open inventory',
+    zh: '打开物品栏（E），无参数', paramDefs: [] },
+  { method: 'key/swap-hands', category: 'one-shot', description: 'Swap hands',
+    zh: '主副手互换（F），无参数', paramDefs: [] },
+  { method: 'key/chat', category: 'one-shot', description: 'Open chat input',
+    zh: '打开聊天输入框（T），无参数', paramDefs: [] },
+  { method: 'key/command', category: 'one-shot', description: 'Open command input',
+    zh: '打开命令输入框（/），无参数', paramDefs: [] },
+  { method: 'key/perspective', category: 'one-shot', description: 'Toggle camera perspective',
+    zh: '切换视角（F5），无参数', paramDefs: [] },
+  { method: 'key/quick-actions', category: 'one-shot', description: 'Toggle quick actions',
+    zh: '切换快速动作面板（F3+F），无参数', paramDefs: [] },
+  { method: 'key/hotbar', category: 'one-shot', description: 'Select hotbar slot (0-8)',
+    zh: '选择热键栏格子；params 填 { slot }：格子下标 0-8（越界静默忽略）',
+    paramDefs: [{ name: 'slot', type: 'int', def: 0, hint: '热键栏下标 0-8，越界静默忽略', sample: 3 }] },
+  { method: 'tablist', category: 'one-shot', description: 'Online players + scoreboard objective',
+    zh: '读取 Tab 在线玩家列表（名字/延迟/队伍）+ 计分板目标，无参数', paramDefs: [] },
+
+  // ── 视角（2）──
+  { method: 'camera/turn', category: 'camera', description: 'Turn camera by deltas (yaw, pitch)',
+    zh: '按增量旋转视角；params 填 { dx, dy }：dx=左右（偏航）、dy=上下（俯仰），单位度，自动取最短路径',
+    paramDefs: [
+      { name: 'dx', type: 'double', def: 0, hint: '左右旋转角度（度）', sample: 90 },
+      { name: 'dy', type: 'double', def: 0, hint: '上下俯仰角度（度）', sample: -10 }
+    ] },
+  { method: 'camera/look-at', category: 'camera', description: 'Look at a world coordinate',
+    zh: '注视世界坐标；params 填 { x, y, z }：目标坐标（建议三个都填，基于眼睛高度）',
+    paramDefs: [
+      { name: 'x', type: 'double', def: 0, hint: '目标 X 坐标', sample: 100 },
+      { name: 'y', type: 'double', def: 0, hint: '目标 Y 坐标', sample: 70 },
+      { name: 'z', type: 'double', def: 0, hint: '目标 Z 坐标', sample: 200 }
+    ] },
+
+  // ── 感知 / 查询（5）── 无参方法：params 填 {} 即可
+  { method: 'player', category: 'query', description: 'Player state (vitals/flags/effects/attributes)',
+    zh: '玩家状态：生命/食物/经验/护甲/空气/状态标志/药水效果/**属性表**，无参数。**attributes** 是以**属性注册名**为键的表（如 minecraft:attack_damage），每项 {base, value, modifiers?}：**base**＝不含任何修饰符的基础值＝"玩家自身"的贡献，**value**＝此刻**实际生效**的最终值（已含装备与药水效果，且已 clamp 到该属性的上下限），**modifiers** 仅非空时给、每项 {id, amount, operation}——与 inventory/container/get 的 slots[].attributeModifiers **同名同义**（那个多一个 slot＝生效装备槽），可直接对照。三者都是**字符串**（两位小数），与 container/get 的进度类字段同一口径。**算例（铁剑）**：主手铁剑时 attributes["minecraft:attack_damage"] = {base:"1.00", value:"6.00", modifiers:[{id:"minecraft:base_attack_damage", amount:"5.00", operation:"add_value"}]}，而物品自己那一半读 slots[].attributeModifiers 的 amount＝"5.00" ⇒ 5.00 + base 1.00 = 6.00（＝界面上的"攻击伤害"）。**易错**：物品**已在主手**时 value 里**已经含**它，别再叠加一次；base + 物品修饰符只用于"这物品还没上手，想知道拿上会是多少"。**modifiers[].id 的来源**：minecraft:base_attack_damage/base_attack_speed＝**主手物品**；minecraft:effect.*＝**药水效果**（力量就是 attack_damage 上的 minecraft:effect.strength，+3/级，故它已体现在 value 里）；随机 UUID 形＝/attribute 或插件。modifier 只有 id/amount/operation、**不带来源对象**，只能解读到 id 这一层。**⚠️ 属性 ≠ 伤害**：Player.attack 里属性值只是**第一行**，之后还有锋利等附魔、攻击冷却、暴击 ×1.5——"这一剑砍多少"要自己叠。属性表是**完整已知集合**：没有的属性直接不出现（不是"未知"）；**非同步属性**（attack_damage/attack_knockback/follow_range/tempt_range）在服务端用 /attribute 改过 base 时客户端收不到更新。注意 **vitals.armor** = floor(attributes["minecraft:armor"].value)、**vitals.armorToughness** 与 attributes["minecraft:armor_toughness"].value 同值（精度差一位：前者 1 位、后者 2 位）。', paramDefs: [] },
+  { method: 'inventory', category: 'query', description: 'Inventory contents',
+    zh: '背包内容：主手/副手/护甲/36 格物品及其组件（附魔/耐久/药水的 potionContents、旗帜的 bannerPatterns 等），无参数', paramDefs: [] },
+  { method: 'f3', category: 'query', description: 'F3 debug screen data',
+    zh: 'F3 调试数据：坐标/区块/环境(光照/生态/TPS)/准星目标(方块/实体)，无参数', paramDefs: [] },
+  { method: 'sound', category: 'query', description: 'Sound environment',
+    zh: '当前正在播放的所有声音快照（id/来源/音量/衰减等），无参数', paramDefs: [] },
+  { method: 'profiler', category: 'query', description: 'Performance profiler',
+    zh: '性能分析饼图递归树（% / 次数 / 子节点；需先 F3+1 采集），无参数', paramDefs: [] },
+
+  // ── 系统（3）──
+  { method: 'status', category: 'system', description: '{ busy:bool, error:string } — true when a non-status method is running',
+    zh: '系统状态 {busy, error}：busy=是否正有非 status 方法在执行，error=最近一次错误，无参数', paramDefs: [] },
+  { method: 'settings/get', category: 'system', description: 'Read settings',
+    zh: '读取设置：renderDistance / simulationDistance / fov，无参数', paramDefs: [] },
+  { method: 'settings/set', category: 'system', description: 'Write settings',
+    zh: '修改设置并保存；params 填 { renderDistance?, simulationDistance?, fov? }：提供哪些就改哪些，返回改后三值',
+    paramDefs: [
+      { name: 'renderDistance', type: 'int', def: 12, hint: '渲染距离（出现才改）', sample: 12 },
+      { name: 'simulationDistance', type: 'int', def: 12, hint: '模拟距离（出现才改）', sample: 12 },
+      { name: 'fov', type: 'int', def: 70, hint: '视野（出现才改）', sample: 80 }
+    ] },
+
+  // ── 容器（8）──
+  { method: 'container/get', category: 'container', description: 'Get open container contents',
+    zh: '读取当前打开的容器：类型/槽位物品/携带物品，及熔炉/附魔台/切石机/织布机/信标/酿造台/箱子等专用字段，无参数。**附魔台**额外给 costs/enchantClue/enchantName/levelClue/goldCount/bookshelves，三个选项按同一套下标对齐（enchantName 是附魔注册名如 "minecraft:sharpness"，选项不可用时为 null；enchantClue 是原始注册表数字 id，仅供排查）；bookshelves=有效书架数，是**世界状态**——靠准星所指方块定位附魔台，界面开着时用 camera/turn 转视角会让它失效，该键**缺席＝未知**（不是 0），且给的是原始计数（vanilla 算附魔等级时会 clamp 到 15）。**切石机**额外给 selectedRecipe/visibleRecipes/recipes——recipes 是方案列表的具体内容（每项是该方案在 GUI 上显示的图标物品，**下标与 container/button 的 button 号一一对应**，条目数应恒等于 visibleRecipes；输入物不是合法切割材料时为空数组）。**织布机**额外给 selectedPattern/patterns——patterns 是全部织布方案（**下标与 container/button 的 button 号一一对应**，1.21.11 图案槽为空时有 32 项）；每项是一面"选它就会得到"的旗（旗帜槽的旗＋该图案＋染料槽的颜色，与产物格算式一致），图案本身读该项的 bannerPatterns 字段（[{pattern:"minecraft:border",color:"red"}]），**不是**界面上那面灰底预览旗；旗帜或染料缺一时为空数组。**注意织布机的按钮号是全局下标**——界面 4×4 一次只显示 16 个、要滚动才看得全，但 patterns[] 给的是全量，点按钮**不需要先滚动**。织布机菜单的格子编号与切石机不同：4–30 = 背包 9–35、31–39 = 快捷栏 0–8（换算 s≤8 ? 31+s : s-5），且 0=旗帜 1=染料 2=图案 3=产物。**信标**额外给 levels/effects/primaryEffect/secondaryEffect——effects 是**全部可选效果**（不是"当前等级能选的"，而是界面上存在的那 6 个），每项 {effect,tier,canBePrimary,canBeSecondary}：effect 是效果注册名，tier 0–3 对应 speed,haste / resistance,jump_boost / strength / regeneration；canBePrimary 复刻主效果列的可点状态（tier < levels），canBeSecondary 复刻副效果列（**界面副效果列只放 regeneration**，且 levels ≥ 4 才有这一列）。primaryEffect/secondaryEffect 是**当前选中**，没选时是 **null**（不是缺席：vanilla 用 0 编码"没选效果"，那是"已知为空"）。**注意 tier 只是界面门禁、服务端不过滤**——container/beacon 能设出界面上点不到的效果，判断"界面允不允许"只能看这两个布尔。effects 是静态常量（每个信标、每个存档都一样），**不依赖 mc.level、不需要服务端回读**（与切石机的 recipes、织布机的 patterns 不同）。**酿造台**额外给 fuel/maxFuel/brewingTicks——**fuel 是"剩余可酿造次数"（0–20，maxFuel=20 是它的分母），不是燃料槽里烈焰粉的个数**；两者是两件事：fuel 归零时才会从燃料槽消耗 1 个烈焰粉并补满 20，烈焰粉本身的数量读 slots[] 里的 slot 4。brewingTicks 是**剩余**酿造 tick 数，从 **400**（＝20 秒）递减到 0，0=当前没在酿（400 在 vanilla 是字面量、无公开常量，故不作字段发出）。酿造台菜单格：0/1/2=三个药水格、3=原料格、4=燃料格、5–31=背包 9–35、32–40=快捷栏 0–8。**药水格（以及任何位置的药水）要读 id 之外的"这是哪瓶药"，看该物品的 potionContents 字段**：potion 是药水注册名（如 minecraft:strength），effects 是这瓶药**实际会给**的效果 [{effect,level,duration,visible}]——level 与 `player` 的 effects[].level 同为 1 起（"力量 II"＝level 2），duration 单位是 tick 且**已按 durationScale 折算**（滞留药水的该组件是 0.25，故会多一个 durationScale:0.25；不折算会把时长夸大 4 倍——酿造台的药水格是接受滞留药水的）。没有该组件的物品（玻璃瓶、绝大多数物品）不带此键。另：bannerPatterns 字段对任何位置的旗帜都生效（inventory 也读得到）；**potionContents 同理，对任何位置的药水生效**（背包里的药水也读得到）。**合成器**额外给 disabledSlots/powered/result——disabledSlots 是**被禁用**的合成格下标数组（合成格＝菜单下标 0–8，行优先即界面上第 1–9 格；禁用位来自菜单数据槽 0–8，开界面时服务端**全量**下发，故客户端持有权威副本、空数组是断言"当前没有禁用格"而非未知）；**禁用/解禁某格用 container/slot 对该格做一次 PICKUP 点击**（细节见 container/slot）。powered＝合成器是否被红石触发（界面右上那枚红石图标读的就是它）——合成器**只在被触发时才真的合成并吐料**。result＝合成预期产物（**配方不匹配时为 null＝"已知为无"**，不是缺席）；产物格不可交互（拿不走也放不进），它只是预览。合成器菜单格：0–8＝合成格、9–35＝背包 9–35、**36–44＝快捷栏 0–8**，产物格在 36 格玩家槽**之后**（当前下标 45，按类型定位、不写死）。注意 slots[] 只列非空格', paramDefs: [] },
+  { method: 'container/slot', category: 'container', description: 'Interact with a container slot',
+    zh: '点击容器格；params 填 { slot, button?, clickType? }：slot=格下标（先 container/get 看布局），button=0左键/1右键，clickType=0拾取 1快捷移动 2交换 4丢弃…。**合成器专属**：对合成格（下标 0–8）里的**空格**做一次 PICKUP 点击＝切换该格的"禁用"开关（被禁用的格子收不了料；当前禁用位读 container/get 的 disabledSlots）。vanilla 在这里**不看左右键**（左键右键都切），真正的门禁是**光标必须为空**——所以**禁用必须排在拿起任何物品之前**，一旦光标上拿着物品，右键就退化成"放 1 个"。服务端对**非空格**的禁用请求静默忽略（不报错）',
+    paramDefs: [
+      { name: 'slot', type: 'int', def: 0, hint: '容器格下标（先 container/get 查看布局）', sample: 1 },
+      { name: 'button', type: 'int', def: 0, hint: '0=左键 / 1=右键', sample: 0 },
+      { name: 'clickType', type: 'int', def: 0, hint: '0=拾取 1=快捷移动 2=交换 4=丢弃 5=合成…', sample: 0 }
+    ] },
+  { method: 'container/button', category: 'container', description: 'Click a container button',
+    zh: '点击容器界面按钮（如附魔台的第 N 个附魔选项、切石机/织布机的第 N 个方案，N 从 0 起）；params 填 { button }：按钮序号。返回 {status, accepted}——accepted 只表示本地预检通过且已发包，**不是执行结果**（服务端无论成功失败都不回包），是否真的生效须用 container/get 观察（附魔台看附魔位物品是否长出 enchantments、青金石是否被扣；切石机/织布机看 selectedRecipe/selectedPattern 是否变成该下标，注意它只能证明"选中了几号"，不能证明"几号是什么"——后者要读 recipes[]/patterns[]）。**织布机**的按钮号是**全局下标**（与 patterns[] 下标同一套）：界面 4×4 一次只显示 16 个、要滚动才看得全 32 个，但**点按钮不需要先滚动**；原因为 vanilla 已把滚动偏移 startRow 折进 index（LoomScreen:193-194）。越界（button ≥ 方案数）时预检不过，accepted:false 且不发包',
+    paramDefs: [{ name: 'button', type: 'int', def: 0, hint: '界面按钮序号（从 0 起）', sample: 0 }] },
+  { method: 'container/close', category: 'container', description: 'Close container screen',
+    zh: '关闭打开的容器界面，无参数', paramDefs: [] },
+  { method: 'container/text', category: 'container', description: 'Type into a container text field',
+    zh: '向当前聚焦的输入框写入文字（任意界面，含告示牌/书的输入框）；params 填 { text }：要填入的内容',
+    paramDefs: [{ name: 'text', type: 'string', def: '', hint: '要填入的文字', sample: 'hello' }] },
+  { method: 'container/drag', category: 'container', description: 'Send one QuickCraft drag phase',
+    zh: '发送一次拖拽的单个相位包（QuickCraft，纯原语不取物）。params 填 { phase, slot?, type? }：phase 0=begin 1=add 2=finish，add 必带 slot=container/get 的真实格 index（begin/finish 省略 slot），type 0=均分(默认) 1=每格放1 2=创造克隆。整段手势=先 container/slot clickType:0 拾取源格→phase 0→对每格 phase:1→phase:2，每条隔≥1 tick(waitMs≥50)，期间不得夹其它点击；返回 {status}',
+    paramDefs: [
+      { name: 'phase', type: 'int', def: 0, hint: '0=begin 1=add 2=finish', sample: 0 },
+      { name: 'slot', type: 'int', def: -999, hint: '目标格真实 index（container/get 的 slot）；仅 add 需要', sample: 9 },
+      { name: 'type', type: 'int', def: 0, hint: '0=均分(默认) 1=每格放1 2=创造克隆', sample: 0 }
+    ] },
+  { method: 'container/beacon', category: 'container', description: 'Set beacon effect & consume payment',
+    zh: '设置/切换信标效果并扣支付物（等价信标 GUI 的点效果图标+点√，直接发 SetBeacon 包）。params 填 { primary?, secondary? }：效果注册 id 如 "minecraft:haste"，缺省/空串=**把该槽清空为"无效果"**（不是"保持原样"）。前置：信标界面已开，支付物已用 container/slot 放入支付槽（menu slot 0），服务端无支付物时为空操作。**有哪些效果可选、哪些在当前等级下界面上能点，读 container/get 的 effects[]**（每项带 tier 与 canBePrimary/canBeSecondary）。**注意服务端不过滤 tier**——1 级信标设 regeneration 也会被接受并生效，这个包只管"界面允不允许"之外的事',
+    paramDefs: [
+      { name: 'primary', type: 'string', def: '', hint: '主效果注册 id，如 minecraft:strength（缺省/空=把该槽清空）', sample: 'minecraft:strength' },
+      { name: 'secondary', type: 'string', def: '', hint: '副效果注册 id（界面副效果列只给 regeneration，但服务端不过滤；缺省/空=把该槽清空）', sample: 'minecraft:regeneration' }
+    ] },
+  { method: 'container/select-trade', category: 'container', description: 'Select a villager trade (fills payment slot)',
+    zh: '选中村民交易列表第 index 笔（等价点交易界面第 index 行，直接发 SelectTrade 包）。只选中、不消耗物品；服务端会顺手把付款物从背包搬进支付格（填到满叠），随后用 container/slot { slot:2 } 点结算格完成交易（可连点，结算格自动补货）。params 填 { index }：交易下标，与 container/get 的 trades[] 同一套编号（0 起，越界报错并返回 size）。前置：交易界面已开；村民失效时服务端只写日志，表现为包发了但支付格没变',
+    paramDefs: [
+      { name: 'index', type: 'int', def: -1, hint: '交易下标（container/get 的 trades[] 序号，0 起）', sample: 1 }
+    ] },
+
+  // ── 聊天（3）──
+  { method: 'chat/text', category: 'chat', description: 'Type into the open chat box (no send)',
+    zh: '把文字填入已打开的聊天输入框，不发送（需先 key/chat）；params 填 { text }：要填入的内容',
+    paramDefs: [{ name: 'text', type: 'string', def: '', hint: '填入聊天框的文字（不发送）', sample: 'hello' }] },
+  { method: 'chat/send', category: 'chat', description: 'Send a chat message / run a command',
+    zh: '发送聊天消息，/ 开头作为命令执行；params 填 { text }：内容，聊天框已开则填入发送，未开则直发（空文本且未开框会报错）',
+    paramDefs: [{ name: 'text', type: 'string', def: '', hint: '聊天内容；未开聊天框时必填（空会报错），/ 开头=命令', sample: 'hello' }] },
+  { method: 'chat/close', category: 'chat', description: 'Close chat screen',
+    zh: '关闭聊天输入框（Esc），无参数', paramDefs: [] },
+
+  // ── 告示牌（3）──
+  { method: 'sign/get', category: 'sign', description: 'Read sign text',
+    zh: '读取告示牌编辑器：4 行文字与当前编辑行（需先编辑告示牌），无参数', paramDefs: [] },
+  { method: 'sign/set', category: 'sign', description: 'Write sign text',
+    zh: '设置告示牌某行文字；params 填 { line?, text }：line=行号 0-3（省略=当前编辑行），text=新文字',
+    paramDefs: [
+      { name: 'line', type: 'int', def: -1, hint: '行号 0-3；省略=当前编辑行', sample: 0 },
+      { name: 'text', type: 'string', def: '', hint: '要写入该行的文字', sample: 'hello' }
+    ] },
+  { method: 'sign/close', category: 'sign', description: 'Close sign editor',
+    zh: '保存并关闭告示牌编辑，无参数', paramDefs: [] },
+
+  // ── 书与笔（4）──
+  { method: 'book/get', category: 'book', description: 'Read book content',
+    zh: '读取书的全部页与当前页（需先编辑书），无参数', paramDefs: [] },
+  { method: 'book/set', category: 'book', description: 'Write book content',
+    zh: '覆写某页文字；params 填 { page?, text }：page=页号（省略=当前页，==总页数=追加一页，上限 100），text=新文字',
+    paramDefs: [
+      { name: 'page', type: 'int', def: -1, hint: '页号；省略=当前页；==总页数=追加一页', sample: 0 },
+      { name: 'text', type: 'string', def: '', hint: '该页的新文字', sample: 'hello' }
+    ] },
+  { method: 'book/page', category: 'book', description: 'Turn book page',
+    zh: '翻到指定页；params 填 { page }：页号（0 起，越界报错）',
+    paramDefs: [{ name: 'page', type: 'int', def: 0, hint: '要翻到的页号（0 起）', sample: 1 }] },
+  { method: 'book/close', category: 'book', description: 'Close book screen',
+    zh: '保存并关闭书，无参数', paramDefs: [] },
+
+  // ── 视觉（2，对应视觉系统方案 §6.2）──
+  { method: 'vision/snapshot', category: 'vision', description: 'Depth capture + visible blocks/entities + store stats',
+    zh: '深度采集 + 可见方块/方块实体/实体快照并落盘 NBT（首次最久约 15s），无参数；掉落物实体带 item{id,count,enchanted?}（enchanted 仅真附魔时出现）；活体实体（生物/玩家）另带 equipment{槽:{id,count?,enchanted?}}（槽 mainhand/offhand/feet/legs/chest/head/body/saddle）、name（仅名字牌可见时）、effects（效果种类 id，不含持续/等级；过滤不可见粒子的效果；数据源为单机集成服务器——连真实服务器时该键恒缺席，此时"缺席"是**未知**而非"没有效果"，须看顶层 effectsSource）、baby（仅幼年）、maxHealth、pose、onFire（仅着火）',
+    paramDefs: [] },
+  { method: 'vision/entity', category: 'vision', description: 'Stored entity entry by uuid (from last capture frame)',
+    zh: '按 uuid 查询本会话最近一次采集帧中的实体薄投影（非实时直读；首次采集前、切维后尚未重新采集、不在该帧可见范围时均报错）；params 填 { uuid(必填) }：uuid=实体 UUID（来自 vision/snapshot）。只返回物理态及可见摘要：掉落物 item{id,count,enchanted?}、展示实体 content、活体 living；不会返回复原侧完整物品组件、payload 或隐藏效果。响应带 effectsSource，unavailable 时效果缺席表示未知',
+    paramDefs: [
+      { name: 'uuid', type: 'string', required: true, hint: '实体 UUID（来自 f3 准星目标或 vision/snapshot）', sample: '00000000-0000-0000-0000-000000000000' }
+    ] },
+]
+
+/** 纯方法名数组（48），供前端 /api/skills 与状态页复用。 */
+const METHOD_NAMES = METHODS.map(m => m.method)
+
+/** 按 category 分组的 Map，便于展示。 */
+function methodsByCategory() {
+  const map = new Map()
+  for (const m of METHODS) {
+    if (!map.has(m.category)) map.set(m.category, [])
+    map.get(m.category).push(m)
+  }
+  return map
+}
+
+module.exports = { METHODS, METHOD_NAMES, methodsByCategory }

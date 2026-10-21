@@ -1,18 +1,7 @@
-/**
- * anvil — open the anvil block in sight
- */
+const api = require('../workstations')
+const native = require('../workstation_native')
 module.exports = {
-  name: 'anvil',
-  description: 'Open the anvil block in sight',
-  usage: 'anvil',
-  async handler(bot) {
-    const block = bot.blockAtCursor(4.5)
-    if (!block) return { ok: false, error: 'No block in sight' }
-    if (!['anvil', 'chipped_anvil', 'damaged_anvil'].includes(block.name)) {
-      return { ok: false, error: `Block in sight is ${block.name}, not an anvil` }
-    }
-    const anvil = await bot.openAnvil(block)
-    bot._anvil = anvil
-    return { ok: true, output: 'Opened anvil' }
-  }
+  name: 'anvil', description: 'Open, rename or combine items in an anvil',
+  usage: 'anvil [open|rename <slot> <name>|combine <slot1> <slot2> [name]]',
+  handler: (bot, args = [], agent, options = {}) => api.guarded(() => native.anvil(bot, args, options.signal))
 }

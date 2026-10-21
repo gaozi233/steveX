@@ -2,6 +2,8 @@
 
 日期：2026-10-21。迁移最初在 `integration/agent-runtime-shared-render` 完成，后续分支收拢见 [分支说明](branch-consolidation.md)。未引入 DSH、Fabric 动作透传、Mod Batch 或第二套玩家控制链路。
 
+后续本地修复增加显式 `-LiveFeedback`（额外记忆客户端、按 agent 的实时反馈），默认快照模式不变。两者边界、命令与测试见 [迁移核查与修复](research-migration-parity.md)；该后续修复尚未合并到 main。Mineflayer 新增开窗记忆是独立的 window-local JSON，不冒充旧 Java 容器 NBT。
+
 ## API 分层
 
 - Java + Fabric 客户端 Mod 使用 Minecraft 的 `CompoundTag`、`NbtIo` 等采集并写入 NBT；不是 Paper 服务端插件。

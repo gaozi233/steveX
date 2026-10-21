@@ -90,6 +90,13 @@ tasks.register('testRenderDemand', JavaExec) {
 
 check.dependsOn testRenderDemand
 
+tasks.register('testRendererMethodPolicy', JavaExec) {
+    dependsOn demandTestClasses
+    classpath = sourceSets.demandTest.runtimeClasspath
+    mainClass = 'name.modid.RendererMethodPolicyTest'
+}
+check.dependsOn testRendererMethodPolicy
+
 publishing {
 	publications {
 		create("mavenJava", MavenPublication) {

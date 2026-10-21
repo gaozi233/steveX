@@ -1,5 +1,5 @@
 # steveX
-一个基于 Mineflayer 的 Minecraft LLM Agent 框架，支持多 Agent 管理、77 个命令、Web 面板实时监控。
+一个基于 Mineflayer 的 Minecraft LLM Agent 框架，支持多 Agent 管理、79 个命令、Web 面板实时监控。
 
 > 运行时采用 Mineflayer，已加入 Brain 生命周期与动作仲裁修复，以及可选的后台共享 Fabric 观测端。[运行说明与验收记录](docs/integration-runtime-render.md)。
 
@@ -35,13 +35,15 @@ npm start
 
 ## 功能特性
 
-### 命令系统（77 个命令）
+### 命令系统（79 个命令）
 
-- **Actions（57 个）** — 动作指令：移动、挖掘、建造、交互、合成等
-- **Queries（14 个）** — 环境查询：位置、血量、背包、附近方块/实体等
+- **Actions（58 个）** — 动作指令：移动、挖掘、建造、交互、合成等
+- **Queries（15 个）** — 环境查询：位置、血量、背包、附近方块/实体等
 - **Creative（6 个）** — 创造模式：飞行、物品栏编辑等
 
 所有命令自动加载，详见 [`src/commands/`](src/commands/)。
+
+特殊工作站、村民交易及当前窗口查询见 [Mineflayer 工作站 API](docs/mineflayer-workstations.md)。
 
 ### 多 Agent 管理
 
@@ -55,10 +57,10 @@ npm start
 
 ## 研究探索
 
-Fabric GPU 视觉采集与 MemoryWorld 原型保留在
-[`research/visual-world-model`](https://github.com/piggy4/steveX/tree/research/visual-world-model)
-分支，用于研究部分可观测环境中的视觉世界状态建模。该实验分支不替代当前 Mineflayer
-主线，验证成熟的通用接口将通过独立 PR 合回。
+原 Fabric GPU 视觉采集与 MemoryWorld 原型通过
+[`archive/research-visual-world-model-2026-10-21`](https://github.com/piggy4/steveX/tree/archive/research-visual-world-model-2026-10-21)
+标签保留。当前主线由 Mineflayer 执行玩家动作，可选共享 Fabric 渲染与独立记忆复原调试；不引入旧 DSH 运行时。
+迁移内容和未完成项见 [迁移核查](docs/research-migration-parity.md)，同学接手见 [Fabric 交接文档](docs/fabric-handover.md)。
 
 研究范围和主线边界见 [`docs/research/visual-world-model.md`](docs/research/visual-world-model.md)，
 项目贡献者见 [`CONTRIBUTORS.md`](CONTRIBUTORS.md)。

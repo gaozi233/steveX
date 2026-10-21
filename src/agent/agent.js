@@ -23,6 +23,11 @@ class SteveXAgent {
     this.renderService = options.renderService || null
     this.observationRevision = 0
     this.sessionId = require('node:crypto').randomUUID()
+    const { InteractionMemory } = require('./interaction_memory')
+    this.interactionMemory = new InteractionMemory({ agentName: name,
+      agentId: config.renderer?.agentId || name, sessionId: this.sessionId,
+      memoryNamespace: options.memoryNamespace || `session-${this.sessionId}`,
+      server: { host: config.minecraft?.host, port: config.minecraft?.port || 25565 } })
 
     // Current action shown on the web console.
     // It will be updated when a command is running.
@@ -51,6 +56,8 @@ class SteveXAgent {
 
   registerEvents() {
     this.bot.once('spawn', () => {
+      require('../commands/workstations').attach(this.bot)
+      this.interactionMemory.attach(this.bot)
       this.connected = true
       this.connecting = false
       this.currentAction = 'Idle'
@@ -64,6 +71,7 @@ class SteveXAgent {
 
     // 统一断连处理：end/kicked 都标记为离线
     const onDisconnect = (reason) => {
+      this.interactionMemory.close()
       this.brainLoop?.stop()
       this.executor.close()
       this.stopPhysicalActions()
@@ -228,6 +236,7 @@ class SteveXAgent {
 
   /** Gracefully disconnect the bot from the server. */
   shutdown() {
+    this.interactionMemory.close()
     if (this.brainLoop) {
       this.brainLoop.stop()
       this.brainLoop = null

@@ -169,7 +169,7 @@ public class ContainerMemoryApplier {
 
         final Path storeDir = config.resolveContainerDir();
         if (storeDir == null || !Files.isDirectory(storeDir)) {
-            if (missingSourceCounter++ % 30 == 0) {
+            if (missingSourceCounter++ % (config.snapshotDebug ? 600 : 30) == 0) {
                 LOGGER.warn("[MemoryWorld] Container store directory missing, updates paused (gameDir={}). "
                         + "Set 'containerFile' in config/stevex-test/memory.json.",
                         config.gameDirectory());
