@@ -83,7 +83,7 @@ public class AgentWebSocketServer extends WebSocketServer {
     private static volatile String lastError = "";
 
     public AgentWebSocketServer() {
-        super(new InetSocketAddress(System.getProperty("stevex.ws.host", "0.0.0.0"), PORT));
+        super(new InetSocketAddress(System.getProperty("stevex.ws.host", "127.0.0.1"), PORT));
         setReuseAddr(true);
     }
 
@@ -119,6 +119,10 @@ public class AgentWebSocketServer extends WebSocketServer {
             Map<String, Object> params = (Map<String, Object>) req.getOrDefault("params", Map.of());
 
             WsHandler handler = handlers.get(method);
+            if (!RendererMethodPolicy.allows(method, Boolean.getBoolean("stevex.render.background") || RenderBridge.isBound())) {
+                sendError(conn, id, "Shared renderer is observation-only; use the Mineflayer agent state/command APIs, not the renderer player's body");
+                return;
+            }
             if (handler == null) {
                 sendError(conn, id, "unknown method: " + method);
                 return;

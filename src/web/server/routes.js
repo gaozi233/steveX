@@ -19,6 +19,10 @@ function registerRoutes(app, manager) {
     })
   })
 
+  app.get('/api/commands', (req, res) => {
+    res.json({ ok: true, commands: manager.commandList || [] })
+  })
+
   // ---- Read environment config ----
   app.get('/api/config/environment', async (req, res) => {
     try {
@@ -103,6 +107,19 @@ function registerRoutes(app, manager) {
     } catch (err) {
       res.status(400).json({ ok: false, code: err.code || 'QUERY_FAILED', error: err.message })
     }
+  })
+
+  app.get('/api/agents/:name/state', (req, res) => {
+    const agent = manager.agents.get(req.params.name)
+    if (!agent) return res.status(404).json({ ok: false, error: 'Agent not started' })
+    try { res.json({ ok: true, ...require('../../agent/interaction_memory').playerState(agent) }) }
+    catch (error) { res.status(400).json({ ok: false, error: error.message }) }
+  })
+
+  app.get('/api/agents/:name/memory/containers', (req, res) => {
+    const agent = manager.agents.get(req.params.name)
+    if (!agent) return res.status(404).json({ ok: false, error: 'Agent not started' })
+    res.json({ ok: true, ...agent.interactionMemory.snapshot() })
   })
 
   app.post('/api/agents/:name/brain/:operation', (req, res) => {

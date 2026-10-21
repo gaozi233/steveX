@@ -58,6 +58,19 @@ java {
 	targetCompatibility = JavaVersion.VERSION_21
 }
 
+sourceSets {
+    leaseTest {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+tasks.register('testFeedbackWriterLease', JavaExec) {
+    dependsOn leaseTestClasses
+    classpath = sourceSets.leaseTest.runtimeClasspath
+    mainClass = 'com.example.memworld.FeedbackWriterLeaseTest'
+}
+check.dependsOn testFeedbackWriterLease
+
 jar {
 	def projectName = project.name
 	inputs.property "projectName", projectName

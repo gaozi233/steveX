@@ -54,6 +54,9 @@ public class MemoryConfig {
     public boolean autoOpenOnLaunch = true;
     public boolean resetOnLaunch = false;
     public boolean snapshotDebug = false;
+    public String sourceOwnerFile = "";
+    public String sourceOwnerSha256 = "";
+    private FeedbackWriterLease feedbackLease;
     /** v2.30：下界 / 末地同主世界一样建成纯虚空（世界生成器只在创建时定型，改此值须重建记忆世界才生效）。 */
     public boolean voidNetherEnd = true;
     // v2.23（§7.11）：减量删除配置（反向通道）。removalEnabled=false → 纯累积语义（v2 原状）。
@@ -96,6 +99,12 @@ public class MemoryConfig {
 
     private MemoryConfig() {
         load();
+        if (!sourceOwnerFile.isBlank()) {
+            try {
+                if (!sourceOwnerValid()) throw new IOException("Source owner changed before feedback startup");
+                feedbackLease = new FeedbackWriterLease(Path.of(sourceOwnerFile).getParent().resolve("feedback-writer.lock"));
+            } catch (IOException e) { throw new IllegalStateException("Cannot start live feedback", e); }
+        }
     }
 
     private void load() {
@@ -116,6 +125,8 @@ public class MemoryConfig {
                 if (json.has("autoOpenOnLaunch") && json.get("autoOpenOnLaunch").isJsonPrimitive()) autoOpenOnLaunch = json.get("autoOpenOnLaunch").getAsBoolean();
                 if (json.has("resetOnLaunch") && json.get("resetOnLaunch").isJsonPrimitive()) resetOnLaunch = json.get("resetOnLaunch").getAsBoolean();
                 if (json.has("snapshotDebug")) snapshotDebug = json.get("snapshotDebug").getAsBoolean();
+                if (json.has("sourceOwnerFile")) sourceOwnerFile = json.get("sourceOwnerFile").getAsString();
+                if (json.has("sourceOwnerSha256")) sourceOwnerSha256 = json.get("sourceOwnerSha256").getAsString();
                 if (json.has("voidNetherEnd") && json.get("voidNetherEnd").isJsonPrimitive()) voidNetherEnd = json.get("voidNetherEnd").getAsBoolean();
                 if (json.has("removalEnabled") && json.get("removalEnabled").isJsonPrimitive()) removalEnabled = json.get("removalEnabled").getAsBoolean();
                 if (json.has("removalPixelThreshold") && json.get("removalPixelThreshold").isJsonPrimitive()) removalPixelThreshold = json.get("removalPixelThreshold").getAsInt();
@@ -177,6 +188,15 @@ public class MemoryConfig {
     /** 客户端游戏目录；非客户端环境返回 null。 */
     public Path gameDirectory() {
         return Minecraft.getInstance() == null ? null : Minecraft.getInstance().gameDirectory.toPath();
+    }
+
+    public boolean sourceOwnerValid() {
+        if (sourceOwnerFile.isBlank()) return true;
+        try {
+            byte[] bytes = Files.readAllBytes(Path.of(sourceOwnerFile));
+            String actual = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes));
+            return actual.equals(sourceOwnerSha256);
+        } catch (Exception e) { return false; }
     }
 
     /**

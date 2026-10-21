@@ -7,7 +7,7 @@ const skill = {
   description: 'List inventory contents',
   args,
   async handler(_b, _a, agent) {
-    const items = agent.bot.inventory.items()
+    const items = require('../../agent/interaction_memory').inventoryItems(agent.bot)
     if (items.length === 0) return { ok: true, output: 'Inventory is empty' }
     const list = items.map(i => `${i.name} x${i.count}`).join(', ')
     return { ok: true, output: `Inventory: ${list}` }

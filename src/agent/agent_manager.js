@@ -9,6 +9,7 @@ class AgentManager {
     const loaded = loadCommands()
     this.sharedCommands = loaded.commands
     this.queryNames = loaded.queryNames
+    this.commandList = loaded.list
     this.agents = new Map()
     this.eventBus = new EventEmitter()
     this.eventBus.setMaxListeners(50)
@@ -34,11 +35,14 @@ class AgentManager {
   // ── Lifecycle ──
 
   async disconnectAll() {
-    const draining = [...this.agents.values()].map(agent => agent.executor.tail)
+    const stopping = [...this.agents.values()]
     for (const name of this.agents.keys()) {
       this.disconnectAgent(name)
     }
-    await Promise.all(draining)
+    await Promise.all(stopping.map(async agent => {
+      await agent.executor.tail
+      await agent.interactionMemory?.tail
+    }))
   }
 
   reload() {
@@ -75,7 +79,8 @@ class AgentManager {
     if (!cfg || existing?.isOnline() || existing?.isConnecting()) return !!cfg
 
     if (existing) existing.shutdown()
-    const agent = new SteveXAgent(cfg, name, this.sharedCommands, { queryNames: this.queryNames, renderService: this.renderService })
+    const agent = new SteveXAgent(cfg, name, this.sharedCommands, { queryNames: this.queryNames, renderService: this.renderService,
+      memoryNamespace: this.config.renderer?.memoryNamespace })
     agent.start()
     if (cfg?.brain?.enabled) agent.startBrain(cfg.brain, this.eventBus)
     this.agents.set(name, agent)

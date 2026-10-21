@@ -13,7 +13,7 @@ import name.modid.AgentWebSocketServer.WsHandler;
 
 /** One operator-controlled spectator camera, with isolated per-agent memory contexts. */
 public final class RenderBridge {
-    private static UUID target;
+    private static volatile UUID target;
     private static String agentId;
     private static String memoryNamespace;
     private static int matchingFrames;
@@ -22,6 +22,15 @@ public final class RenderBridge {
     private static CameraType previousCameraType;
 
     private RenderBridge() {}
+
+    public static boolean isBound() { return target != null; }
+
+    private static Map<String, Object> feedbackStatus() {
+        java.nio.file.Path root = MemoryPaths.directory();
+        return Map.of("cellsFilePresent", java.nio.file.Files.isRegularFile(root.resolve("memory_cells.bin")),
+                "spritesFilePresent", java.nio.file.Files.isRegularFile(root.resolve("memory_sprites.bin")),
+                "note", "Files are optional evidence inputs, not a guarantee of valid deletion evidence");
+    }
 
     public static void register(Map<String, WsHandler> handlers) {
         handlers.put("render/bind", RenderBridge::bind);
@@ -114,6 +123,7 @@ public final class RenderBridge {
             data.put("windowVisible", org.lwjgl.glfw.GLFW.glfwGetWindowAttrib(window, org.lwjgl.glfw.GLFW.GLFW_VISIBLE) != 0);
             data.put("windowFocused", org.lwjgl.glfw.GLFW.glfwGetWindowAttrib(window, org.lwjgl.glfw.GLFW.GLFW_FOCUSED) != 0);
             data.put("mouseGrabbed", mc.mouseHandler.isMouseGrabbed());
+            if (target != null) data.put("memoryFeedback", feedbackStatus());
             ref.value = data;
         });
         return result == null ? Map.of("ok", false, "error", "render status timed out") : result;
@@ -170,6 +180,7 @@ public final class RenderBridge {
                 frame.put("memoryNamespace", memoryNamespace);
                 frame.put("memoryDirectory", MemoryPaths.directory().toString());
                 frame.put("targetUuid", target.toString());
+                frame.put("memoryFeedback", feedbackStatus());
                 frame.put("includeHud", false);
                 frame.put("synchronization", "server-spectator-camera; client-interpolated; not server-tick-locked");
                 return frame;

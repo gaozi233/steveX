@@ -14,6 +14,7 @@ import org.lwjgl.glfw.GLFW;
 /** Opt-in smoke check; never participates in ordinary agent or debug runs. */
 public final class DebugVerification {
     private final long deadline = System.nanoTime() + 180_000_000_000L;
+    private final long startedAt = System.currentTimeMillis();
     private int readyTicks;
     private boolean started;
     private boolean finished;
@@ -80,6 +81,14 @@ public final class DebugVerification {
             boolean screenshot = Files.isRegularFile(mc.gameDirectory.toPath().resolve("screenshots/verification.png"));
             report.addProperty("screenshotSaved", screenshot);
             if (!screenshot) report.addProperty("ok", false);
+            MemoryConfig config = MemoryConfig.get();
+            if (!config.sourceOwnerFile.isBlank()) {
+                var cells = config.resolveMemoryCellsFile();
+                boolean fresh = Files.isRegularFile(cells) && Files.getLastModifiedTime(cells).toMillis() >= startedAt;
+                report.addProperty("feedbackFresh", fresh);
+                report.addProperty("feedbackOwnerValid", config.sourceOwnerValid());
+                if (!fresh || !config.sourceOwnerValid()) report.addProperty("ok", false);
+            }
             Files.writeString(mc.gameDirectory.toPath().resolve("verification.json"), report.toString());
         } catch (Exception e) {
             System.err.println("Memory verification report failed: " + e);

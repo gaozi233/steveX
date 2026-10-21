@@ -1,10 +1,10 @@
 const fs = require('node:fs/promises')
 const path = require('node:path')
-const { randomUUID } = require('node:crypto')
+const { randomUUID, createHash } = require('node:crypto')
 const { loadConfig } = require('../src/utils/config')
 const { resolveAgentMemory } = require('../src/nbt/agent_memory')
 
-async function prepareMemoryDebug(config, name) {
+async function prepareMemoryDebug(config, name, { liveFeedback = false } = {}) {
   if (!config.renderer?.enabled) throw new Error('Renderer is disabled in the selected config')
   const agent = (config.agents || []).find(entry => entry.name === name)
   if (!agent) throw new Error('Agent not found in the selected config')
@@ -14,34 +14,39 @@ async function prepareMemoryDebug(config, name) {
   const snapshot = path.join(gameDir, 'snapshot')
   await fs.mkdir(gameDir, { recursive: true })
   // Snapshot-only debugging: never write feedback into the live renderer's memory.
-  await fs.mkdir(snapshot)
+  if (!liveFeedback) await fs.mkdir(snapshot)
   const sources = new Set(['owner.properties', 'terrain.nbt', 'entities.nbt', 'entities_union.nbt',
     'block_entities', 'containers', 'biomes', 'terrain_union'])
-  for (const entry of await fs.readdir(memory.visionRoot, { withFileTypes: true })) {
+  for (const entry of liveFeedback ? [] : await fs.readdir(memory.visionRoot, { withFileTypes: true })) {
     if (sources.has(entry.name) && !entry.isSymbolicLink()) {
       await fs.cp(path.join(memory.visionRoot, entry.name), path.join(snapshot, entry.name), { recursive: true })
     }
   }
-  const feedback = path.join(gameDir, 'feedback')
+  const source = liveFeedback ? memory.visionRoot : snapshot
+  const feedback = liveFeedback ? memory.visionRoot : path.join(gameDir, 'feedback')
+  const ownerFile = path.join(memory.visionRoot, 'owner.properties')
   const settings = {
     worldName: 'MemoryDebug', autoOpenOnLaunch: true, resetOnLaunch: false, snapshotDebug: true,
-    sourceFile: path.join(snapshot, 'block_entities'), terrainFile: path.join(snapshot, 'terrain.nbt'),
-    entityFile: path.join(snapshot, 'entities.nbt'), containerFile: path.join(snapshot, 'containers'),
-    biomeFile: path.join(snapshot, 'biomes'), memoryCellsFile: path.join(feedback, 'memory_cells.bin'),
-    memorySpritesFile: path.join(feedback, 'memory_sprites.bin'), removalEnabled: false,
-    pollIntervalTicks: 20
+    sourceFile: path.join(source, 'block_entities'), terrainFile: path.join(source, 'terrain.nbt'),
+    entityFile: path.join(source, 'entities.nbt'), containerFile: path.join(source, 'containers'),
+    biomeFile: path.join(source, 'biomes'), memoryCellsFile: path.join(feedback, 'memory_cells.bin'),
+    memorySpritesFile: path.join(feedback, 'memory_sprites.bin'), removalEnabled: liveFeedback,
+    sourceOwnerFile: liveFeedback ? ownerFile : '',
+    sourceOwnerSha256: liveFeedback ? createHash('sha256').update(await fs.readFile(ownerFile)).digest('hex') : '',
+    pollIntervalTicks: liveFeedback ? 1 : 20
   }
   const configDir = path.join(gameDir, 'config/stevex-test')
   await fs.mkdir(configDir, { recursive: true })
   await fs.copyFile(path.resolve(__dirname, '../configs/render-options.txt'), path.join(gameDir, 'options.txt'))
   await fs.writeFile(path.join(configDir, 'memory.json'), JSON.stringify(settings, null, 2))
   await fs.writeFile(path.join(gameDir, 'source.json'), JSON.stringify({ ...memory,
-    copiedAt: new Date().toISOString(), snapshotAtomic: false }, null, 2))
-  return { gameDir, snapshot, agentId: memory.agentId, memoryNamespace: memory.memoryNamespace }
+    preparedAt: new Date().toISOString(), mode: liveFeedback ? 'live-feedback' : 'snapshot', snapshotAtomic: false }, null, 2))
+  return { gameDir, snapshot: liveFeedback ? null : snapshot, feedbackRoot: feedback,
+    liveFeedback, agentId: memory.agentId, memoryNamespace: memory.memoryNamespace }
 }
 
 if (require.main === module) {
-  prepareMemoryDebug(loadConfig(), process.argv[2]).then(result => {
+  prepareMemoryDebug(loadConfig(), process.argv[2], { liveFeedback: process.argv.includes('--live-feedback') }).then(result => {
     console.log(JSON.stringify(result))
   }).catch(err => { console.error(err.message); process.exitCode = 1 })
 }

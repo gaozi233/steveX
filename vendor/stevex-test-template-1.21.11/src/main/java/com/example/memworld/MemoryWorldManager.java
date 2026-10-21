@@ -83,6 +83,7 @@ public final class MemoryWorldManager {
 
     /** 当前服务器是否已对玩家做过"创造 + 飞行 + 传送"的一次性初始化。 */
     private static boolean playerReady;
+    private static boolean sourceOwnerRejected;
 
     /**
      * v2.32（§5.1 镜像跟随复原）：记忆镜像只路由 vanilla 三维。agent 处于其它（自定义 / 数据包）
@@ -334,6 +335,12 @@ public final class MemoryWorldManager {
         }
 
         if (!server.getWorldData().getLevelName().equals(MemoryConfig.get().worldName)) return;
+        if (!MemoryConfig.get().sourceOwnerValid()) {
+            if (!sourceOwnerRejected) LOGGER.error("[MemoryWorld] Source owner changed or is unreadable; restoration and feedback paused");
+            sourceOwnerRejected = true;
+            return;
+        }
+        sourceOwnerRejected = false;
 
         final List<ServerPlayer> players = server.getPlayerList().getPlayers();
         final ServerPlayer player = players.isEmpty() ? null : players.get(0);

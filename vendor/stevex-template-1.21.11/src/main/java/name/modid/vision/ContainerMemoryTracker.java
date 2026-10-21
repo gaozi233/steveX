@@ -99,6 +99,10 @@ public final class ContainerMemoryTracker {
 
     /** 每帧驱动：屏幕转移 → 绑定/结束会话；会话期间缓存菜单内容。全部在主线程执行。 */
     public static void onClientTick(final Minecraft mc) {
+        if (Boolean.getBoolean("stevex.render.background") || RenderBridge.isBound()) {
+            onMemorySwitch();
+            return;
+        }
         if (mc.player == null || mc.level == null) {
             session = null;
             return;
