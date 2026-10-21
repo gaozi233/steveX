@@ -112,10 +112,27 @@ function playerState(agent) {
   const bot = agent.bot
   if (!agent.isOnline()) throw new Error('Agent is offline')
   return plain({ agentName: agent.name, sessionId: agent.sessionId, uuid: bot.entity?.uuid || bot.player?.uuid,
-    source: 'mineflayer-protocol', observedAt: new Date().toISOString(), dimension: bot.game?.dimension,
+    source: 'mineflayer-protocol', observedAt: new Date().toISOString(), dimension: bot.game?.dimension, minecraftVersion: bot.version,
+    orientation: { yaw: bot.entity?.yaw, pitch: bot.entity?.pitch, unit: 'radians' },
+    motion: { velocity: bot.entity?.velocity, onGround: bot.entity?.onGround, inWater: bot.entity?.isInWater, inLava: bot.entity?.isInLava },
+    controls: Object.fromEntries(['forward', 'back', 'left', 'right', 'jump', 'sprint', 'sneak']
+      .map(control => [control, bot.getControlState?.(control) ?? bot.controlState?.[control] ?? null])),
+    airSupplyTicks: bot.entity?.metadata?.[1] ?? null,
+    localTerrain: localTerrain(bot),
     position: bot.entity?.position, health: bot.health, food: bot.food, oxygen: bot.oxygenLevel,
     gameMode: bot.game?.gameMode, inventorySlotSpace: bot.currentWindow ? 'current-window' : 'player-inventory',
     inventory: inventoryItems(bot).map(itemView) })
+}
+
+function localTerrain(bot) {
+  if (!bot.entity?.position || !bot.blockAt) return []
+  const center = bot.entity.position.floored()
+  const describe = block => block ? { name: block.name, boundingBox: block.boundingBox, shapes: block.shapes } : null
+  return Array.from({ length: 9 }, (_, index) => {
+    const p = center.offset(index % 3 - 1, 0, Math.floor(index / 3) - 1)
+    return { x: p.x, y: p.y, z: p.z, below: describe(bot.blockAt(p.offset(0, -1, 0))),
+      feet: describe(bot.blockAt(p)), head: describe(bot.blockAt(p.offset(0, 1, 0))), overhead: describe(bot.blockAt(p.offset(0, 2, 0))) }
+  })
 }
 
 function inventoryItems(bot) {

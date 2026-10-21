@@ -5,14 +5,13 @@ function velocityCompatibility(bot) {
 
   let ownOxygenLevel = null
 
-  const normalizeOxygen = () => {
-    if (bot.oxygenLevel > 20) {
-      bot.oxygenLevel = Math.max(0, Math.min(20, Math.round(bot.oxygenLevel / 20)))
-    }
-    if (bot.oxygenLevel != null) ownOxygenLevel = bot.oxygenLevel
+  const airKey = bot.registry?.entitiesByName?.player?.metadataKeys?.indexOf('air_supply') ?? 1
+  const setAir = raw => {
+    if (typeof raw === 'number' && Number.isFinite(raw)) ownOxygenLevel = Math.max(0, Math.min(20, Math.round(raw / 15)))
+    bot.oxygenLevel = ownOxygenLevel
   }
 
-  bot.once('spawn', normalizeOxygen)
+  bot.once('spawn', () => setAir(bot.entity?.metadata?.[airKey]))
 
   bot._client.on('entity_velocity', (packet) => {
     const entity = bot.entities[packet.entityId]
@@ -25,13 +24,9 @@ function velocityCompatibility(bot) {
   bot._client.on('entity_metadata', (packet) => {
     if (!bot.entity) return
 
-    if (packet.entityId === bot.entity.id) {
-      // 1.21.11 reports 400 Mineflayer units for a full 20-icon air bar.
-      normalizeOxygen()
-    } else if (ownOxygenLevel != null) {
-      // Mineflayer 4.39.0 updates bot.oxygenLevel from nearby entities too.
-      bot.oxygenLevel = ownOxygenLevel
-    }
+    const air = packet.entityId === bot.entity.id ? packet.metadata?.find(entry => entry.key === airKey) : null
+    // Use the body's raw air ticks, never infer a scale from another entity's reading.
+    setAir(air?.value)
   })
 
   return true

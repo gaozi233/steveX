@@ -6,8 +6,7 @@ module.exports = {
   description: 'Show oxygen level',
   usage: 'oxygen',
   async handler(bot) {
-    let oxygen = bot.oxygenLevel
-    if (bot.version === '1.21.11' && oxygen > 20) oxygen = Math.round(oxygen / 20)
-    return { ok: true, output: `Oxygen: ${oxygen ?? '?'}/20` }
+    const oxygen = bot.oxygenLevel ?? null
+    return { ok: true, output: `Oxygen: ${oxygen ?? '?'}/20`, oxygen, maxOxygen: 20 }
   }
 }

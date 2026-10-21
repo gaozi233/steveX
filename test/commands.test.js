@@ -41,9 +41,36 @@ test('gamemode supports modern string values and legacy numeric values', async (
   assert.equal((await gamemode.handler({ game: { gameMode: 1 } })).output, 'Game mode: creative')
 })
 
-test('oxygen normalizes the 1.21.11 metadata scale', async () => {
-  const result = await oxygen.handler({ version: '1.21.11', oxygenLevel: 400 })
+test('oxygen reports the normalized body reading without guessing another scale', async () => {
+  const result = await oxygen.handler({ version: '1.21.11', oxygenLevel: 20 })
   assert.equal(result.output, 'Oxygen: 20/20')
+  assert.equal((await oxygen.handler({ oxygenLevel: null })).oxygen, null)
+})
+
+test('basic actions reject nonfinite angles/coordinates and partial duration strings', async () => {
+  const bot = { look() { throw Error('must not run') }, lookAt() { throw Error('must not run') }, setControlState() { throw Error('must not run') } }
+  const look = require('../src/commands/actions/look')
+  const lookat = require('../src/commands/actions/lookat')
+  const move = require('../src/commands/actions/move')
+  for (const args of [['Infinity', '0'], ['0', '2'], ['NaN', '0']]) assert.equal((await look.handler(bot, args)).ok, false)
+  assert.equal((await lookat.handler(bot, ['0', 'Infinity', '0'])).ok, false)
+  for (const duration of ['100abc', '1.5', '0', '-1', '30001']) assert.equal((await move.handler(bot, ['forward', duration])).ok, false)
+})
+
+test('nearby applies a radius, sorts nearest first, and matches player usernames', async () => {
+  const { Vec3 } = require('vec3')
+  const nearby = require('../src/commands/queries/nearby')
+  const body = { position: new Vec3(0, 64, 0) }
+  const agent = { bot: { entity: body, entities: {
+    0: body, 1: { name: 'turtle', type: 'animal', position: new Vec3(80, 64, 0) },
+    2: { name: 'player', username: 'Observer', type: 'player', position: new Vec3(5, 64, 0) },
+    3: { name: 'chicken', type: 'animal', position: new Vec3(2, 64, 0) }
+  } } }
+  const result = await nearby.handler(agent.bot, [], agent)
+  assert.deepEqual(result.entities.map(e => e.name), ['chicken', 'Observer'])
+  assert.equal((await nearby.handler(agent.bot, ['observer', '10'], agent)).entities.length, 1)
+  assert.equal((await nearby.handler(agent.bot, ['all', '100abc'], agent)).ok, false)
+  assert.equal((await nearby.handler(agent.bot, ['all', '1'], agent)).entities.length, 0)
 })
 
 test('commands reject missing prerequisites without calling Mineflayer', async () => {
