@@ -41,17 +41,8 @@ public class VisionCollector {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    /** NBT 持久化存储 —— 增量保存，自动去重。 */
-    private static final VisionBlockEntityStore store = new VisionBlockEntityStore();
-
-    /** 地形方块快照存储 —— 快照覆盖写（v2 起内容 = 本次可见方块，无 scannedSections）。 */
-    private static final VisionTerrainStore terrainStore = new VisionTerrainStore();
-
-    /** 实体轻量快照存储 —— 快照覆盖写（v2 起内容 = 本次可见实体，无 scannedSections）。 */
-    private static final VisionEntityStore entityStore = new VisionEntityStore();
-
-    /** v2.31：群系 cell 存储 —— 单调 union 覆盖写（独立 biomes.nbt，见 VisionBiomeStore）。 */
-    private static final VisionBiomeStore biomeStore = new VisionBiomeStore();
+    /** Each root owns independent in-memory snapshots and union maps. */
+    private static final java.util.Map<java.nio.file.Path, Stores> contexts = new java.util.HashMap<>();
 
     /**
      * v2.47（累积观测文件，见 docs/累积观测文件设计方案.md §4.5 决策 D）：两个 union store 共用的
@@ -62,11 +53,19 @@ public class VisionCollector {
      */
     private static final UnionSaveScheduler unionScheduler = new UnionSaveScheduler();
 
-    /** v2.47：累积地形并集（只给 agent 读；terrain.nbt 的语义与格式一个字不动）。 */
-    private static final TerrainUnionStore terrainUnionStore = new TerrainUnionStore(unionScheduler);
+    // All contexts share one save thread; each store captures its own immutable paths.
+    private static final class Stores {
+        final VisionBlockEntityStore store = new VisionBlockEntityStore();
+        final VisionTerrainStore terrainStore = new VisionTerrainStore();
+        final VisionEntityStore entityStore = new VisionEntityStore();
+        final VisionBiomeStore biomeStore = new VisionBiomeStore();
+        final TerrainUnionStore terrainUnionStore = new TerrainUnionStore(unionScheduler);
+        final EntityUnionStore entityUnionStore = new EntityUnionStore(unionScheduler);
+    }
 
-    /** v2.47：累积实体并集（只给 agent 读；entities.nbt 的语义与格式一个字不动）。 */
-    private static final EntityUnionStore entityUnionStore = new EntityUnionStore(unionScheduler);
+    private static synchronized Stores stores() {
+        return contexts.computeIfAbsent(MemoryPaths.directory(), key -> new Stores());
+    }
 
     // ==================== 实体整份 payload 序列化（v2.35） ====================
 
@@ -228,29 +227,29 @@ public class VisionCollector {
     // ==================== 查询接口 ====================
 
     public static VisionBlockEntityStore getStore() {
-        return store;
+        return stores().store;
     }
 
     public static VisionTerrainStore getTerrainStore() {
-        return terrainStore;
+        return stores().terrainStore;
     }
 
     public static VisionEntityStore getEntityStore() {
-        return entityStore;
+        return stores().entityStore;
     }
 
     /** v2.31：群系 cell 存储访问。 */
     public static VisionBiomeStore getBiomeStore() {
-        return biomeStore;
+        return stores().biomeStore;
     }
 
     /** v2.47：累积地形并集访问（只给采集端自身用——记忆端不知道这两个文件存在）。 */
     public static TerrainUnionStore getTerrainUnionStore() {
-        return terrainUnionStore;
+        return stores().terrainUnionStore;
     }
 
     /** v2.47：累积实体并集访问（同上）。 */
     public static EntityUnionStore getEntityUnionStore() {
-        return entityUnionStore;
+        return stores().entityUnionStore;
     }
 }

@@ -11,13 +11,17 @@
     "bootstrap": "powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1",
     "mc:capture": "powershell -ExecutionPolicy Bypass -File scripts/run-capture.ps1",
     "mc:memory": "powershell -ExecutionPolicy Bypass -File scripts/run-memory.ps1",
+    "render:bridge": "node src/render_bridge/main.js",
+    "render:client": "powershell -ExecutionPolicy Bypass -File scripts/run-renderer.ps1",
+    "test:render": "node --test test/render_bridge/*.test.js",
     "start:all": "powershell -ExecutionPolicy Bypass -File scripts/start-all.ps1"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "dependencies": {
     "express": "^5.2.1",
+    "mineflayer": "^4.39.0",
     "ws": "^8.21.3"
   },
   "devDependencies": {

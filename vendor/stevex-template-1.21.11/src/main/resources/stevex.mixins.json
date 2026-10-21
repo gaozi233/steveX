@@ -12,6 +12,10 @@
 		"BookEditScreenAccessor"
 	],
 	"client": [
+		"BackgroundWindowMixin",
+		"BackgroundMouseMixin",
+		"DemandRenderMixin",
+		"DemandFramerateMixin",
 		"LevelRendererMixin",
 		"ChunkSectionsToRenderMixin"
 	],

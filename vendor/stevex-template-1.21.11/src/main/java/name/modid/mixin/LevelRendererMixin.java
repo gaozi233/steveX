@@ -7,6 +7,7 @@ import java.util.List;
 import name.modid.vision.DecorativeConfig;
 import name.modid.vision.DecorativeSummary;
 import name.modid.vision.DepthCapture;
+import name.modid.vision.RenderBridge;
 import name.modid.vision.LivingSummary;
 import name.modid.vision.VisionCollector;
 import net.minecraft.client.Camera;
@@ -74,6 +75,7 @@ public abstract class LevelRendererMixin {
             final boolean shouldRenderSky,
             final CallbackInfo ci
     ) {
+        RenderBridge.onFrame(camera);
         DepthCapture.tryCapture(camera, projectionMatrix, modelViewMatrix);
     }
 

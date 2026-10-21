@@ -11,9 +11,14 @@ import java.nio.ByteOrder;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.Screenshot;
+import net.minecraft.util.Util;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -67,6 +72,7 @@ public class DepthCapture {
 
     private static final Object LOCK = new Object();
     private static volatile boolean captureRequested;
+    private static boolean rgbRequested;
     private static CountDownLatch pendingLatch;
     private static DepthSnapshot readySnapshot;
 
@@ -116,7 +122,12 @@ public class DepthCapture {
 
     /** 请求在下一帧采集深度图。 */
     public static void requestCapture() {
+        requestCapture(false);
+    }
+
+    public static void requestCapture(boolean rgb) {
         synchronized (LOCK) {
+            rgbRequested = rgb;
             captureRequested = true;
             readySnapshot = null;
             pendingLatch = new CountDownLatch(1);
@@ -348,6 +359,7 @@ public class DepthCapture {
     public static void tryCapture(final Camera camera, final Matrix4f projectionMatrix, final Matrix4f modelViewMatrix) {
         CountDownLatch latch;
         List<EntitySnapshotData> entities;
+        boolean includeRgb;
         synchronized (LOCK) {
             if (captureRequested) {
                 // 请求在 extractVisibleEntities 之后才置位 → 本帧无法配齐实体快照 →
@@ -362,6 +374,7 @@ public class DepthCapture {
             readySnapshot = null;
             latch = pendingLatch;
             entities = pendingEntities;
+            includeRgb = rgbRequested;
         }
         if (latch == null) return;
 
@@ -379,6 +392,7 @@ public class DepthCapture {
             return;
         }
 
+        PendingRead issuedMainRead = null;
         try {
             final RenderTarget target = Minecraft.getInstance().getMainRenderTarget();
             final GpuTexture depth = target != null ? target.getDepthTexture() : null;
@@ -390,8 +404,25 @@ public class DepthCapture {
 
             // 主深度回读：硬失败（读不到 → 整帧失败，原因经异常上报）
             final PendingRead mainRead = issueDepthRead(depth);
+            issuedMainRead = mainRead;
             final int width = mainRead.width();
             final int height = mainRead.height();
+            // Enqueue the color read in the same world pass, before hand/HUD rendering.
+            final CompletableFuture<String> rgb = new CompletableFuture<>();
+            if (includeRgb) {
+                final Path imagePath = MemoryPaths.directory().resolve("rgb").resolve(UUID.randomUUID() + ".png");
+                Screenshot.takeScreenshot(target, image -> Util.ioPool().execute(() -> {
+                    try (image) {
+                        Files.createDirectories(imagePath.getParent());
+                        image.writeToFile(imagePath);
+                        rgb.complete(imagePath.toAbsolutePath().toString());
+                    } catch (Exception error) {
+                        rgb.completeExceptionally(error);
+                    }
+                }));
+            } else {
+                rgb.complete(null);
+            }
 
             // translucent 目标深度（v2.24 两深度锚点，§3.3/§5.4）：PBO 已由 prepareTranslucentRead
             // 在 renderGroup(TRANSLUCENT) TAIL 发起。null → 未发起 / 软失败 → 单深度快照
@@ -413,6 +444,7 @@ public class DepthCapture {
             Matrix4f proj = new Matrix4f(projectionMatrix);
             Matrix4f mv = new Matrix4f(modelViewMatrix);
             long timestamp = System.currentTimeMillis();
+            String cameraUuid = camera.entity().getUUID().toString();
 
             // 回调在 GPU 完成两个 PBO 填充后于渲染线程触发（非阻塞）。fence 在两条 glReadPixels 之后
             // 插入 → 回调触发时主深度与 translucent 深度均已填充完成，同一帧两套深度天然对齐。
@@ -444,7 +476,13 @@ public class DepthCapture {
                                     tLessThanM == 0 ? "all t==m" : String.format(java.util.Locale.ROOT, "tMin=%.4f", tMin));
                         }
                     }
-                    complete(latch, new DepthSnapshot(width, height, depthData, translucentData, camPos, camYaw, camPitch, camFov, worldTime, proj, mv, entities, timestamp), null);
+                    final float[] translucentResult = translucentData;
+                    rgb.whenComplete((imagePath, error) -> {
+                        if (error != null) complete(latch, null, "RGB capture failed: " + error.getMessage());
+                        else complete(latch, new DepthSnapshot(width, height, depthData, translucentResult,
+                                camPos, camYaw, camPitch, camFov, worldTime, proj, mv, entities,
+                                timestamp, cameraUuid, imagePath), null);
+                    });
                 } catch (Exception e) {
                     LOGGER.error("[DepthCapture] readback failed", e);
                     complete(latch, null, e.getMessage());
@@ -456,6 +494,7 @@ public class DepthCapture {
                 }
             });
         } catch (Exception e) {
+            discardPendingRead(issuedMainRead);
             discardPendingRead(translucentRead);
             LOGGER.error("[DepthCapture] capture failed", e);
             complete(latch, null, e.getMessage());
@@ -464,6 +503,7 @@ public class DepthCapture {
 
     private static void complete(final CountDownLatch latch, final DepthSnapshot snapshot, final String error) {
         synchronized (LOCK) {
+            if (latch != pendingLatch) return;
             readySnapshot = snapshot;
             lastError = error;
         }
@@ -526,7 +566,9 @@ public class DepthCapture {
             Matrix4f projectionMatrix,
             Matrix4f modelViewMatrix,
             List<EntitySnapshotData> entities,
-            long timestamp
+            long timestamp,
+            String cameraUuid,
+            String rgbPath
     ) {
         /** 指定像素的主目标深度值；y 自底向上，越界返回 1.0（按天空处理）。 */
         public float depthAt(final int x, final int y) {

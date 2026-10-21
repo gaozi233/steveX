@@ -2,6 +2,10 @@
 
 > **Research branch:** `research/visual-world-model` explores a Fabric-based visual world-state model. It does not replace the Mineflayer runtime retained on `main`; reusable interfaces should return to `main` through focused pull requests.
 
+> **Render bridge experiment:** `experiment/mineflayer-fabric-render` adds one Mineflayer player plus a separate Fabric spectator renderer. This is an isolated prototype, not a replacement for either branch. See [setup, limitations and manual tests](docs/research/mineflayer-fabric-render-bridge.md).
+
+> **Shared renderer update:** Multiple Mineflayer players now share one on-demand, background Fabric renderer with separate memory contexts. See [pool setup and memory isolation](docs/research/mineflayer-fabric-render-pool.md). The renderer window is hidden by default and cannot capture the mouse.
+
 一个**可复现部署**的 Minecraft LLM Agent 系统：仓库保留 SteveX 与 Fabric mod 源码，第三方 Agent 基座通过锁定依赖安装，可在另一台机器重建整条链路（含 Minecraft 客户端）。
 
 底层感知/动作**不再用 mineflayer**，而是透传采集端 mod（`stevex-template-1.21.11`，跑在 Minecraft 客户端内）的 **WebSocket JSON-RPC API（51 个方法，端口 25550）**——"一个客户端 = 一个 agent 的身体 + 眼睛"。
@@ -69,7 +73,7 @@ SteveX 的定制放在 `dsh-plugins/`，升级 DSH 时不会被覆盖。版本�
 | 依赖 | 版本 | 说明 |
 |---|---|---|
 | JDK | **21+**（21–25 均可） | mod 构建/运行 |
-| Node.js | ≥18（DSH 已在 22.21 验证） | steveX 本体与 DSH npm 依赖 |
+| Node.js | ≥22（已在 22.21 验证） | steveX、DSH 与本分支新增的 Mineflayer 依赖 |
 | 网络 | 首次构建需要 | gradle 自动下载 Gradle 9.5.1、Fabric 依赖与 **Minecraft 客户端 jar** |
 
 无需预装 Minecraft：`gradlew runClient` 会自动完成客户端重建。

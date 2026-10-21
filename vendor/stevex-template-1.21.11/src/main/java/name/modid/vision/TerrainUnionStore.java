@@ -98,7 +98,7 @@ public class TerrainUnionStore {
     public TerrainUnionStore(final UnionSaveScheduler scheduler) {
         this.scheduler = scheduler;
         scheduler.registerWriter(this::flush);
-        final Path dir = Minecraft.getInstance().gameDirectory.toPath().resolve(DIR_NAME);
+        final Path dir = MemoryPaths.directory();
         try {
             Files.createDirectories(dir);
         } catch (IOException e) {

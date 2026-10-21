@@ -59,6 +59,37 @@ jar {
 }
 
 // configure the maven publication
+loom {
+    runs {
+        renderer {
+            client()
+            runDir 'run-renderer'
+            programArgs '--username', 'SteveXRenderer', '--width', '960', '--height', '540',
+                    '--quickPlayMultiplayer', System.getProperty('stevex.render.server', '127.0.0.1:25565')
+            vmArgs '-Dstevex.ws.port=' + System.getProperty('stevex.render.port', '25550')
+            vmArgs '-Dstevex.ws.host=127.0.0.1'
+            vmArgs '-Dstevex.render.background=true'
+            vmArgs '-Dstevex.render.hidden=' + System.getProperty('stevex.render.hidden', 'true')
+            vmArgs '-Dstevex.render.onDemand=' + System.getProperty('stevex.render.onDemand', 'true')
+        }
+    }
+}
+
+sourceSets {
+    demandTest {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+
+tasks.register('testRenderDemand', JavaExec) {
+    dependsOn demandTestClasses
+    classpath = sourceSets.demandTest.runtimeClasspath
+    mainClass = 'name.modid.vision.RenderDemandTest'
+}
+
+check.dependsOn testRenderDemand
+
 publishing {
 	publications {
 		create("mavenJava", MavenPublication) {

@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import name.modid.api.*;
 import name.modid.vision.VisionApi;
+import name.modid.vision.RenderBridge;
 import net.minecraft.client.Minecraft;
 import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
@@ -26,7 +27,7 @@ import org.java_websocket.server.WebSocketServer;
  */
 public class AgentWebSocketServer extends WebSocketServer {
 
-    private static final int PORT = 25550;
+    private static final int PORT = Integer.getInteger("stevex.ws.port", 25550);
     /** 入站解析用（{@code fromJson}）。 */
     public static final Gson GSON = new Gson();
 
@@ -73,6 +74,7 @@ public class AgentWebSocketServer extends WebSocketServer {
         SignApi.register(handlers);
         BookApi.register(handlers);
         VisionApi.register(handlers);
+        RenderBridge.register(handlers);
     }
 
     /** 当前正在执行（尚未返回）的 API 方法名集合，用于 status/busy 上报 */
@@ -81,7 +83,7 @@ public class AgentWebSocketServer extends WebSocketServer {
     private static volatile String lastError = "";
 
     public AgentWebSocketServer() {
-        super(new InetSocketAddress(PORT));
+        super(new InetSocketAddress(System.getProperty("stevex.ws.host", "0.0.0.0"), PORT));
         setReuseAddr(true);
     }
 

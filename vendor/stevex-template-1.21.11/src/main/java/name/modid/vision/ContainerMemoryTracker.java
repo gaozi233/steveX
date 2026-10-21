@@ -79,7 +79,10 @@ public final class ContainerMemoryTracker {
     private static final int DOUBLE_MENU_SIZE = 54;
     private static final int HALF_SIZE = 27;
 
-    private static final ContainerMemoryStore STORE = ContainerMemoryStore.get();
+    public static void onMemorySwitch() {
+        session = null;
+        ignoreScreen = null;
+    }
 
     /** 当前绑定的容器会话（null = 无）。只在客户端线程访问。 */
     private static BoundSession session;
@@ -205,7 +208,7 @@ public final class ContainerMemoryTracker {
                 // 单块非 double 容器：本地槽 = region 序号
                 writeRecord(mc, s.dimension, s.pos, s.blockId, items);
             }
-            STORE.save();
+            ContainerMemoryStore.get().save();
         } catch (RuntimeException e) {
             LOGGER.warn("[Vision] Container session commit at {} failed: {}", s.pos, e.getMessage());
         }
@@ -226,7 +229,7 @@ public final class ContainerMemoryTracker {
                 if (tag != null) tags.add(new ContainerMemoryStore.SlotTag(it.slot(), tag));
             }
         }
-        STORE.setEnder(tags);
+        ContainerMemoryStore.get().setEnder(tags);
         writeRecord(mc, s.dimension, s.pos, s.blockId, List.of());
         LOGGER.info("[Vision] Committed ender inventory ({} stacks) + occurrence at {} (dim={})",
                 tags.size(), s.pos, s.dimension);
@@ -278,7 +281,7 @@ public final class ContainerMemoryTracker {
         if (!state.isAir() && VisionCollector.blockId(state).equals(s.blockId)
                 && chestType(state) != null && chestType(state) != ChestType.SINGLE) {
             Direction conn = ChestBlock.getConnectedDirection(state);
-            STORE.remove(s.dimension, posKey(s.pos.relative(conn)));
+            ContainerMemoryStore.get().remove(s.dimension, posKey(s.pos.relative(conn)));
         }
         writeRecord(mc, s.dimension, s.pos, s.blockId, items);
     }
@@ -293,7 +296,7 @@ public final class ContainerMemoryTracker {
             CompoundTag tag = encodeItem(it.stack());
             if (tag != null) tags.add(new ContainerMemoryStore.SlotTag(it.slot(), tag));
         }
-        STORE.upsert(dimension, posKey(pos), typeIdFor(state, blockId), blockId, props, tags);
+        ContainerMemoryStore.get().upsert(dimension, posKey(pos), typeIdFor(state, blockId), blockId, props, tags);
     }
 
     // ==================== 辅助 ====================

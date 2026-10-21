@@ -73,7 +73,7 @@ public class VisionBiomeStore {
     private final Path legacyFilePath;
 
     public VisionBiomeStore() {
-        final Path dir = Minecraft.getInstance().gameDirectory.toPath().resolve(DIR_NAME);
+        final Path dir = MemoryPaths.directory();
         try {
             Files.createDirectories(dir);
         } catch (IOException e) {

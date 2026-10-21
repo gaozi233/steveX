@@ -110,7 +110,7 @@ public class VisionEntityStore {
     private boolean capturedThisSession;
 
     public VisionEntityStore() {
-        Path dir = Minecraft.getInstance().gameDirectory.toPath().resolve(DIR_NAME);
+        Path dir = MemoryPaths.directory();
         try {
             Files.createDirectories(dir);
         } catch (IOException e) {

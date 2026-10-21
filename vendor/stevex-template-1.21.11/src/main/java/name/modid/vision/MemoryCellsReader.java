@@ -179,7 +179,7 @@ public final class MemoryCellsReader {
     private CellsData cached;
 
     public MemoryCellsReader() {
-        Path dir = Minecraft.getInstance().gameDirectory.toPath().resolve(DIR_NAME);
+        Path dir = MemoryPaths.directory();
         this.filePath = dir.resolve(FILE_NAME);
     }
 

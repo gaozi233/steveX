@@ -117,7 +117,7 @@ public class VisionTerrainStore {
     private String currentDimension = WorldsFile.LEGACY_DIMENSION;
 
     public VisionTerrainStore() {
-        Path dir = Minecraft.getInstance().gameDirectory.toPath().resolve(DIR_NAME);
+        Path dir = MemoryPaths.directory();
         try {
             Files.createDirectories(dir);
         } catch (IOException e) {

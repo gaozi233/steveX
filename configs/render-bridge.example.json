@@ -1,0 +1,13 @@
+{
+  "agentId": "render-pilot",
+  "minecraft": {
+    "host": "127.0.0.1",
+    "port": 25565,
+    "username": "SteveXBot",
+    "auth": "offline",
+    "version": "1.21.11"
+  },
+  "rendererUrl": "ws://127.0.0.1:25550",
+  "httpPort": 8091,
+  "outputDir": "runs/render-bridge"
+}

@@ -70,10 +70,10 @@ public final class SpriteTableCache {
     /** 单张掩码的 texel 上限（与记忆侧 4096×4096 对称，防损坏文件撑爆内存）。 */
     private static final int MAX_TEXELS = 4096 * 4096;
 
-    private static final SpriteTableCache INSTANCE = new SpriteTableCache();
+    private static final java.util.Map<Path, SpriteTableCache> INSTANCES = new java.util.HashMap<>();
 
-    public static SpriteTableCache get() {
-        return INSTANCE;
+    public static synchronized SpriteTableCache get() {
+        return INSTANCES.computeIfAbsent(MemoryPaths.directory(), key -> new SpriteTableCache());
     }
 
     /**
@@ -102,8 +102,7 @@ public final class SpriteTableCache {
     private Mask[] byIndex = new Mask[0];
 
     private SpriteTableCache() {
-        this.filePath = Minecraft.getInstance().gameDirectory.toPath()
-                .resolve(DIR_NAME).resolve(FILE_NAME);
+        this.filePath = MemoryPaths.directory().resolve(FILE_NAME);
     }
 
     /** 本表当前载入的 epoch（0 = 无表 / 解析失败 / 文件缺失）；诊断用。 */

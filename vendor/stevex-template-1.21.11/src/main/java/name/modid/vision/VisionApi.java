@@ -5,6 +5,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Base64;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import name.modid.AgentWebSocketServer;
@@ -19,6 +24,7 @@ import net.minecraft.nbt.Tag;
  * 视觉系统 API —— 人工触发收集 + 保存。
  */
 public class VisionApi {
+    public static final Object CAPTURE_LOCK = new Object();
 
     /** 视觉链路统一超时：深度采集等待 + 渲染线程 resolve/entity 查询（§8），毫秒 */
     private static final long SNAPSHOT_TIMEOUT_MS = 15_000;
@@ -50,7 +56,19 @@ public class VisionApi {
      *                          "entities":{entities}, "biomes":{cells,added}(v2.31) } }
      */
     private static Map<String, Object> snapshot() {
-        DepthCapture.requestCapture();
+        return capture(false);
+    }
+
+    public static Map<String, Object> capture(boolean rgb) {
+        synchronized (CAPTURE_LOCK) {
+            try (var demand = RenderDemand.INSTANCE.acquire()) {
+                return captureLocked(rgb);
+            }
+        }
+    }
+
+    private static Map<String, Object> captureLocked(boolean rgb) {
+        DepthCapture.requestCapture(rgb);
         final DepthCapture.DepthSnapshot snap;
         try {
             snap = DepthCapture.awaitSnapshot(SNAPSHOT_TIMEOUT_MS);
@@ -207,6 +225,28 @@ public class VisionApi {
         // v2.31：生物群系 cell 统计（union 总数 + 本帧新增；新增>0 意味着 biomes.nbt 有更新）
         storeStats.put("biomes", result.value.biomeStats());
         resp.put("storeStats", storeStats);
+        if (rgb) {
+            try {
+                resp.put("rgb", Map.of("mimeType", "image/png", "base64",
+                        Base64.getEncoder().encodeToString(Files.readAllBytes(Path.of(snap.rgbPath())))));
+            } catch (Exception error) {
+                return Map.of("ok", false, "error", "RGB read failed: " + error.getMessage());
+            }
+            // Export native normalized depth, not metric distance. RGB and depth are top-left.
+            ByteBuffer data = ByteBuffer.allocate(snap.width() * snap.height() * Float.BYTES)
+                    .order(ByteOrder.LITTLE_ENDIAN);
+            for (int y = snap.height() - 1; y >= 0; y--) {
+                for (int x = 0; x < snap.width(); x++) data.putFloat(snap.depthAt(x, y));
+            }
+            resp.put("depth", Map.of("encoding", "float32-le-base64", "origin", "top-left",
+                    "units", "native-depth-buffer", "base64", Base64.getEncoder().encodeToString(data.array())));
+            resp.put("cameraUuid", snap.cameraUuid());
+            resp.put("camera", Map.of("position", List.of(snap.cameraPos().x, snap.cameraPos().y, snap.cameraPos().z),
+                    "yawDegrees", snap.yaw(), "pitchDegrees", snap.pitch(), "fovDegrees", snap.fov(),
+                    "projectionMatrix", snap.projectionMatrix().get(new float[16]),
+                    "modelViewMatrix", snap.modelViewMatrix().get(new float[16]),
+                    "dayTime", snap.dayTime()));
+        }
         return resp;
     }
 

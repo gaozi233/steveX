@@ -95,7 +95,7 @@ public class ContainerMemoryStore {
     private static final String KEY_ITEM = "item";
     private static final String KEY_SLOT = "slot";
 
-    private static final ContainerMemoryStore INSTANCE = new ContainerMemoryStore();
+    private static final Map<Path, ContainerMemoryStore> INSTANCES = new java.util.HashMap<>();
 
     /** v2.48：维度 → 区键 → 该区的容器记录镜像（区键 = "rx,rz"，由方块坐标 {@code >> 9} 导出）。 */
     private final Map<String, Map<String, RegionBucket>> byDim = new LinkedHashMap<>();
@@ -117,7 +117,7 @@ public class ContainerMemoryStore {
     private final Path legacyFilePath;
 
     private ContainerMemoryStore() {
-        final Path dir = Minecraft.getInstance().gameDirectory.toPath().resolve(DIR_NAME);
+        final Path dir = MemoryPaths.directory();
         try {
             Files.createDirectories(dir);
         } catch (IOException e) {
@@ -130,8 +130,8 @@ public class ContainerMemoryStore {
         migrateLegacyIfPresent();
     }
 
-    public static ContainerMemoryStore get() {
-        return INSTANCE;
+    public static synchronized ContainerMemoryStore get() {
+        return INSTANCES.computeIfAbsent(MemoryPaths.directory(), key -> new ContainerMemoryStore());
     }
 
     // ==================== 公开接口（提交路径调用，随后 save()） ====================
