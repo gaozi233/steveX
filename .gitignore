@@ -19,5 +19,11 @@ runs/
 # User-specific environment config (API keys, credentials)
 configs/environments/
 
+# Fabric development output
+vendor/**/.gradle/
+vendor/**/build/
+vendor/**/run/
+vendor/**/run-renderer/
+
 # IDE specific files
 steveX.code-workspace

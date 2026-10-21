@@ -1,6 +1,12 @@
 # steveX
 一个基于 Mineflayer 的 Minecraft LLM Agent 框架，支持多 Agent 管理、77 个命令、Web 面板实时监控。
 
+> 运行时采用 Mineflayer，已加入 Brain 生命周期与动作仲裁修复，以及可选的后台共享 Fabric 观测端。[运行说明与验收记录](docs/integration-runtime-render.md)。
+
+> 已迁入按 agent 隔离的 NBT 查询与可选记忆复原调试，不引入 DSH。[NBT API 与调试指南](docs/nbt-memory-debug.md)。
+
+> 分支收拢采用保留历史的合并，旧研究路线通过归档标签保留。[分支与历史说明](docs/branch-consolidation.md)。
+
 > **项目定位：** 构建一套 **以"版本控制"与"群体进化"为核心的多智能体系统架构**，在 Minecraft 虚拟环境中探索 AI Agent 的前沿技术。
 
 ![design](./docs/images/design.png)

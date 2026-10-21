@@ -10,6 +10,7 @@ const path = require('path')
 function loadCommands() {
   const commands = {}
   const list = []
+  const queryNames = new Set()
 
   const dirs = ['actions', 'queries', 'creative']
 
@@ -30,15 +31,17 @@ function loadCommands() {
 
       const name = mod.name || path.basename(file, '.js')
       commands[name] = mod.handler
+      if (dir === 'queries') queryNames.add(name)
       list.push({
         name,
+        kind: dir === 'queries' ? 'query' : dir === 'creative' ? 'creative' : 'action',
         description: mod.description || '',
         usage: mod.usage || name
       })
     }
   }
 
-  return { commands, list }
+  return { commands, list, queryNames }
 }
 
 module.exports = { loadCommands }

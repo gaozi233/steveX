@@ -6,39 +6,76 @@ class AgentManager {
   constructor(loadConfig) {
     this.loadConfig = loadConfig
     this.config = this.loadConfig()
-    this.sharedCommands = loadCommands().commands
+    const loaded = loadCommands()
+    this.sharedCommands = loaded.commands
+    this.queryNames = loaded.queryNames
     this.agents = new Map()
     this.eventBus = new EventEmitter()
     this.eventBus.setMaxListeners(50)
+    this.lifecycle = Promise.resolve()
+    this.closing = false
+    this.reloading = false
 
     // Pre-index agent configs by name for O(1) lookup
     this.agentConfigs = new Map(
       (this.config.agents || []).map(cfg => [cfg.name, cfg])
     )
+    this.renderService = this.createRenderer()
+  }
+
+  createRenderer() {
+    if (!this.config.renderer?.enabled) return null
+    const { SharedRenderService } = require('../render_bridge/service')
+    const service = new SharedRenderService(this.config.renderer, [...this.agentConfigs.values()])
+    service.connect()
+    return service
   }
 
   // ── Lifecycle ──
 
-  disconnectAll() {
+  async disconnectAll() {
+    const draining = [...this.agents.values()].map(agent => agent.executor.tail)
     for (const name of this.agents.keys()) {
       this.disconnectAgent(name)
     }
+    await Promise.all(draining)
   }
 
   reload() {
-    this.disconnectAll()
-    this.config = this.loadConfig()
+    const work = this.lifecycle.then(async () => {
+      if (this.closing) throw new Error('Manager is closing')
+      this.reloading = true
+      try { await this.reloadNow() }
+      finally { this.reloading = false }
+    })
+    this.lifecycle = work.catch(() => {})
+    return work
+  }
+
+  async reloadNow() {
+    const next = this.loadConfig()
+    // Validate the next renderer config before tearing down the current runtime.
+    if (next.renderer?.enabled) {
+      const { SharedRenderService } = require('../render_bridge/service')
+      new SharedRenderService(next.renderer, next.agents || [])
+    }
+    await this.disconnectAll()
+    await this.renderService?.close()
+    this.config = next
     this.agentConfigs = new Map(
       (this.config.agents || []).map(cfg => [cfg.name, cfg])
     )
+    this.renderService = this.closing ? null : this.createRenderer()
   }
 
   connectAgent(name) {
+    if (this.closing || this.reloading) return false
     const cfg = this.agentConfigs.get(name)
     const existing = this.agents.get(name)
     if (!cfg || existing?.isOnline() || existing?.isConnecting()) return !!cfg
 
-    const agent = new SteveXAgent(cfg, name, this.sharedCommands)
+    if (existing) existing.shutdown()
+    const agent = new SteveXAgent(cfg, name, this.sharedCommands, { queryNames: this.queryNames, renderService: this.renderService })
     agent.start()
     if (cfg?.brain?.enabled) agent.startBrain(cfg.brain, this.eventBus)
     this.agents.set(name, agent)
@@ -99,6 +136,21 @@ class AgentManager {
     })
 
     return result
+  }
+
+  async captureObservation(name) {
+    const agent = this.agents.get(name)
+    return agent ? agent.captureObservation({ source: 'observation' }) : { ok: false, error: 'Agent not found or not started' }
+  }
+
+  close() {
+    if (this.closeWork) return this.closeWork
+    this.closing = true
+    this.closeWork = this.lifecycle.then(async () => {
+      await this.disconnectAll()
+      await this.renderService?.close()
+    })
+    return this.closeWork
   }
 
   // ── Runtime data helpers ──
@@ -164,6 +216,8 @@ class AgentManager {
         gameMode: this.getAgentGameMode(agent),
         position: this.getAgentPosition(agent),
         currentAction: this.getAgentAction(agent),
+        execution: agent?.executor.getStatus() || null,
+        brain: agent?.brainLoop ? { running: agent.brainLoop.running, lastError: agent.brainLoop.lastError } : null,
 
         // Config-derived display data
         model: this.getAgentModel(cfg)

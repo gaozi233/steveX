@@ -1,0 +1,22 @@
+{
+	"required": true,
+	"package": "com.example.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"mixins": [
+		"ExampleMixin",
+		"ServerLevelMixin",
+		"LevelMixin",
+		"PortalTravelMixin"
+	],
+	"client": [
+		"BackgroundWindowMixin",
+		"BackgroundMouseMixin",
+		"SpriteContentsAccessor"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

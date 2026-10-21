@@ -14,11 +14,16 @@ function startWebServer(manager) {
   const app = createApp(manager)
   const server = http.createServer(app)
 
-  setupWebSocket(server, manager)
+  const wss = setupWebSocket(server, manager)
+  server.closeResources = () => {
+    for (const client of wss.clients) client.terminate()
+    wss.close()
+  }
 
   server.listen(port, host, () => {
     console.log(`[info][web] Web panel listening on http://${host}:${port}`)
   })
+  return server
 }
 
 module.exports = { startWebServer }

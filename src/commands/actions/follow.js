@@ -13,28 +13,20 @@ module.exports = {
     const target = Object.values(bot.players).find(p => p.username.toLowerCase() === targetName)
     if (!target || !target.entity) return { ok: false, error: `Player "${targetName}" not found or too far` }
 
-    if (bot._followInterval) clearInterval(bot._followInterval)
-
-    const followTask = () => {
-      if (!target.entity) return
-      const pos = target.entity.position
-      bot.pathfinder.setGoal(new pathfinderGoals.GoalNear(pos.x, pos.y, pos.z, 2))
+    bot._followCleanup?.()
+    const entity = target.entity
+    const gone = removed => {
+      if (removed !== entity) return
+      cleanup()
+      bot.pathfinder.setGoal(null)
     }
-
-    // Follow every 1s
-    const interval = setInterval(followTask, 1000)
-    bot._followInterval = interval
-    followTask()
-
-    // Store interval on entity for cleanup
-    bot.once('entityGone', (gone) => {
-      if (gone === target.entity) {
-        clearInterval(interval)
-        if (bot._followInterval === interval) bot._followInterval = null
-        bot.pathfinder.stop()
-      }
-    })
-
-    return { ok: true, output: `Now following ${target.username}` }
+    const cleanup = () => {
+      bot.removeListener('entityGone', gone)
+      if (bot._followCleanup === cleanup) bot._followCleanup = null
+    }
+    bot._followCleanup = cleanup
+    bot.on('entityGone', gone)
+    bot.pathfinder.setGoal(new pathfinderGoals.GoalFollow(entity, 2), true)
+    return { ok: true, status: 'RUNNING', output: `Now following ${target.username}; next action replaces follow` }
   }
 }
