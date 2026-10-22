@@ -24,3 +24,5 @@ module.exports = {
     return { ok: true, output: `Released ${control} after ${duration}ms`, control, durationMs: duration }
   }
 }
+
+module.exports.handler = require('../command_contract').withContract(module.exports.name, module.exports.handler)

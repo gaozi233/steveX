@@ -15,3 +15,5 @@ module.exports = {
     return { ok: true, output: `Looking at ${lx} ${ly} ${lz}` }
   }
 }
+
+module.exports.handler = require('../command_contract').withContract(module.exports.name, module.exports.handler)

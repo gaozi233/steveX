@@ -10,3 +10,5 @@ module.exports = {
     return { ok: true, output: `Oxygen: ${oxygen ?? '?'}/20`, oxygen, maxOxygen: 20 }
   }
 }
+
+module.exports.handler = require('../command_contract').withContract(module.exports.name, module.exports.handler)

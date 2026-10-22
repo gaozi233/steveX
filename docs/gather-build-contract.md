@@ -4,6 +4,8 @@
 
 ## 统一结果
 
+第 3／4／5 类参数和失败返回已统一，详见 [参数与错误契约](command-contract.md)。参数校验发生在调度副作用之前；执行后的失败仍保留本节约定的部分结果，而非统一归零。
+
 六个动作 `dig / mine / collect / craft / place / placeentity` 的动作结果保留 `ok/output/error`，统一增加：
 
 | 字段 | 含义 |

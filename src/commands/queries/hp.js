@@ -13,3 +13,5 @@ module.exports = {
     return { ok: true, output: `HP: ${state.health?.toFixed(1) ?? '?'}/${state.maxHealth ?? '?'}${extra}`, ...state }
   }
 }
+
+module.exports.handler = require('../command_contract').withContract(module.exports.name, module.exports.handler)

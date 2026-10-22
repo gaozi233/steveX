@@ -13,3 +13,5 @@ module.exports = {
     return { ok: true, output: 'Released jump after 200ms; landing not awaited' }
   }
 }
+
+module.exports.handler = require('../command_contract').withContract(module.exports.name, module.exports.handler)

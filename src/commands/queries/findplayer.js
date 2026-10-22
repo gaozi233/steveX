@@ -32,3 +32,5 @@ module.exports = {
     return { ok: true, output: `Players matching "${search}":\n${list}`, players }
   }
 }
+
+module.exports.handler = require('../command_contract').withContract(module.exports.name, module.exports.handler)

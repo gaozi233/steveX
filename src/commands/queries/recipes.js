@@ -18,3 +18,5 @@ module.exports = {
     return { ok: true, ...data, output: JSON.stringify(data) }
   }
 }
+
+module.exports.handler = require('../command_contract').withContract(module.exports.name, module.exports.handler)

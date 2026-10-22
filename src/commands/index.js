@@ -1,6 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 const { categoryFor } = require('./catalog')
+const { withContract, contracts } = require('./command_contract')
 
 /**
  * Load all command definitions from the actions/ and queries/ subdirectories.
@@ -31,14 +32,14 @@ function loadCommands() {
       }
 
       const name = mod.name || path.basename(file, '.js')
-      commands[name] = mod.handler
+      commands[name] = withContract(name, mod.handler)
       if (dir === 'queries') queryNames.add(name)
       list.push({
         name,
         category: categoryFor(name),
         kind: dir === 'queries' ? 'query' : dir === 'creative' ? 'creative' : 'action',
         description: mod.description || '',
-        usage: mod.usage || name
+        usage: contracts[name]?.usage || mod.usage || name
       })
     }
   }

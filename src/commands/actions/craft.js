@@ -96,7 +96,7 @@ const skill = {
     if(error) {
       const knownCode = ['WORKBENCH_CHANGED','INVENTORY_MISMATCH','WINDOW_CLOSE_FAILED'].includes(error.code)
       const errorCode = signal?.aborted
-        ? (/timed out/i.test(signal.reason?.message||error.message) ? 'ACTION_TIMEOUT' : 'CANCELLED')
+        ? (signal.reason?.code === 'ACTION_TIMEOUT' ? 'ACTION_TIMEOUT' : 'CANCELLED')
         : (knownCode ? error.code : 'CRAFT_EXECUTION_FAILED')
       return {...feedback,ok:false,cancelled:!!signal?.aborted,errorCode,error:error.message,evidence:['server-inventory-snapshot'],output:`Craft incomplete: ${completed}/${times} executions verified; ${name} net change ${producedCount}; net inventory changes: ${JSON.stringify(changes)}; ${error.message}`}
     }

@@ -8,8 +8,8 @@ module.exports = {
   usage: 'dig',
   handler: operation('dig', async (bot, args, agent, { signal } = {}) => {
     const block = bot.blockAtCursor(4.5)
-    if (!block) return { ok: false, error: 'No block in sight' }
-    if (!bot.canDigBlock(block)) return { ok: false, error: 'Block is not diggable or out of reach' }
+    if (!block) return { ok: false, errorCode: 'NO_TARGET', error: 'No block in sight' }
+    if (!bot.canDigBlock(block)) return { ok: false, errorCode: 'TARGET_NOT_DIGGABLE', error: 'Block is not diggable or out of reach' }
     return digConfirmed(bot, block, signal)
   })
 }

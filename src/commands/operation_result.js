@@ -1,5 +1,6 @@
 const { sleep } = require('../agent/action_executor')
 const { Vec3 } = require('vec3')
+const { withContract, exceptionFailure } = require('./command_contract')
 const operationNames = new Set(['dig', 'mine', 'collect', 'craft', 'place', 'placeentity'])
 function result(action, value) {
   const completed = value.ok === true && value.confirmed === true
@@ -8,10 +9,10 @@ function result(action, value) {
     ...(!completed && !value.error ? { error: 'Operation not confirmed; inspect state before retrying' } : {}) }
 }
 function operation(action, handler) {
-  return async (...args) => {
+  return withContract(action, async (...args) => {
     try { return result(action, await handler(...args)) }
-    catch (error) { return result(action, { ok: false, cancelled: error.name === 'AbortError' || args[3]?.signal?.aborted === true, error: error.message || String(error), output: 'Operation incomplete; inspect world and inventory before retrying' }) }
-  }
+    catch (error) { return result(action, { ...exceptionFailure(action,error,args[3]?.signal), output: 'Operation incomplete; inspect world and inventory before retrying' }) }
+  })
 }
 const position = p => ({ x: p.x, y: p.y, z: p.z })
 const faces = [new Vec3(0,-1,0), new Vec3(0,1,0), new Vec3(0,0,-1), new Vec3(0,0,1), new Vec3(-1,0,0), new Vec3(1,0,0)]
@@ -54,7 +55,7 @@ async function digConfirmed(bot, block, signal) {
     await bot.dig(block)
     const acknowledged = await waitFor(() => observed.stateId !== null && observed.stateId !== block.stateId, signal)
     const after = bot.blockAt(block.position), target = { block: block.name, position: position(block.position) }
-    if (!acknowledged || !after || after.type === block.type) return { ok: false, error: 'No server-confirmed block removal; inspect before retrying', target }
+    if (!acknowledged || !after || after.type === block.type) return { ok: false, errorCode: 'DIG_NOT_CONFIRMED', error: 'No server-confirmed block removal; inspect before retrying', target }
     return { ok: true, confirmed: true, target, changes: [{ kind: 'block', position: position(block.position), before: block.name, after: after.name }], evidence: ['server-block-update'], output: `Removed ${block.name} at ${block.position.x} ${block.position.y} ${block.position.z}; drops not guaranteed collected` }
   } finally { observed.close() }
 }

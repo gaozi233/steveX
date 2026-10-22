@@ -15,3 +15,5 @@ module.exports = {
       level, progressPercent }
   }
 }
+
+module.exports.handler = require('../command_contract').withContract(module.exports.name, module.exports.handler)

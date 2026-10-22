@@ -21,18 +21,18 @@ const skill = {
     if (args.length !== 3) return { ok: false, error: 'Usage: mine <x> <y> <z>' }
     const [x, y, z] = args.map(Number)
     if (![x, y, z].every(Number.isSafeInteger)) return { ok: false, error: 'Expected three safe integer block coordinates' }
-    if (!agent.movements) return { ok: false, error: 'Pathfinder not ready' }
+    if (!agent.movements) return { ok: false, errorCode: 'PATHFINDER_NOT_READY', error: 'Pathfinder not ready' }
 
     const pos = new Vec3(x, y, z)
     const block = agent.bot.blockAt(pos)
-    if (!block) return { ok: false, error: 'Block not loaded' }
-    if (!block.diggable || block.boundingBox === 'empty') return { ok: false, error: 'Target is not a diggable solid block' }
+    if (!block) return { ok: false, errorCode: 'TARGET_NOT_LOADED', error: 'Block not loaded' }
+    if (!block.diggable || block.boundingBox === 'empty') return { ok: false, errorCode: 'TARGET_NOT_DIGGABLE', error: 'Target is not a diggable solid block' }
 
     await protectedApproach(agent.bot, agent.movements, new pathfinderGoals.GoalGetToBlock(x, y, z), signal)
     signal?.throwIfAborted()
     const current = agent.bot.blockAt(pos)
-    if (!current || current.stateId !== block.stateId) return { ok: false, error: 'Target block changed while approaching; query again before retrying' }
-    if (!agent.bot.canDigBlock(current)) return { ok: false, error: 'Target is not diggable or out of reach after pathfinding' }
+    if (!current || current.stateId !== block.stateId) return { ok: false, errorCode: 'TARGET_CHANGED', error: 'Target block changed while approaching; query again before retrying' }
+    if (!agent.bot.canDigBlock(current)) return { ok: false, errorCode: 'TARGET_NOT_DIGGABLE', error: 'Target is not diggable or out of reach after pathfinding' }
     return digConfirmed(agent.bot, current, signal)
   })
 }

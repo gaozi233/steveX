@@ -19,6 +19,7 @@ const skill = {
   }
 }
 
+skill.handler = require('../command_contract').withContract(skill.name, skill.handler)
 skillRegistry.register(skill);
 
 /**

@@ -14,7 +14,7 @@ module.exports = {
       let remaining = ticks
       const cleanup = () => { bot.removeListener('physicsTick', tick); bot.removeListener('end', ended); signal?.removeEventListener('abort', abort) }
       const tick = () => { if (--remaining <= 0) { cleanup(); resolve() } }
-      const ended = () => { cleanup(); reject(new Error('Agent disconnected while waiting')) }
+      const ended = () => { cleanup(); reject(Object.assign(new Error('Agent disconnected while waiting'), { name: 'Disconnected' })) }
       const abort = () => { cleanup(); reject(signal.reason) }
       bot.on('physicsTick', tick)
       bot.once('end', ended)
@@ -23,3 +23,5 @@ module.exports = {
     return { ok: true, output: `Waited ${ticks} ticks` }
   }
 }
+
+module.exports.handler = require('../command_contract').withContract(module.exports.name, module.exports.handler)

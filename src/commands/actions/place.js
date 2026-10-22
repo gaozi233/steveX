@@ -12,11 +12,11 @@ module.exports = {
   handler: operation('place', async (bot, args, agent, { signal } = {}) => {
     await syncInventory(bot)
     const target = bot.blockAtCursor(4.5)
-    if (!target) return { ok: false, error: 'No block in sight to place against' }
-    if (!bot.heldItem || !bot.registry.blocksByName[bot.heldItem.name]) return { ok: false, error: 'Hold a placeable block first' }
+    if (!target) return { ok: false, errorCode: 'NO_TARGET', error: 'No block in sight to place against' }
+    if (!bot.heldItem || !bot.registry.blocksByName[bot.heldItem.name]) return { ok: false, errorCode: 'UNSUPPORTED_ITEM', error: 'Hold a placeable block first' }
     const held = bot.heldItem.name, face = aimedFace(target), dest = target.position.plus(face)
     const candidates = [target.position, dest].map(point => ({ point, old: bot.blockAt(point) }))
-    if (candidates.some(c => !c.old)) return { ok: false, error: 'Destination not loaded' }
+    if (candidates.some(c => !c.old)) return { ok: false, errorCode: 'TARGET_NOT_LOADED', error: 'Destination not loaded' }
     const door = held.endsWith('_door'), bed = held.endsWith('_bed')
     const watched = new Map(candidates.map(c => [c.point.toString(), c]))
     for (const c of candidates) {
@@ -33,7 +33,7 @@ module.exports = {
       signal?.throwIfAborted()
       // placeBlock rejects same-type updates and assumes an adjacent destination.
       // Preserve the ray hit: slabs and replaceable blocks can change in place.
-      if (!target.intersect || !bot._genericPlace) return { ok: false, error: 'Precise placement interaction unavailable', target: info }
+      if (!target.intersect || !bot._genericPlace) return { ok: false, errorCode: 'INTERACTION_UNAVAILABLE', error: 'Precise placement interaction unavailable', target: info }
       await bot._genericPlace(target, face, { swingArm: 'right', delta: target.intersect.minus(target.position), forceLook: 'ignore' })
       const changed = c => c?.old && observed.stateId(c.point) !== null && observed.stateId(c.point) !== c.old.stateId && bot.blockAt(c.point)?.stateId === observed.stateId(c.point)
       const primary = () => {

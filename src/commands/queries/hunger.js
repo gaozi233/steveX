@@ -13,3 +13,5 @@ module.exports = {
     return { ok: true, output: `Hunger: ${state.food ?? '?'}/20 | Saturation: ${state.saturation?.toFixed(1) ?? '?'}${note}`, ...state }
   }
 }
+
+module.exports.handler = require('../command_contract').withContract(module.exports.name, module.exports.handler)

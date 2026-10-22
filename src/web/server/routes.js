@@ -151,12 +151,14 @@ function registerRoutes(app, manager) {
   // ---- Execute command ----
   app.post('/api/agents/:name/command', async (req, res) => {
     const name = decodeURIComponent(req.params.name)
-    const command = (req.body.command || '').trim()
+    const command = typeof req.body?.command === 'string' ? req.body.command.trim() : ''
 
     if (!command) {
       return res.status(400).json({
         ok: false,
-        error: 'Missing command'
+        errorCode: 'INVALID_ARGUMENTS',
+        error: '[INVALID_ARGUMENTS] command must be a non-empty string',
+        output: '[INVALID_ARGUMENTS] command must be a non-empty string'
       })
     }
 

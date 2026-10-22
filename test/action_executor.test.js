@@ -78,7 +78,7 @@ test('queries do not replace running action status; stop bypasses queue and canc
     later: async () => { queuedRan = true; return { ok: true } },
     stop() {},
   }, new Set(['pos']))
-  const waiting = agent.executeCommand('wait')
+  const waiting = agent.executeCommand('wait 20')
   await started
   const queued = agent.executeCommand('later')
   await agent.executeCommand('pos')
@@ -113,7 +113,7 @@ test('follow is a replaceable background goal and cleans up listeners', async ()
   agent.bot.players = { other: { username: 'Other', entity: { position: { x: 1, y: 64, z: 0 } } } }
   assert.equal((await agent.executeCommand('follow Other')).status, 'RUNNING')
   assert.equal(agent.bot.listenerCount('entityGone'), 1)
-  await agent.executeCommand('look')
+  await agent.executeCommand('look 0 0')
   assert.equal(agent.bot.listenerCount('entityGone'), 0)
   assert.equal(agent.bot._followCleanup, null)
   await agent.executeCommand('follow Other', { source: 'brain' })

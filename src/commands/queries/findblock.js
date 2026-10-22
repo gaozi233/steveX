@@ -24,7 +24,7 @@ const skill = {
 
     const mcData = require('minecraft-data')(agent.bot.version)
     const blockId = Object.values(mcData.blocks).find(b => b.name === targetName || b.displayName?.toLowerCase() === targetName)?.id
-    if (blockId === undefined) return { ok: false, error: `Unknown block: "${targetName}"` }
+    if (blockId === undefined) return { ok: false, errorCode: 'UNKNOWN_BLOCK', error: `Unknown block: "${targetName}"` }
 
     const origin = agent.bot.entity.position.floored()
 
@@ -44,6 +44,7 @@ const skill = {
   }
 }
 
+skill.handler = require('../command_contract').withContract(skill.name, skill.handler)
 skillRegistry.register(skill);
 
 /**

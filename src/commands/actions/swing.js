@@ -12,3 +12,5 @@ module.exports = {
     return { ok: true, output: `Swung ${hand} arm` }
   }
 }
+
+module.exports.handler = require('../command_contract').withContract(module.exports.name, module.exports.handler)

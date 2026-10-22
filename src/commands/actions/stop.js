@@ -14,3 +14,5 @@ module.exports = {
     return { ok: true, output: 'Pathfinding and follow stopped' }
   }
 }
+
+module.exports.handler = require('../command_contract').withContract(module.exports.name, module.exports.handler)

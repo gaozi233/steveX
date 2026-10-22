@@ -6,6 +6,7 @@ const { spectatorCompatibility } = require('./spectator_compat')
 const { raycastCompatibility } = require('./raycast_compat')
 const { ActionExecutor, cancelled } = require('./action_executor')
 const { craftTimeoutMs } = require('../commands/craft_timing')
+const { validateArguments, normalizeFailure, exceptionFailure } = require('../commands/command_contract')
 
 class SteveXAgent {
   /**
@@ -108,11 +109,13 @@ class SteveXAgent {
    * @returns {Promise<{ok:boolean,output?:string,error?:string}>}
    */
   async executeCommand(input, options = {}) {
+    const requested = typeof input === 'string' ? input.trim().split(/\s+/)[0].toLowerCase() : ''
     if (!this.bot || !this.connected) {
-      return {
+      return normalizeFailure(requested, {
         ok: false,
+        errorCode: 'NOT_CONNECTED',
         error: 'Bot not started'
-      }
+      })
     }
 
     const trimmed = typeof input === 'string' ? input.trim() : ''
@@ -139,15 +142,18 @@ class SteveXAgent {
       }
     }
 
+    const invalid = validateArguments(command, args)
+    if (invalid) return invalid
+
     let operationOutcome
     try {
       options.signal?.throwIfAborted()
-      if (this.queryNames.has(command)) return await handler.call(this, this.bot, args, this, options)
+      if (this.queryNames.has(command)) return normalizeFailure(command, await handler.call(this, this.bot, args, this, options))
       if (options.source !== 'brain') this.brainLoop?.stop()
       if (command === 'stopdig') {
         const task = this.executor.active
         if (task && ['dig', 'mine'].includes(task.name)) task.controller.abort(cancelled('Digging stopped'))
-        return await handler.call(this, this.bot, args, this, options)
+        return normalizeFailure(command, await handler.call(this, this.bot, args, this, options))
       }
       if (command === 'stop') {
         this.brainLoop?.stop()
@@ -163,7 +169,7 @@ class SteveXAgent {
           const result = await handler.call(this, this.bot, args, this, { ...options, signal })
           if (require('../commands/operation_result').operationNames.has(command)) operationOutcome = result
           if (result?.status === 'RUNNING') this.backgroundSource = options.source || 'manual'
-          return result
+          return normalizeFailure(command, result)
         }
         finally {
           if (signal.aborted) this.stopPhysicalActions()
@@ -174,13 +180,15 @@ class SteveXAgent {
       if (err.name !== 'AbortError') console.error(`[error](${this.name}) Command error`, err)
 
       const operations = require('../commands/operation_result')
-      if (operations.operationNames.has(command)) return operations.result(command, { ...operationOutcome, ok: false, cancelled: err.name === 'AbortError', error: err.message || String(err) })
-
-      return {
-        ok: false,
-        cancelled: err.name === 'AbortError',
-        error: err.message || String(err)
+      if (operations.operationNames.has(command)) {
+        const failure = exceptionFailure(command,err,options.signal)
+        let output = operationOutcome?.output || failure.output
+        const oldPrefix = `[${operationOutcome?.errorCode}] `
+        if (output?.startsWith(oldPrefix)) output = output.slice(oldPrefix.length)
+        return normalizeFailure(command, operations.result(command, { ...operationOutcome, ...failure, output }))
       }
+
+      return exceptionFailure(command,err,options.signal)
     }
   }
 

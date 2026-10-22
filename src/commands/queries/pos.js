@@ -15,3 +15,5 @@ module.exports = {
     return { ok: true, output: `Position: ${format(pos.x)} ${format(pos.y)} ${format(pos.z)} | Dimension: ${dim}` }
   }
 }
+
+module.exports.handler = require('../command_contract').withContract(module.exports.name, module.exports.handler)

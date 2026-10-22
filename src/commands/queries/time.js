@@ -17,3 +17,5 @@ module.exports = {
       timeOfDay, day, isDay, moonPhase, doDaylightCycle: typeof time.doDaylightCycle === 'boolean' ? time.doDaylightCycle : null }
   }
 }
+
+module.exports.handler = require('../command_contract').withContract(module.exports.name, module.exports.handler)

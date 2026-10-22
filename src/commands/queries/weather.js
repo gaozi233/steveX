@@ -13,3 +13,5 @@ module.exports = {
     return { ok: true, output: `Weather: ${weather ?? '?'}`, weather, rainStrength, thunderStrength }
   }
 }
+
+module.exports.handler = require('../command_contract').withContract(module.exports.name, module.exports.handler)

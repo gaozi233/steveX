@@ -8,7 +8,7 @@ Categories organize commands; kind and runtime permissions remain independent. T
 
 ## 状态与环境查询 / State and environment (14)
 
-Read-only; does not interrupt actions. Client-known data is not necessarily line-of-sight.
+Read-only; does not interrupt actions. Client-known data is not necessarily line-of-sight. Exact positional arity; errors include errorCode, empty searches are successful.
 
 | Command | Kind | Description |
 | --- | --- | --- |
@@ -29,7 +29,7 @@ Read-only; does not interrupt actions. Client-known data is not necessarily line
 
 ## 朝向、移动与动作控制 / Motion and control (11)
 
-Angles in radians; movement duration in milliseconds; wait uses physics ticks. stop is immediate; stand is queued.
+Angles in radians; movement duration in milliseconds; wait uses physics ticks. stop is immediate; stand is queued. Exact positional arity; invalid arguments do not interrupt actions.
 
 | Command | Kind | Description |
 | --- | --- | --- |
@@ -47,7 +47,7 @@ Angles in radians; movement duration in milliseconds; wait uses physics ticks. s
 
 ## 采集、合成与建造 / Gathering and building (6)
 
-Action success does not imply dropped items were collected.
+Action success does not imply dropped items were collected. Errors include errorCode and observed effects; inspect before retrying.
 
 | Command | Kind | Description |
 | --- | --- | --- |

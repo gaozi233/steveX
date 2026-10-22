@@ -29,7 +29,7 @@ class ActionExecutor {
     const result = this.tail.then(async () => {
       controller.signal.throwIfAborted()
       this.active = task
-      const timeout = setTimeout(() => controller.abort(cancelled(`Action ${name} timed out`)), timeoutMs)
+      const timeout = setTimeout(() => controller.abort(Object.assign(cancelled(`Action ${name} timed out`), { code: 'ACTION_TIMEOUT' })), timeoutMs)
       try {
         const value = await operation(controller.signal)
         controller.signal.throwIfAborted()

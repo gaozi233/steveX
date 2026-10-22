@@ -11,7 +11,7 @@ async function protectedApproach(bot, movements, goal, signal) {
     signal?.throwIfAborted()
     await bot.pathfinder.goto(goal)
     signal?.throwIfAborted()
-    if (typeof goal.isEnd === 'function' && !goal.isEnd(bot.entity.position.floored())) throw new Error('No path reached the requested approach position')
+    if (typeof goal.isEnd === 'function' && !goal.isEnd(bot.entity.position.floored())) throw Object.assign(new Error('No path reached the requested approach position'), { name: 'NoPath' })
   } finally {
     signal?.removeEventListener('abort', stop)
     // goto can resolve an empty path without clearing its goal. Clear it before
