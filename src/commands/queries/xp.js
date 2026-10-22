@@ -3,9 +3,15 @@
  */
 module.exports = {
   name: 'xp',
-  description: 'Show experience level, points and progress',
+  description: 'Show experience level and current level progress percentage',
   usage: 'xp',
   async handler(bot) {
-    return { ok: true, output: `Level: ${bot.experience.level ?? '?'} | Points: ${bot.experience.points ?? '?'} | Progress: ${(bot.experience.progress * 100).toFixed(0) ?? '?'}%` }
+    const finite = value => typeof value === 'number' && Number.isFinite(value)
+    const experience = bot.experience || {}
+    const level = finite(experience.level) ? experience.level : null
+    const progress = finite(experience.progress) ? experience.progress : null
+    const progressPercent = progress === null ? null : Math.round(progress * 1000) / 10
+    return { ok: true, output: `Level: ${level ?? '?'} | Progress: ${progressPercent === null ? '?' : progressPercent.toFixed(1) + '%'}`,
+      level, progressPercent }
   }
 }

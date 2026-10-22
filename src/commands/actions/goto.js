@@ -17,10 +17,20 @@ const skill = {
   async handler(_b, args, agent) {
     if (args.length < 3) return { ok: false, error: 'Usage: goto <x> <y> <z>' }
     const [x, y, z] = args.map(Number)
-    if (isNaN(x) || isNaN(y) || isNaN(z)) return { ok: false, error: 'Invalid coordinates' }
+    if (![x, y, z].every(Number.isFinite)) return { ok: false, error: 'Invalid coordinates: expected finite numbers' }
     if (!agent.movements) return { ok: false, error: 'Pathfinder not ready' }
-    await agent.bot.pathfinder.goto(new pathfinderGoals.GoalBlock(x, y, z))
-    return { ok: true, output: `Arrived at ${x} ${y} ${z}` }
+    const goal = new pathfinderGoals.GoalBlock(x, y, z)
+    await agent.bot.pathfinder.goto(goal)
+    const position = agent.bot.entity.position
+    const actual = { x: position.x, y: position.y, z: position.z }
+    // Upstream goto can resolve on an empty path without reaching its goal.
+    if (!goal.isEnd({ x: Math.floor(position.x), y: Math.floor(position.y), z: Math.floor(position.z) })) {
+      agent.bot.pathfinder.setGoal(null)
+      return { ok: false, error: 'Pathfinder finished without reaching the target block', position: actual,
+        target: { x: goal.x, y: goal.y, z: goal.z } }
+    }
+    return { ok: true, output: `Arrived at ${goal.x} ${goal.y} ${goal.z}`, position: actual,
+      target: { x: goal.x, y: goal.y, z: goal.z } }
   }
 }
 

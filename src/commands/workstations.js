@@ -1,4 +1,4 @@
-const { itemView } = require('../agent/interaction_memory')
+const { itemView, compactItemView } = require('../agent/interaction_memory')
 const states = new WeakMap()
 const stations = {
   brewing: ['brewing_stand', 'minecraft:brewing_stand'], loom: ['loom', 'minecraft:loom'],
@@ -56,13 +56,19 @@ function slot(w, value, inventoryOnly = false) {
   return w.slots[index]
 }
 
-function describe(bot) {
+function describe(bot, { compact = false } = {}) {
   const w = current(bot), p = properties(bot, w)
-  const data = { id: w.id, type: w.type, inventoryStart: w.inventoryStart, inventoryEnd: w.inventoryEnd,
+  const view = compact ? compactItemView : itemView
+  const data = compact ? {
+    type: w.type, slotCount: w.slots.length, inventoryStart: w.inventoryStart, inventoryEnd: w.inventoryEnd,
+    slots: Array.from({ length: w.slots.length }, (_, slot) => w.slots[slot] ? { ...view(w.slots[slot]), slot } : null).filter(Boolean),
+    emptySlots: Array.from({ length: w.slots.length }, (_, slot) => slot).filter(slot => !w.slots[slot]),
+    ...(w.selectedItem ? { cursor: view(w.selectedItem) } : {})
+  } : { id: w.id, type: w.type, inventoryStart: w.inventoryStart, inventoryEnd: w.inventoryEnd,
     source: 'mineflayer-window-cache', properties: { ...p },
     slots: w.slots.map((item, index) => ({ slot: index, item: itemView(item) })), cursor: itemView(w.selectedItem) }
-  if (w.trades) data.trades = w.trades.map((t, index) => ({ index, input: itemView(t.inputItem1),
-    secondInput: itemView(t.inputItem2), output: itemView(t.outputItem), price: t.realPrice,
+  if (w.trades) data.trades = w.trades.map((t, index) => ({ index, input: view(t.inputItem1),
+    secondInput: view(t.inputItem2), output: view(t.outputItem), price: t.realPrice,
     disabled: t.tradeDisabled, uses: t.nbTradeUses, maxUses: t.maximumNbTradeUses }))
   if (w.enchantments) data.enchantments = w.enchantments
   if (w.type === 'minecraft:brewing_stand') data.brewing = { remainingTicks: p[0] ?? null, fuelUses: p[1] ?? null, maxFuelUses: 20 }
@@ -70,7 +76,12 @@ function describe(bot) {
   if (w.type === 'minecraft:loom' || w.type === 'minecraft:stonecutter') data.selectedIndex = p[0] ?? null
   if (w.type === 'minecraft:beacon') data.beacon = { levels: p[0] ?? null, primaryEncoded: p[1] ?? null, secondaryEncoded: p[2] ?? null }
   if (['minecraft:furnace', 'minecraft:blast_furnace', 'minecraft:smoker'].includes(w.type)) {
-    data.furnace = { fuelTicks: p[0] ?? null, totalFuelTicks: p[1] ?? null, progressTicks: p[2] ?? null, totalProgressTicks: p[3] ?? null }
+    if (compact) {
+      const percent = (value, total) => Number.isFinite(value) && Number.isFinite(total) && total >= 0
+        ? total === 0 ? 0 : Math.round(value / total * 1000) / 10 : null
+      const fuelPercent = percent(p[0], p[1]), progressPercent = percent(p[2], p[3])
+      data.furnace = { ...(fuelPercent === null ? {} : { fuelPercent }), ...(progressPercent === null ? {} : { progressPercent }) }
+    } else data.furnace = { fuelTicks: p[0] ?? null, totalFuelTicks: p[1] ?? null, progressTicks: p[2] ?? null, totalProgressTicks: p[3] ?? null }
   }
   return data
 }

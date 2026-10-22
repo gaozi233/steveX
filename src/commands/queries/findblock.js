@@ -6,7 +6,7 @@ const args = {
     required: true
   },
   radius: {
-    desc: 'Search radius in blocks (default: 32)',
+    desc: 'Integer radius 1..128 from the player block position (default: 32)',
     default: 32,
     required: false
   }
@@ -18,24 +18,29 @@ const skill = {
   args,
   async handler(_b, args, agent) {
     if (args.length < 1) return { ok: false, error: 'Usage: findblock <blockName> [radius]' }
-    const targetName = args[0].toLowerCase()
-    const maxDistance = args[1] ? parseInt(args[1], 10) : 32
-    if (isNaN(maxDistance) || maxDistance < 1) return { ok: false, error: 'Invalid radius' }
+    const targetName = args[0].toLowerCase().replace(/^minecraft:/, '')
+    const maxDistance = args[1] === undefined ? 32 : /^\d+$/.test(args[1]) ? Number(args[1]) : NaN
+    if (!Number.isInteger(maxDistance) || maxDistance < 1 || maxDistance > 128) return { ok: false, error: 'Radius must be an integer in 1..128 blocks' }
 
     const mcData = require('minecraft-data')(agent.bot.version)
     const blockId = Object.values(mcData.blocks).find(b => b.name === targetName || b.displayName?.toLowerCase() === targetName)?.id
-    if (!blockId) return { ok: false, error: `Unknown block: "${targetName}"` }
+    if (blockId === undefined) return { ok: false, error: `Unknown block: "${targetName}"` }
+
+    const origin = agent.bot.entity.position.floored()
 
     const found = agent.bot.findBlock({
       matching: blockId,
+      point: origin,
       maxDistance,
-      count: 5
+      count: 1
     })
 
-    if (!found) return { ok: true, output: `No "${targetName}" found within ${maxDistance}m` }
+    if (!found) return { ok: true, output: `No "${targetName}" found within ${maxDistance}m`, found: false, radius: maxDistance }
 
     const pos = found.position
-    return { ok: true, output: `Found ${targetName} at ${Math.floor(pos.x)} ${Math.floor(pos.y)} ${Math.floor(pos.z)} (distance: ${Math.floor(pos.distanceTo(agent.bot.entity.position))}m)` }
+    const distance = pos.distanceTo(origin)
+    return { ok: true, output: `Found ${targetName} at ${pos.x} ${pos.y} ${pos.z} (block-grid distance: ${distance.toFixed(1)}m)`,
+      found: true, block: found.name || targetName, position: { x: pos.x, y: pos.y, z: pos.z }, distance, radius: maxDistance }
   }
 }
 

@@ -8,6 +8,10 @@ module.exports = {
   async handler(bot) {
     const pos = bot.entity.position
     const dim = bot.game.dimension || 'unknown'
-    return { ok: true, output: `Position: ${Math.floor(pos.x)} ${Math.floor(pos.y)} ${Math.floor(pos.z)} | Dimension: ${dim}` }
+    const format = value => {
+      const rounded = Math.sign(value) * Math.round(Math.abs(value) * 10) / 10
+      return (rounded === 0 ? 0 : rounded).toFixed(1)
+    }
+    return { ok: true, output: `Position: ${format(pos.x)} ${format(pos.y)} ${format(pos.z)} | Dimension: ${dim}` }
   }
 }

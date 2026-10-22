@@ -19,6 +19,17 @@ test('player state and interaction routes select the named Mineflayer, not the r
   const a = await (await fetch(base + '/api/agents/a/state')).json()
   const b = await (await fetch(base + '/api/agents/b/state')).json()
   assert.equal(a.uuid, 'a'); assert.equal(b.uuid, 'b')
+  assert.equal(a.health, 10); assert.equal(a.maxHealth, null)
+  agents.get('a').bot.food = 16; agents.get('a').bot.foodSaturation = 2.75
+  const food = await (await fetch(base + '/api/agents/a/state')).json()
+  assert.equal(food.food, 16); assert.equal(food.saturation, 2.75)
+  agents.get('a').bot.entity.attributes = { 'minecraft:max_health': { value: 20, modifiers: [{ operation: 0, amount: 8 }] } }
+  assert.equal((await (await fetch(base + '/api/agents/a/state')).json()).maxHealth, 28)
+  agents.get('a').bot.registry = { entitiesByName: { player: { metadataKeys: ['player_absorption'] } } }
+  agents.get('a').bot.entity.metadata = { 0: 4 }
+  assert.equal((await (await fetch(base + '/api/agents/a/state')).json()).absorption, 4)
+  agents.get('a').bot.entity.metadata[0] = 0
+  assert.equal(Object.hasOwn(await (await fetch(base + '/api/agents/a/state')).json(), 'absorption'), false)
   assert.equal(a.inventory[0].name, 'apple'); assert.equal(b.inventory[0].name, 'diamond')
   assert.equal((await (await fetch(base + '/api/agents/a/memory/containers')).json()).source, 'mineflayer-window')
   assert.equal((await fetch(base + '/api/agents/missing/state')).status, 404)

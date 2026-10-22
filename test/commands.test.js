@@ -14,6 +14,39 @@ const stop = require('../src/commands/actions/stop')
 const gamemode = require('../src/commands/queries/gamemode')
 const oxygen = require('../src/commands/queries/oxygen')
 
+test('removed debug queries are absent from the command catalog and dispatch table', () => {
+  const { commands, list, queryNames } = require('../src/commands').loadCommands()
+  for (const name of ['digtime', 'equipslot']) {
+    assert.equal(Object.hasOwn(commands, name), false)
+    assert.equal(list.some(command => command.name === name), false)
+    assert.equal(queryNames.has(name), false)
+  }
+})
+const goto = require('../src/commands/actions/goto')
+
+test('goto rejects nonfinite coordinates before accessing the pathfinder', async () => {
+  for (const coordinates of [['Infinity', '0', '0'], ['0', '-Infinity', '0'], ['0', '0', 'NaN'], ['1x', '0', '0']]) {
+    assert.equal((await goto.handler({}, coordinates, {})).ok, false)
+  }
+  let goal
+  const agent = { movements: {}, bot: { entity: { position: { x: -0.001, y: -59.5, z: 12.999 } },
+    pathfinder: { goto: async value => { goal = value } } } }
+  const result = await goto.handler(agent.bot, ['-0.001', '-59.5', '12.999'], agent)
+  assert.equal(result.ok, true)
+  assert.deepEqual([goal.x, goal.y, goal.z], [-1, -60, 12])
+})
+
+test('goto never treats an upstream empty-path resolution as proof of arrival', async () => {
+  let stopped = false
+  const bot = { entity: { position: { x: 106.5, y: -57.4, z: 48.5 } },
+    pathfinder: { goto: async () => {}, setGoal: goal => { assert.equal(goal, null); stopped = true } } }
+  const result = await goto.handler(bot, ['106', '-60', '48'], { bot, movements: {} })
+  assert.equal(result.ok, false)
+  assert.match(result.error, /without reaching/)
+  assert.equal(stopped, true)
+  assert.deepEqual(result.target, { x: 106, y: -60, z: 48 })
+})
+
 test('attack and eat handlers use the bot command argument', async () => {
   const entity = { name: 'zombie' }
   let attacked = null

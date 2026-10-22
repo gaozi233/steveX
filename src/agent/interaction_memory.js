@@ -1,6 +1,8 @@
 const fs = require('node:fs/promises')
 const path = require('node:path')
 const { createHash } = require('node:crypto')
+const { healthState } = require('./health_state')
+const { foodState } = require('./food_state')
 
 function plain(value) {
   return JSON.parse(JSON.stringify(value, (key, item) => typeof item === 'bigint' ? item.toString() : item))
@@ -8,8 +10,35 @@ function plain(value) {
 
 function itemView(item) {
   if (!item) return null
-  return plain({ name: item.name, type: item.type, count: item.count, metadata: item.metadata,
-    components: item.components, nbt: item.nbt })
+  return plain({ name: item.name, type: item.type, count: item.count, slot: item.slot, metadata: item.metadata,
+    components: item.components, removedComponents: item.removedComponents, nbt: item.nbt })
+}
+
+function compactItemView(item) {
+  if (!item) return null
+  const components = item.components?.filter(component => !(component.type === 'damage' && component.data === 0))
+  let nbt = item.nbt
+  if (nbt?.type === 'compound' && nbt.value) {
+    const value = { ...nbt.value }
+    // Some Item getters synthesize a legacy Damage:0 even for component-based items.
+    if (value.Damage?.value === 0) delete value.Damage
+    nbt = Object.keys(value).length ? { ...nbt, value } : undefined
+  }
+  return plain({ name: item.name, count: item.count, slot: item.slot,
+    ...(item.metadata ? { metadata: item.metadata } : {}),
+    ...(components?.length ? { components } : {}),
+    ...(item.removedComponents?.length ? { removedComponents: item.removedComponents } : {}),
+    ...(nbt && Object.keys(nbt).length ? { nbt } : {}) })
+}
+
+function equipmentView(bot) {
+  const equipment = {}
+  for (const [name, destination] of [['head', 'head'], ['torso', 'torso'], ['legs', 'legs'], ['feet', 'feet'], ['offhand', 'off-hand']]) {
+    const slot = bot.getEquipmentDestSlot?.(destination)
+    const item = Number.isInteger(slot) ? bot.inventory?.slots?.[slot] : null
+    if (item) equipment[name] = compactItemView(item)
+  }
+  return Object.keys(equipment).length ? { equipment, equipmentSlotSpace: 'player-inventory' } : {}
 }
 
 function safeId(value) {
@@ -119,9 +148,9 @@ function playerState(agent) {
       .map(control => [control, bot.getControlState?.(control) ?? bot.controlState?.[control] ?? null])),
     airSupplyTicks: bot.entity?.metadata?.[1] ?? null,
     localTerrain: localTerrain(bot),
-    position: bot.entity?.position, health: bot.health, food: bot.food, oxygen: bot.oxygenLevel,
+    position: bot.entity?.position, ...healthState(bot), ...foodState(bot), oxygen: bot.oxygenLevel,
     gameMode: bot.game?.gameMode, inventorySlotSpace: bot.currentWindow ? 'current-window' : 'player-inventory',
-    inventory: inventoryItems(bot).map(itemView) })
+    inventory: inventoryItems(bot).map(compactItemView), ...inventoryCapacity(bot), ...equipmentView(bot) })
 }
 
 function localTerrain(bot) {
@@ -140,4 +169,13 @@ function inventoryItems(bot) {
   return w ? w.slots.slice(w.inventoryStart, w.inventoryEnd).filter(Boolean) : (bot.inventory?.items() || [])
 }
 
-module.exports = { InteractionMemory, playerState, itemView, inventoryItems }
+function inventoryCapacity(bot) {
+  const w = bot.currentWindow || bot.inventory
+  if (!Array.isArray(w?.slots) || !Number.isInteger(w.inventoryStart) || !Number.isInteger(w.inventoryEnd) ||
+      w.inventoryStart < 0 || w.inventoryEnd <= w.inventoryStart || w.inventoryEnd > w.slots.length) return {}
+  let emptySlotCount = 0
+  for (let slot = w.inventoryStart; slot < w.inventoryEnd; slot++) if (!w.slots[slot]) emptySlotCount++
+  return { emptySlotCount }
+}
+
+module.exports = { InteractionMemory, playerState, itemView, compactItemView, inventoryItems, inventoryCapacity, equipmentView }

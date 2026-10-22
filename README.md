@@ -45,6 +45,8 @@ npm start
 
 特殊工作站、村民交易及当前窗口查询见 [Mineflayer 工作站 API](docs/mineflayer-workstations.md)。
 
+逐项人工验收见 [API 分类清单、调用参数与测试状态](docs/api-acceptance-checklist.md)。
+
 ### 多 Agent 管理
 
 支持同时管理多个 Minecraft 机器人，每个 Agent 独立配置 Minecraft 连接和 LLM 参数。

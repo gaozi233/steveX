@@ -17,7 +17,9 @@ test('open-window inventory wins over the stale player inventory cache', async (
   assert.equal(state.inventorySlotSpace, 'current-window')
   assert.deepEqual(state.inventory.map(item => item.name), ['iron_ingot'])
   const result = await require('../src/commands/queries/inventory').handler(bot, [], agent)
-  assert.equal(result.output, 'Inventory: iron_ingot x1')
+  assert.equal(result.output, 'Inventory: iron_ingot x1 | Empty slots: 1')
+  assert.equal(result.emptySlotCount, 1)
+  assert.equal(state.emptySlotCount, 1)
   bot.currentWindow = null
   assert.equal(playerState(agent).inventorySlotSpace, 'player-inventory')
   assert.equal(playerState(agent).inventory[0].name, 'apple')

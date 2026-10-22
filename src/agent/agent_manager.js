@@ -1,6 +1,7 @@
 const { EventEmitter } = require('events')
 const { SteveXAgent } = require('./agent')
 const { loadCommands } = require('../commands')
+const { healthState } = require('./health_state')
 
 class AgentManager {
   constructor(loadConfig) {
@@ -167,10 +168,7 @@ class AgentManager {
   getAgentHealth(agent) {
     const bot = this.getAgentBot(agent)
 
-    return {
-      health: bot?.health ?? 20,
-      maxHealth: bot?.maxHealth ?? 20
-    }
+    return healthState(bot)
   }
 
   getAgentGameMode(agent) {

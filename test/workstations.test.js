@@ -24,6 +24,34 @@ function item(bot, index, name = 'stone', count = 4) {
   return bot.currentWindow.slots[index] = { slot: index, name, type: 1, metadata: 0, count }
 }
 
+test('compact window partitions all slots into occupied and empty while retaining special data', () => {
+  const bot = fixture('minecraft:generic_9x3', 27)
+  item(bot, 0, 'stone', 64)
+  item(bot, 26, 'pickaxe', 1).components = [{ type: 'damage', data: 0 }]
+  bot.currentWindow.slots[27] = { name: 'book', count: 1, slot: 27, components: [{ type: 'writable_book_content', data: { pages: ['text'] } }] }
+  const data = api.describe(bot, { compact: true })
+  assert.equal(data.slotCount, 63)
+  assert.deepEqual(data.slots.map(i => i.slot), [0, 26, 27])
+  assert.deepEqual(data.slots[1], { name: 'pickaxe', count: 1, slot: 26 })
+  assert.deepEqual([...data.slots.map(i => i.slot), ...data.emptySlots].sort((a, b) => a - b), Array.from({ length: 63 }, (_, i) => i))
+  for (const key of ['id', 'properties', 'source', 'cursor']) assert.equal(Object.hasOwn(data, key), false)
+  bot.currentWindow.selectedItem = { name: 'diamond', count: 2 }
+  assert.equal(api.describe(bot, { compact: true }).cursor.count, 2)
+  assert.equal(api.describe(bot).slots[1].item, null)
+  bot.emit('end')
+})
+
+test('compact furnace returns visible bar percentages rather than raw property ticks', () => {
+  const bot = fixture('minecraft:furnace', 3)
+  assert.deepEqual(api.describe(bot, { compact: true }).furnace, {})
+  for (const [index, value] of [800, 1600, 50, 200].entries()) property(bot, index, value)
+  assert.deepEqual(api.describe(bot, { compact: true }).furnace, { fuelPercent: 50, progressPercent: 25 })
+  property(bot, 0, 0); property(bot, 1, 0)
+  assert.equal(api.describe(bot, { compact: true }).furnace.fuelPercent, 0)
+  assert.equal(api.describe(bot).furnace.totalProgressTicks, 200)
+  bot.emit('end')
+})
+
 test('workstation properties are unknown until observed, scoped to window objects and cleaned on disconnect', () => {
   const bot = fixture('minecraft:brewing_stand', 5)
   assert.equal(api.describe(bot).brewing.fuelUses, null)

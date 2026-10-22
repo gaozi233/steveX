@@ -32,7 +32,7 @@ class Brain {
     const list = loadCommands().list.filter(c => (!agent.commands || agent.commands[c.name])
       && (allowed ? allowed.has(c.name) : c.kind !== 'creative'))
     this.table = list
-      .map(c => `${c.name}${c.usage && c.usage !== c.name ? ' ' + c.usage.replace(c.name + ' ', '') : ''}`)
+      .map(c => `${c.name}${c.usage && c.usage !== c.name ? ' ' + c.usage.replace(c.name + ' ', '') : ''}${c.description ? ' -- ' + c.description : ''}`)
       .join('\n')
   }
 

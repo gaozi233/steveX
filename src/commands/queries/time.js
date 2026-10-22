@@ -6,10 +6,14 @@ module.exports = {
   description: 'Show game time, day and moon phase',
   usage: 'time',
   async handler(bot) {
-    const tod = bot.time.timeOfDay ?? '?'
-    const day = bot.time.day ?? '?'
-    const isDay = bot.time.isDay ? 'day' : 'night'
-    const moon = ['full', 'waning gibbous', 'third quarter', 'waning crescent', 'new', 'waxing crescent', 'first quarter', 'waxing gibbous'][bot.time.moonPhase] ?? '?'
-    return { ok: true, output: `Time: ${tod} ticks | Day: ${day} | ${isDay} | Moon: ${moon}` }
+    const time = bot.time || {}
+    const finite = value => typeof value === 'number' && Number.isFinite(value)
+    const timeOfDay = finite(time.timeOfDay) ? time.timeOfDay : null
+    const day = finite(time.day) ? time.day : null
+    const isDay = typeof time.isDay === 'boolean' ? time.isDay : null
+    const moonPhase = finite(time.moonPhase) ? time.moonPhase : null
+    const moon = ['full', 'waning gibbous', 'third quarter', 'waning crescent', 'new', 'waxing crescent', 'first quarter', 'waxing gibbous'][moonPhase] ?? '?'
+    return { ok: true, output: `Time: ${timeOfDay ?? '?'} ticks | Day: ${day ?? '?'} | ${isDay === null ? '?' : isDay ? 'day' : 'night'} | Moon: ${moon}`,
+      timeOfDay, day, isDay, moonPhase, doDaylightCycle: typeof time.doDaylightCycle === 'boolean' ? time.doDaylightCycle : null }
   }
 }

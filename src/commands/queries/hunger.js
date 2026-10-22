@@ -1,11 +1,15 @@
 /**
  * hunger — show food level and saturation
  */
+const { foodState } = require('../../agent/food_state')
+
 module.exports = {
   name: 'hunger',
-  description: 'Show food level and saturation',
+  description: 'Show food level and last-known saturation from the health packet',
   usage: 'hunger',
   async handler(bot) {
-    return { ok: true, output: `Hunger: ${bot.food ?? '?'}/20 | Saturation: ${bot.foodSaturation?.toFixed(1) ?? '?'}` }
+    const state = foodState(bot)
+    const note = state.saturation === null ? '' : ' (last known)'
+    return { ok: true, output: `Hunger: ${state.food ?? '?'}/20 | Saturation: ${state.saturation?.toFixed(1) ?? '?'}${note}`, ...state }
   }
 }

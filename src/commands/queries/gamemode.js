@@ -7,8 +7,9 @@ module.exports = {
   usage: 'gamemode',
   async handler(bot) {
     const modes = { 0: 'survival', 1: 'creative', 2: 'adventure', 3: 'spectator' }
-    const gameMode = bot.game.gameMode
-    const mode = typeof gameMode === 'string' ? gameMode.toLowerCase() : modes[gameMode] ?? '?'
-    return { ok: true, output: `Game mode: ${mode}` }
+    const gameMode = bot.game?.gameMode
+    const value = typeof gameMode === 'string' ? gameMode.toLowerCase() : modes[gameMode]
+    const mode = Object.values(modes).includes(value) ? value : null
+    return { ok: true, output: `Game mode: ${mode ?? '?'}`, mode }
   }
 }

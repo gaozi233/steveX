@@ -2,6 +2,7 @@ const mineflayer = require('mineflayer')
 const { pathfinder, Movements } = require('mineflayer-pathfinder')
 const mcDataLoader = require('minecraft-data')
 const { velocityCompatibility } = require('./velocity_compat')
+const { spectatorCompatibility } = require('./spectator_compat')
 const { ActionExecutor, cancelled } = require('./action_executor')
 
 class SteveXAgent {
@@ -51,6 +52,7 @@ class SteveXAgent {
     this.bot.loadPlugin(pathfinder)
     // Load after Mineflayer's built-ins so this corrects their legacy scaling.
     this.bot.loadPlugin(velocityCompatibility)
+    this.bot.loadPlugin(spectatorCompatibility)
     this.registerEvents()
   }
 
