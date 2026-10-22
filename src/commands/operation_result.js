@@ -20,18 +20,24 @@ function aimedFace(block) {
   return faces[block.face].clone()
 }
 // Inbound packets only: blockUpdate also includes Mineflayer's local predictions.
-function observeBlock(bot, point) {
-  let stateId = null
-  const single = p => { if (p.location.x === point.x && p.location.y === point.y && p.location.z === point.z) stateId = p.type }
+function observeBlocks(bot, points) {
+  const key = p => `${p.x},${p.y},${p.z}`
+  const states = new Map(points.map(p => [key(p), null]))
+  const update = (point, stateId) => { if (states.has(key(point))) states.set(key(point), stateId) }
+  const single = p => update(p.location, p.type)
   const multiple = p => {
     if (!p.chunkCoordinates) return
     for (const record of p.records) {
       const r = BigInt(record), c = p.chunkCoordinates
-      if (c.x*16+Number((r>>8n)&15n)===point.x && c.y*16+Number(r&15n)===point.y && c.z*16+Number((r>>4n)&15n)===point.z) stateId = Number(r>>12n)
+      update({ x: c.x*16+Number((r>>8n)&15n), y: c.y*16+Number(r&15n), z: c.z*16+Number((r>>4n)&15n) }, Number(r>>12n))
     }
   }
   bot._client.on('block_change', single); bot._client.on('multi_block_change', multiple)
-  return { get stateId() { return stateId }, close() { bot._client.removeListener('block_change', single); bot._client.removeListener('multi_block_change', multiple) } }
+  return { stateId: point => states.get(key(point)) ?? null, close() { bot._client.removeListener('block_change', single); bot._client.removeListener('multi_block_change', multiple) } }
+}
+function observeBlock(bot, point) {
+  const observed = observeBlocks(bot, [point])
+  return { get stateId() { return observed.stateId(point) }, close: observed.close }
 }
 async function waitFor(predicate, signal, timeoutMs = 2500) {
   const start = Date.now()
@@ -65,4 +71,4 @@ function counts(bot) {
 function inventoryChanges(before, after) {
   return [...new Set([...before.keys(),...after.keys()])].map(item => ({ kind: 'inventory', item, delta: (after.get(item)||0)-(before.get(item)||0) })).filter(c => c.delta!==0)
 }
-module.exports = { operationNames, result, operation, position, aimedFace, observeBlock, waitFor, digConfirmed, syncInventory, counts, inventoryChanges }
+module.exports = { operationNames, result, operation, position, aimedFace, observeBlock, observeBlocks, waitFor, digConfirmed, syncInventory, counts, inventoryChanges }

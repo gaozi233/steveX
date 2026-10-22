@@ -16,3 +16,16 @@ test('raycast accepts zero angles, delegates nonzero angles and restores on disc
   bot.entity.yaw = 0; bot.entity.pitch = NaN; assert.equal(bot.blockAtEntityCursor(), null)
   bot.emit('end'); assert.equal(bot.blockAtEntityCursor, original)
 })
+
+test('raycast uses standing/crouched eye height at nonzero angles, matching lookAt', () => {
+  const bot = new EventEmitter()
+  bot.blockAtEntityCursor = () => 'original'
+  bot.entity = { position:new Vec3(2,3,4),height:1.8,eyeHeight:1.62,yaw:1,pitch:0.3 }
+  bot.world = { raycast:(origin,direction)=>({origin,direction}) }
+  assert.ok(raycastCompatibility(bot))
+  assert.equal(bot.blockAtEntityCursor().origin.y,4.62)
+  bot.entity.eyeHeight=1.27
+  assert.equal(bot.blockAtEntityCursor().origin.y,4.27)
+  bot.entity.eyeHeight=NaN
+  assert.equal(bot.blockAtEntityCursor(),null)
+})

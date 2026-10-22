@@ -53,10 +53,10 @@ Action success does not imply dropped items were collected.
 | --- | --- | --- |
 | dig | action | Dig the block in sight |
 | mine &lt;x&gt; &lt;y&gt; &lt;z&gt; | action | Approach and dig a solid block at integer coordinates; rechecks target; does not guarantee drop pickup |
-| collect | action | Approach nearest loaded item drop; succeeds only on own confirmed pickup, not just reaching it |
+| collect | action | Approach nearest loaded item drop without digging or scaffolding; succeeds only on own confirmed pickup and inventory gain |
 | craft &lt;itemName&gt; [times] [auto&#124;hand&#124;table] [recipeIndex] | action | Craft from backpack and reachable table; times=executions 1..64, not items; optional recipeIndex selects an exact catalog entry without fallback; one executable recipe runs, multiple return availableRecipes; reports observed net inventory changes |
-| place | action | Place held block on aimed face (all six faces); confirms server block change and item consumption |
-| placeentity | action | Place supported entity item on aimed face respecting item rules; confirms spawn and consumption; paintings unsupported |
+| place | action | Place held block at the aimed hit point; confirms state and item consumption, both halves for doors/beds; returns actual positions and block properties |
+| placeentity | action | Use held boat/raft, spawn egg, armor stand or end crystal at current aim; confirms a new matching spawn and item consumption; failure reports observed effects |
 
 ## 背包、持物与消耗 / Inventory and items (7)
 

@@ -12,6 +12,7 @@ const { result, aimedFace, observeBlock, waitFor } = require('../src/commands/op
 
 function basic() {
   const bot = new EventEmitter()
+  bot.entity = { position: new Vec3(0,0,0) }
   bot._client = new EventEmitter(); bot.game = { gameMode: 'survival' }
   bot.inventory = { slots: Array(46).fill(null), inventoryStart: 9, inventoryEnd: 45, items() { return this.slots.slice(9,45).filter(Boolean) } }
   bot._syncWindow = async () => {}
@@ -37,14 +38,15 @@ test('mine protects approach terrain and restores settings, and refuses changed 
   const bot=basic(), block={position:new Vec3(1,0,0),stateId:1,type:1,name:'stone',diggable:true,boundingBox:'block'}
   let current=block, dug=false
   const movements={canDig:true,allow1by1towers:true,scafoldingBlocks:[1]}
-  bot.blockAt=()=>current;bot.canDigBlock=()=>true;bot.pathfinder={setMovements:()=>{},goto:async()=>{assert.equal(movements.canDig,false);current={...block,stateId:2}}};bot.dig=async()=>{dug=true}
+  bot.blockAt=()=>current;bot.canDigBlock=()=>true;bot.pathfinder={setGoal:()=>{},setMovements:()=>{},goto:async()=>{assert.equal(movements.canDig,false);current={...block,stateId:2}}};bot.dig=async()=>{dug=true}
   const r=await mine.handler(bot,['1','0','0'],{bot,movements});assert.equal(r.ok,false);assert.equal(dug,false);assert.equal(movements.canDig,true);assert.deepEqual(movements.scafoldingBlocks,[1])
 })
 test('collect confirms own pickup and inventory gain, selects nearest and cleans listeners', async () => {
   const bot=basic();bot.entity={id:10,position:new Vec3(0,0,0)}
   bot.entities={1:{id:1,name:'item',position:new Vec3(5,0,0)},2:{id:2,name:'item',position:new Vec3(2,0,0)}}
-  bot.pathfinder={goto:async goal=>{assert.equal(goal.x,2);bot.inventory.slots[9]={name:'emerald',count:3};bot.emit('playerCollect',bot.entity,bot.entities[2])}}
-  const r=await collect.handler(bot,[],{movements:{}});assert.equal(r.ok,true);assert.equal(r.changes[0].delta,3);assert.equal(bot.listenerCount('playerCollect'),0)
+  const movements={canDig:true,allow1by1towers:true,scafoldingBlocks:[1]}
+  bot.pathfinder={setGoal:()=>{},setMovements:()=>{},goto:async goal=>{assert.equal(goal.x,2);assert.equal(movements.canDig,false);assert.equal(movements.allow1by1towers,false);assert.deepEqual(movements.scafoldingBlocks,[]);bot.entity.position=new Vec3(2,0,0);bot.inventory.slots[9]={name:'emerald',count:3};bot.emit('playerCollect',bot.entity,bot.entities[2])}}
+  const r=await collect.handler(bot,[],{movements});assert.equal(r.ok,true);assert.equal(r.changes[0].delta,3);assert.equal(bot.listenerCount('playerCollect'),0);assert.equal(movements.canDig,true);assert.deepEqual(movements.scafoldingBlocks,[1])
 })
 function craftingBot() {
   const bot=basic();bot.registry=require('minecraft-data')('1.21.11');bot.entity={position:new Vec3(0,0,0)}
@@ -89,12 +91,12 @@ test('all six face normals and packet observation including negative chunk coord
   assert.equal(w.stateId,5);w.close();assert.equal(await waitFor(()=>false,undefined,1),false)
 })
 test('place uses aimed side and checks both block and inventory; entity placement checks consumption', async () => {
-  const bot=basic(),p=new Vec3(0,0,0),block={name:'stone',position:p,face:5};let current={stateId:0,type:0,name:'air'}
+  const bot=basic(),p=new Vec3(0,0,0),block={name:'stone',position:p,face:5,intersect:new Vec3(1,0.6,0.4)};let current={stateId:0,type:0,name:'air'}
   bot.registry={blocksByName:{stone:{}}};bot.heldItem={name:'stone'};bot.inventory.slots[9]={name:'stone',count:2};bot.blockAtCursor=()=>block;bot.blockAt=()=>current
-  bot.placeBlock=async(_,face)=>{assert.equal(face.x,1);current={stateId:1,type:1,name:'stone'};bot.inventory.slots[9].count--;bot._client.emit('block_change',{location:new Vec3(1,0,0),type:1})}
+  bot._genericPlace=async(_,face,options)=>{assert.equal(face.x,1);assert.deepEqual(options.delta,block.intersect);assert.equal(options.forceLook,'ignore');current={stateId:1,type:1,name:'stone'};bot.inventory.slots[9].count--;bot._client.emit('block_change',{location:new Vec3(1,0,0),type:1})}
   assert.equal((await place.handler(bot,[],{})).confirmed,true)
   bot.heldItem={name:'painting'};assert.equal((await placeentity.handler(bot,[],{})).ok,false)
-  bot.heldItem={name:'armor_stand'};bot.inventory.slots[9]={name:'armor_stand',count:1};bot.placeEntity=async()=>{bot.inventory.slots[9]=null;return{id:20,name:'armor_stand',position:new Vec3(1,0,0)}}
+  bot.heldItem={name:'armor_stand'};bot.inventory.slots[9]={name:'armor_stand',count:1};bot._genericPlace=async()=>{bot.inventory.slots[9]=null;bot.emit('entitySpawn',{id:20,name:'armor_stand',position:new Vec3(1,0,0)})}
   assert.equal((await placeentity.handler(bot,[],{})).confirmed,true)
 })
 

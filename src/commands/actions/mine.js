@@ -5,6 +5,7 @@ const Vec3 = require('vec3').Vec3
 const { goals: pathfinderGoals } = require('mineflayer-pathfinder')
 const skillRegistry = require("../../runtime/skill_registry.ts");
 const { operation, digConfirmed } = require('../operation_result')
+const { protectedApproach } = require('../protected_approach')
 
 const args = {
   x: { required: true },
@@ -27,13 +28,7 @@ const skill = {
     if (!block) return { ok: false, error: 'Block not loaded' }
     if (!block.diggable || block.boundingBox === 'empty') return { ok: false, error: 'Target is not a diggable solid block' }
 
-    const movements = agent.movements
-    const previous = { canDig: movements.canDig, allow1by1towers: movements.allow1by1towers, scafoldingBlocks: movements.scafoldingBlocks }
-    try {
-      movements.canDig = false; movements.allow1by1towers = false; movements.scafoldingBlocks = []
-      agent.bot.pathfinder.setMovements(movements)
-      await agent.bot.pathfinder.goto(new pathfinderGoals.GoalGetToBlock(x, y, z))
-    } finally { Object.assign(movements, previous); agent.bot.pathfinder.setMovements(movements) }
+    await protectedApproach(agent.bot, agent.movements, new pathfinderGoals.GoalGetToBlock(x, y, z), signal)
     signal?.throwIfAborted()
     const current = agent.bot.blockAt(pos)
     if (!current || current.stateId !== block.stateId) return { ok: false, error: 'Target block changed while approaching; query again before retrying' }
