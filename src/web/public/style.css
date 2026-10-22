@@ -1096,3 +1096,10 @@ select {
     font-size: 14px;
   }
 }
+/* Command catalog stays within the agent panel on narrow screens. */
+.command-catalog { min-width: 0; padding: 8px 0; }
+.command-catalog summary { cursor: pointer; }
+.command-catalog-content { max-height: 420px; overflow: auto; overflow-wrap: anywhere; }
+.command-catalog-content h4 { font-size: 14px; margin: 12px 0 6px; }
+.command-catalog-content p, .command-catalog-content dl { font-size: 12px; }
+.command-catalog-content dd { margin: 2px 0 8px 12px; }

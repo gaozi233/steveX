@@ -46,6 +46,8 @@ npm start
 特殊工作站、村民交易及当前窗口查询见 [Mineflayer 工作站 API](docs/mineflayer-workstations.md)。
 
 逐项人工验收见 [API 分类清单、调用参数与测试状态](docs/api-acceptance-checklist.md)。
+采集、工作台合成与六面放置的成功判定及 Benchmark 用法见 [动作结果契约](docs/gather-build-contract.md)。
+共享命令目录见 [自动生成的分类目录](docs/command-catalog.md)。分类源为 `src/commands/catalog.js`，参数和说明来自命令定义；修改后运行 `npm run docs:commands`，用 `npm run docs:commands -- --check` 检查同步。
 
 ### 多 Agent 管理
 

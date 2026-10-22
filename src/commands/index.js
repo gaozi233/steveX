@@ -1,5 +1,6 @@
 const fs = require('fs')
 const path = require('path')
+const { categoryFor } = require('./catalog')
 
 /**
  * Load all command definitions from the actions/ and queries/ subdirectories.
@@ -34,6 +35,7 @@ function loadCommands() {
       if (dir === 'queries') queryNames.add(name)
       list.push({
         name,
+        category: categoryFor(name),
         kind: dir === 'queries' ? 'query' : dir === 'creative' ? 'creative' : 'action',
         description: mod.description || '',
         usage: mod.usage || name

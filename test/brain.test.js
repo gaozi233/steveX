@@ -88,3 +88,58 @@ test('pickCommand rejects prose and accepts a listed command', () => {
   assert.equal(brain.pickCommand('I suggest gathering wood first.'), null)
   assert.equal(brain.pickCommand('```\npos\n```'), 'pos')
 })
+
+test('Brain prompt supports recipe selection and verified goals without a hardcoded progression', () => {
+  const brain = new Brain(createAgent(), {}, { emit() {} }, { goal: 'craft one iron_ingot' })
+  const system = brain.buildSystem()
+  assert.match(system, /craft one iron_ingot/)
+  assert.match(system, /recipeIndex/)
+  assert.match(system, /verify inventory/i)
+  assert.doesNotMatch(system, /Helpful chain|ironstone/)
+})
+
+test('Brain preserves complete command results and keeps the existing ten-entry limit', async () => {
+  const brain = new Brain(createAgent(), {}, { emit() {} })
+  const full = JSON.stringify({ recipes: Array.from({ length: 20 }, (_, index) => ({ index, item: 'wool' + index })) })
+  brain.remember('recipes red_bed', full)
+  assert.ok((await brain.gatherState()).includes(full))
+  assert.equal(brain.history[0][1], full)
+  const longInventory = 'inventory detail '.repeat(1000)
+  brain.remember('inventory', longInventory)
+  assert.ok((await brain.gatherState()).includes(longInventory))
+  brain.remember('recipes white_bed', '{"recipes":["last white recipe"]}')
+  const state = await brain.gatherState()
+  assert.ok(state.includes('last white recipe'))
+  assert.ok(state.includes(full))
+  for (let i = 0; i < 10; i++) brain.remember('pos', 'record ' + i)
+  assert.equal(brain.history.length, 10)
+  assert.deepEqual(brain.history[0], ['pos', 'record 0'])
+  assert.ok(!(await brain.gatherState()).includes(full))
+  assert.equal(new Brain(createAgent(), {}, { emit() {} }).history.length, 0)
+})
+
+test('Brain keeps recipe query hint at the start of failed command history', async () => {
+  const brain = activeBrain({ name: 'query-hint', executeCommand: async command => command.startsWith('craft')
+    ? { ok: false, error: 'long error '.repeat(50), nextQuery: 'recipes white_bed' }
+    : { ok: true, output: 'state' } })
+  brain.llm.chat = async () => 'craft white_bed'
+  await brain.tick()
+  assert.match(brain.history.at(-1)[1], /Next query: recipes white_bed/)
+  brain.stop()
+})
+
+test('Brain preserves partial crafting output and confirmed deltas after a timeout', async () => {
+  const brain = activeBrain({ name: 'partial-craft', executeCommand: async command => command.startsWith('craft')
+    ? { ok: false, error: 'Action craft timed out', output: 'Craft incomplete; powered_rail net change 258; inspect before retrying',
+      completedExecutions: 42, producedCount: 258, changes: [{ item: 'powered_rail', delta: 258 }] }
+    : { ok: true, output: 'state' } })
+  brain.llm.chat = async () => 'craft powered_rail 64 table'
+  await brain.tick()
+  const history = brain.history.at(-1)[1]
+  assert.match(history, /timed out/)
+  assert.match(history, /inspect before retrying/)
+  assert.match(history, /"completedExecutions":42/)
+  assert.match(history, /"producedCount":258/)
+  assert.match(history, /"changes":\[\{"item":"powered_rail","delta":258\}\]/)
+  brain.stop()
+})

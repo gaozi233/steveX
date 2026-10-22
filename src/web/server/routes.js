@@ -1,5 +1,6 @@
 const fs = require('fs/promises')
 const path = require('path')
+const { groupCommands } = require('../../commands/catalog')
 const skillRegistry = require('../../runtime/skill_registry.ts')
 
 const { getEnvironmentConfigPath } = require('../../utils/config')
@@ -20,7 +21,8 @@ function registerRoutes(app, manager) {
   })
 
   app.get('/api/commands', (req, res) => {
-    res.json({ ok: true, commands: manager.commandList || [] })
+    const commands = manager.commandList || []
+    res.json({ ok: true, commands, categories: groupCommands(commands) })
   })
 
   // ---- Read environment config ----

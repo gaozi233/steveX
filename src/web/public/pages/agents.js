@@ -165,6 +165,11 @@ function agentCardHtml(agent) {
             </div>
           </form>
 
+          <details class="command-catalog">
+            <summary>Command Catalog</summary>
+            <div class="command-catalog-content" aria-live="polite"></div>
+          </details>
+
           <form class="command-panel" data-action="message" data-agent="${escapeHtml(agent.name)}">
             <div class="command-title">Send Message <span>(to LLM Planner)</span></div>
             <div class="command-row">
@@ -429,4 +434,18 @@ async function handleSubmit(e) {
 export function initAgents(container) {
   container.addEventListener('click', handleClick)
   container.addEventListener('submit', handleSubmit)
+  container.addEventListener('toggle', async event => {
+    const details = event.target
+    if (!details.matches('.command-catalog') || !details.open || details.dataset.loaded) return
+    const content = details.querySelector('.command-catalog-content')
+    content.textContent = 'Loading...'
+    try {
+      const response = await fetch('/api/commands')
+      if (!response.ok) throw new Error('Command catalog unavailable')
+      const result = await response.json()
+      if (!result.ok || !Array.isArray(result.categories)) throw new Error('Command catalog unavailable')
+      content.innerHTML = result.categories.map(group => `<section><h4>${escapeHtml(group.title)} (${group.commands.length})</h4><p>${escapeHtml(group.note)}</p><dl>${group.commands.map(command => `<dt><code>${escapeHtml(command.usage)}</code> <small>${escapeHtml(command.kind)}</small></dt><dd>${escapeHtml(command.description)}</dd>`).join('')}</dl></section>`).join('')
+      details.dataset.loaded = 'true'
+    } catch (error) { content.textContent = error.message }
+  }, true)
 }

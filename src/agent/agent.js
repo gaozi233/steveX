@@ -3,7 +3,9 @@ const { pathfinder, Movements } = require('mineflayer-pathfinder')
 const mcDataLoader = require('minecraft-data')
 const { velocityCompatibility } = require('./velocity_compat')
 const { spectatorCompatibility } = require('./spectator_compat')
+const { raycastCompatibility } = require('./raycast_compat')
 const { ActionExecutor, cancelled } = require('./action_executor')
+const { craftTimeoutMs } = require('../commands/craft_timing')
 
 class SteveXAgent {
   /**
@@ -53,6 +55,7 @@ class SteveXAgent {
     // Load after Mineflayer's built-ins so this corrects their legacy scaling.
     this.bot.loadPlugin(velocityCompatibility)
     this.bot.loadPlugin(spectatorCompatibility)
+    this.bot.loadPlugin(raycastCompatibility)
     this.registerEvents()
   }
 
@@ -136,6 +139,7 @@ class SteveXAgent {
       }
     }
 
+    let operationOutcome
     try {
       options.signal?.throwIfAborted()
       if (this.queryNames.has(command)) return await handler.call(this, this.bot, args, this, options)
@@ -157,6 +161,7 @@ class SteveXAgent {
         this.currentAction = command
         try {
           const result = await handler.call(this, this.bot, args, this, { ...options, signal })
+          if (require('../commands/operation_result').operationNames.has(command)) operationOutcome = result
           if (result?.status === 'RUNNING') this.backgroundSource = options.source || 'manual'
           return result
         }
@@ -164,9 +169,12 @@ class SteveXAgent {
           if (signal.aborted) this.stopPhysicalActions()
           this.currentAction = this.connected ? (this.bot?._followCleanup ? 'follow' : 'Idle') : 'Offline'
         }
-      }, { ...options, timeoutMs: options.timeoutMs || this.config.runtime?.actionTimeoutMs || 30000 })
+      }, { ...options, timeoutMs: options.timeoutMs ?? this.config.runtime?.actionTimeoutMs ?? (command === 'craft' ? craftTimeoutMs(args) : 30000) })
     } catch (err) {
       if (err.name !== 'AbortError') console.error(`[error](${this.name}) Command error`, err)
+
+      const operations = require('../commands/operation_result')
+      if (operations.operationNames.has(command)) return operations.result(command, { ...operationOutcome, ok: false, cancelled: err.name === 'AbortError', error: err.message || String(err) })
 
       return {
         ok: false,

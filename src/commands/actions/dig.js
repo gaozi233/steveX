@@ -1,14 +1,15 @@
 /**
  * dig — dig the block in front
  */
+const { operation, digConfirmed } = require('../operation_result')
 module.exports = {
   name: 'dig',
   description: 'Dig the block in sight',
   usage: 'dig',
-  async handler(bot) {
+  handler: operation('dig', async (bot, args, agent, { signal } = {}) => {
     const block = bot.blockAtCursor(4.5)
     if (!block) return { ok: false, error: 'No block in sight' }
-    await bot.dig(block)
-    return { ok: true, output: `Dug ${block.name}` }
-  }
+    if (!bot.canDigBlock(block)) return { ok: false, error: 'Block is not diggable or out of reach' }
+    return digConfirmed(bot, block, signal)
+  })
 }

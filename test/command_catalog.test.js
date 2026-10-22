@@ -1,0 +1,31 @@
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+const { loadCommands } = require('../src/commands')
+const { categories, categoryFor, groupCommands } = require('../src/commands/catalog')
+const { Brain } = require('../src/agent/brain')
+const { generate } = require('../scripts/generate-command-catalog')
+
+test('every command has exactly one category, with no stale category entries', () => {
+  const { list } = loadCommands()
+  const names = categories.flatMap(c => c.names.split(' '))
+  assert.equal(new Set(names).size, names.length)
+  assert.deepEqual([...names].sort(), list.map(c => c.name).sort())
+  assert.equal(groupCommands(list).flatMap(c => c.commands).length, 78)
+  assert.equal(groupCommands(list)[0].commands.length, 14)
+  assert.throws(() => categoryFor('unregistered'), /Missing/)
+})
+test('Brain groups only allowed commands and never accepts category headings as commands', () => {
+  const agent = { commands: { pos() {}, goto() {} } }
+  const brain = new Brain(agent, {}, {}, { allowedCommands: ['pos'] })
+  assert.match(brain.buildSystem(), /State and environment/)
+  assert.doesNotMatch(brain.table, /Motion and control/)
+  assert.equal(brain.pickCommand('pos'), 'pos')
+  for (const value of ['Read-only;', '[状态与环境查询', 'goto 0 0 0']) assert.equal(brain.pickCommand(value), null)
+  const normal = new Brain({}, {}, {})
+  assert.equal(normal.pickCommand('setinventory 1 stone 1'), null)
+})
+test('generated command documentation stays synchronized', () => {
+  assert.equal(fs.readFileSync(path.join(__dirname, '../docs/command-catalog.md'), 'utf8').replace(/\r\n/g, '\n'), generate())
+})

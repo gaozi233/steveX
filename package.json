@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node src/main.js",
     "test": "node --test",
+    "docs:commands": "node scripts/generate-command-catalog.js",
     "mc:renderer": "powershell -ExecutionPolicy Bypass -File scripts/run-renderer.ps1",
     "mc:memory": "powershell -ExecutionPolicy Bypass -File scripts/run-memory.ps1"
   },

@@ -7,8 +7,8 @@ module.exports = {
   usage: 'wait <ticks>',
   async handler(bot, args, agent, { signal } = {}) {
     if (args.length < 1) return { ok: false, error: 'Usage: wait <ticks>' }
-    const ticks = parseInt(args[0], 10)
-    if (isNaN(ticks) || ticks < 1) return { ok: false, error: 'Invalid tick count' }
+    const ticks = args.length === 1 && /^\d+$/.test(args[0]) ? Number(args[0]) : NaN
+    if (!Number.isSafeInteger(ticks) || ticks < 1) return { ok: false, error: 'Tick count must be a positive safe integer' }
     signal?.throwIfAborted()
     await new Promise((resolve, reject) => {
       let remaining = ticks

@@ -53,6 +53,21 @@ function agentFor(commands, queries = new Set()) {
   return agent
 }
 
+test('agent uses batch craft deadlines while preserving explicit caller and runtime limits', async () => {
+  const agent = agentFor({ craft: async () => ({ ok: true }), look: async () => ({ ok: true }) })
+  let timeout
+  agent.executor.run = async (_name, operation, options) => { timeout = options.timeoutMs; return operation(new AbortController().signal) }
+  await agent.executeCommand('craft powered_rail 64 table')
+  assert.equal(timeout, 93000)
+  await agent.executeCommand('look 0 0')
+  assert.equal(timeout, 30000)
+  agent.config.runtime = { actionTimeoutMs: 2000 }
+  await agent.executeCommand('craft powered_rail 64 table')
+  assert.equal(timeout, 2000)
+  await agent.executeCommand('craft powered_rail 64 table', { timeoutMs: 1000 })
+  assert.equal(timeout, 1000)
+})
+
 test('queries do not replace running action status; stop bypasses queue and cancels pending actions', async () => {
   let entered
   const started = new Promise(resolve => { entered = resolve })

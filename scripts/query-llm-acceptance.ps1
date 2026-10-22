@@ -1,4 +1,4 @@
-param([switch]$Configure)
+param([switch]$Configure, [ValidateSet('query', 'craft', 'craft-stress')][string]$Suite = 'query', [string]$Case, [int]$MaxModelCalls = 0)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $secretPath = Join-Path $root 'runs\secrets\deepseek-key.dpapi'
@@ -19,7 +19,19 @@ try {
     $secret = (Get-Content -LiteralPath $secretPath -Raw).Trim() | ConvertTo-SecureString
     $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret)
     $env:DEEPSEEK_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
-    & node (Join-Path $PSScriptRoot 'query-llm-acceptance.js') --live
+    $scriptName = if ($Suite -eq 'query') { 'query-llm-acceptance.js' } else { 'craft-llm-acceptance.js' }
+    $runArgs = @('--live')
+    if ($Suite -eq 'craft-stress') { $runArgs += '--stress' }
+    if ($MaxModelCalls -lt 0) { throw 'MaxModelCalls cannot be negative' }
+    if ($MaxModelCalls -gt 0) {
+        if ($Suite -eq 'query') { throw '-MaxModelCalls is only supported with crafting suites' }
+        $runArgs += @('--max-model-calls', [string]$MaxModelCalls)
+    }
+    if ($Case) {
+        if ($Suite -eq 'query') { throw '-Case is only supported with crafting suites' }
+        $runArgs += @('--case', $Case)
+    }
+    & node (Join-Path $PSScriptRoot $scriptName) @runArgs
     if ($LASTEXITCODE -ne 0) { throw 'Acceptance run failed; inspect the recorded log.' }
 } finally {
     $env:DEEPSEEK_API_KEY = $previousKey

@@ -5,6 +5,7 @@
  */
 const { DeepSeekClient } = require('../llm/deepseek_client')
 const { loadCommands } = require('../commands')
+const { formatCommandCatalog } = require('../commands/catalog')
 
 const STATE_QUERIES = ['pos', 'hp', 'inventory', 'nearby', 'time']
 
@@ -31,15 +32,15 @@ class Brain {
     const allowed = opts.allowedCommands ? new Set(opts.allowedCommands) : null
     const list = loadCommands().list.filter(c => (!agent.commands || agent.commands[c.name])
       && (allowed ? allowed.has(c.name) : c.kind !== 'creative'))
-    this.table = list
-      .map(c => `${c.name}${c.usage && c.usage !== c.name ? ' ' + c.usage.replace(c.name + ' ', '') : ''}${c.description ? ' -- ' + c.description : ''}`)
-      .join('\n')
+    this.commandNames = new Set(list.map(c => c.name))
+    this.table = formatCommandCatalog(list)
   }
 
   buildSystem() {
     return [
       'You are JeVBot, a Minecraft bot (mineflayer) in a LAN world, Minecraft 1.21.x.',
-      `GOAL: ${this.goal}. Helpful chain: collect wood logs, craft oak_planks and stick, craft torch, craft wooden_pickaxe, equip it, dig/mine stone, findblock ironstone (or iron ore), smelt via furnace (furnace command), craft iron tools, build shelter, then explore outward with goto to locate the Endportal.`,
+      `GOAL: ${this.goal}`,
+      'Plan from observed state and the actual goal; do not assume a fixed progression or unavailable resources. recipes lists the full catalog, not currently executable alternatives. craft automatically executes a single available recipe; if multiple are available, RECIPE_SELECTION_REQUIRED lists availableRecipes for the requested batch. craft times counts recipe executions, not output items; optional recipeIndex selects that exact catalog entry without fallback. Choose using ingredients and outputCount, and verify inventory quantities against the goal before declaring completion.',
       'Reply with EXACTLY ONE command line from the list below, nothing else — no prose, no quotes, no markdown.',
       'Never repeat a command that just failed; if stuck, say something via say <text> or explore with goto <x> <y> <z>.',
       'COMMANDS:',
@@ -67,7 +68,7 @@ class Brain {
 
   pickCommand(raw) {
     if (typeof raw !== 'string' || raw.length > 4096) return null
-    const names = new Set(this.table.split('\n').map((l) => l.trim().split(/\s+/)[0]))
+    const names = this.commandNames
     const cleaned = raw.trim().replace(/^```\w*\s*\n?/, '').replace(/\n?```$/, '')
     const lines = cleaned.split('\n').map(line => line.trim()).filter(Boolean)
     if (lines.length !== 1) return null
@@ -85,7 +86,7 @@ class Brain {
   }
 
   remember(command, result) {
-    this.history.push([command, String(result).slice(0, 120)])
+    this.history.push([command, String(result)])
     if (this.history.length > 10) this.history.splice(0, this.history.length - 10)
   }
 
@@ -109,7 +110,13 @@ class Brain {
       }
       const res = await this.agent.executeCommand(cmd, { source: 'brain', signal })
       if (!this.active(generation, signal)) return
-      const outcome = res && res.ok ? (res.output || 'ok') : `FAILED ${(res?.error || '')}`
+      let outcome = res && res.ok ? (res.output || 'ok') : `FAILED ${res?.nextQuery ? 'Next query: ' + res.nextQuery + '. ' : ''}${res?.error || ''}`
+      if (!res?.ok) {
+        if (res?.output && res.output !== res.error) outcome += `\n${res.output}`
+        if (res && (res.completedExecutions !== undefined || res.producedCount !== undefined || res.changes === null || res.changes?.length)) {
+          outcome += `\nOperation feedback: ${JSON.stringify({ completedExecutions: res.completedExecutions, producedCount: res.producedCount, changes: res.changes })}`
+        }
+      }
       this.remember(cmd, outcome)
       console.log(`[brain](${this.agent.name}) ${cmd} -> ${String(outcome).slice(0, 100)}`)
     } catch (e) {
