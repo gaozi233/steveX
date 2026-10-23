@@ -3,7 +3,7 @@
  */
 module.exports = {
   name: 'putaway',
-  description: 'Put an item from a slot into empty inventory space',
+  description: 'Move the specified source slot item back into player inventory using native putAway; destination chosen automatically, no item-name search. Uses current window slot indices when open',
   usage: 'putaway <slot>',
   async handler(bot, args) {
     if (args.length < 1) return { ok: false, error: 'Usage: putaway <slot>' }

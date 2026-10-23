@@ -2,7 +2,7 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { EventEmitter } = require('node:events')
 const { Vec3 } = require('vec3')
-const placeentity = require('../src/commands/actions/placeentity')
+const placeentity = require('../src/commands/placement/entity')
 
 function fixture(item = 'cow_spawn_egg') {
   const bot = new EventEmitter(), controller = new AbortController()

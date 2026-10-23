@@ -5,7 +5,7 @@ const Vec3 = require('vec3').Vec3
 
 module.exports = {
   name: 'lookat',
-  description: 'Look at a position',
+  description: 'Turn once toward world coordinates without moving or tracking; unlike look, accepts x/y/z rather than yaw/pitch angles',
   usage: 'lookat <x> <y> <z>',
   async handler(bot, args) {
     if (args.length < 3) return { ok: false, error: 'Usage: lookat <x> <y> <z>' }

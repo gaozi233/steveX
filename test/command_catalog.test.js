@@ -12,7 +12,7 @@ test('every command has exactly one category, with no stale category entries', (
   const names = categories.flatMap(c => c.names.split(' '))
   assert.equal(new Set(names).size, names.length)
   assert.deepEqual([...names].sort(), list.map(c => c.name).sort())
-  assert.equal(groupCommands(list).flatMap(c => c.commands).length, 78)
+  assert.equal(groupCommands(list).flatMap(c => c.commands).length, 67)
   assert.equal(groupCommands(list)[0].commands.length, 14)
   assert.throws(() => categoryFor('unregistered'), /Missing/)
 })
@@ -28,4 +28,57 @@ test('Brain groups only allowed commands and never accepts category headings as 
 })
 test('generated command documentation stays synchronized', () => {
   assert.equal(fs.readFileSync(path.join(__dirname, '../docs/command-catalog.md'), 'utf8').replace(/\r\n/g, '\n'), generate())
+})
+
+test('default Brain hides all management and privileged entries without removing manual APIs', () => {
+  const { list, commands } = loadCommands()
+  const hidden = ['settings', 'quit', 'acceptpack', 'denypack', ...list.filter(c => c.category === 'creative' || c.kind === 'creative').map(c => c.name)]
+  const brain = new Brain({}, {}, {})
+  for (const name of hidden) {
+    assert.equal(typeof commands[name], 'function', `${name} must remain manually callable`)
+    assert.equal(list.find(c => c.name === name).llmDefaultVisible, false, name)
+    assert.equal(brain.commandNames.has(name), false, name)
+    assert.equal(brain.pickCommand(name), null, name)
+    assert.ok(!brain.table.split('\n').some(line => line.startsWith(name + ' ') || line.startsWith(name + ' --')), name)
+  }
+  for (const name of ['say', 'whisper', 'writebook', 'respawn', 'stop', 'inventory', 'rightclick']) {
+    assert.equal(list.find(c => c.name === name).llmDefaultVisible, true, name)
+    assert.equal(brain.commandNames.has(name), true, name)
+  }
+  assert.equal(brain.commandNames.size, list.length - new Set(hidden).size)
+  assert.doesNotMatch(brain.table, /Creative and privileged tools/)
+  for (const command of list) assert.equal(typeof command.llmDefaultVisible, 'boolean')
+})
+
+test('explicit Brain allowlist replaces defaults but cannot expose missing agent commands', () => {
+  const brain = new Brain({}, {}, {}, { allowedCommands: ['settings', 'setcommandblock', 'setinventory', 'unregistered'] })
+  assert.deepEqual([...brain.commandNames].sort(), ['setcommandblock', 'setinventory', 'settings'])
+  assert.equal(brain.pickCommand('settings viewDistance 8'), 'settings viewDistance 8')
+  assert.equal(brain.pickCommand('setcommandblock 1 2 3 say test'), 'setcommandblock 1 2 3 say test')
+  assert.equal(brain.pickCommand('setinventory 36 stone 1'), 'setinventory 36 stone 1')
+  assert.equal(brain.pickCommand('pos'), null)
+  const limited = new Brain({ commands: { pos() {} } }, {}, {}, { allowedCommands: ['pos', 'settings', 'setinventory'] })
+  assert.deepEqual([...limited.commandNames], ['pos'])
+  const empty = new Brain({}, {}, {}, { allowedCommands: [] })
+  assert.equal(empty.table, '')
+  assert.equal(empty.pickCommand('pos'), null)
+})
+
+test('shared descriptions distinguish targeting, window movement and safety stop semantics', () => {
+  const byName = Object.fromEntries(loadCommands().list.map(c => [c.name, c]))
+  assert.match(byName.open.description, /does not open entities/)
+  assert.match(byName.openentity.description, /initialize.*trade window/)
+  assert.match(byName.dispenser.description, /does not trigger dispensing/)
+  assert.match(byName.stop.description, /Immediate global.*cancel active\/queued/)
+  assert.match(byName.stand.description, /Queued.*preserves.*held-item/)
+  assert.match(byName.transfer.description, /only, never withdraw/)
+  assert.match(byName.putaway.description, /destination chosen automatically/)
+  assert.match(byName.moveslot.description, /specified destination slot/)
+  assert.match(byName.setcommandblock.description, /existing command block.*does not place/)
+  const brain = new Brain({}, {}, {})
+  assert.doesNotMatch(brain.buildSystem(), /Never repeat a command/)
+  assert.match(brain.buildSystem(), /retry only after correcting arguments or checking changed conditions/)
+  for (const name of ['open', 'openentity', 'dispenser', 'slotclick', 'moveslot', 'putaway', 'transfer']) {
+    assert.ok(brain.table.includes(byName[name].description), name)
+  }
 })

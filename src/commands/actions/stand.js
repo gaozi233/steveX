@@ -3,11 +3,11 @@
  */
 module.exports = {
   name: 'stand',
-  description: 'Stop all movement controls',
+  description: 'Queued stop of movement/pathfinding; preserves persistent sneak and held-item use. Does not immediately cancel active/queued actions; use stop for a global safety stop',
   usage: 'stand',
   async handler(bot) {
     bot.clearControlStates()
-    return { ok: true, output: 'All movement stopped' }
+    return { ok: true, output: 'Movement stopped; persistent sneak hold is unchanged' }
   }
 }
 

@@ -6,11 +6,11 @@ const { loadCommands } = require('../src/commands')
 const { SteveXAgent } = require('../src/agent/agent')
 const { sleep } = require('../src/agent/action_executor')
 
-const defaults = {nearby:[],findplayer:['SteveX-Test'],findblock:['stone'],recipes:['oak_planks'],look:['0','0'],lookat:['0','0','0'],goto:['0','0','0'],mine:['0','0','0'],move:['forward'],swing:[],follow:['SteveX-Test'],wait:['1'],craft:['oak_planks']}
-function valid(name){return defaults[name] || []}
-test('contracts cover exactly the 31 commands and supply shared catalog usage', () => {
-  const expected = categories.slice(0,3).flatMap(c=>c.names.split(' ')).sort(), {list}=loadCommands()
-  assert.equal(expected.length,31);assert.deepEqual(Object.keys(contracts).sort(),expected)
+const defaults = {nearby:[],findplayer:['SteveX-Test'],findblock:['stone'],recipes:['oak_planks'],look:['0','0'],lookat:['0','0','0'],goto:['0','0','0'],dig:['0','0','0'],move:['forward'],swing:[],follow:['SteveX-Test'],wait:['1'],craft:['oak_planks'],equip:['stone'],hotbar:['0'],drop:['stone'],interactentity:['cow']}
+function valid(name){return name==='sneak'?['off']:defaults[name] || []}
+test('contracts cover exactly the 36 commands and supply shared catalog usage', () => {
+  const expected = [...categories.slice(0,4).flatMap(c=>c.names.split(' ')),'interactentity'].sort(), {list}=loadCommands()
+  assert.equal(expected.length,36);assert.deepEqual(Object.keys(contracts).sort(),expected)
   for(const name of expected){assert.equal(validateArguments(name,valid(name)),null);assert.equal(list.find(c=>c.name===name).usage,contracts[name].usage)}
 })
 
@@ -30,13 +30,13 @@ for(const name of Object.keys(contracts)) {
 test('numeric syntax, ranges, enums, namespaces and exact counts are strict', () => {
   const cases = [
     ['look',['0x10','0']],['look',['Infinity','0']],['look',['0','1.6']],['lookat',['0','NaN','0']],['goto',['1e100','0','0']],
-    ['mine',['1.5','0','0']],['mine',['9007199254740992','0','0']],['nearby',['all','2abc']],['nearby',['all','129']],
+    ['dig',['1.5','0','0']],['dig',['9007199254740992','0','0']],['nearby',['all','2abc']],['nearby',['all','129']],
     ['findblock',['stone','0']],['findblock',['other:stone']],['recipes',['other:oak_log']],['move',['up']],['move',['forward','1e3']],
     ['move',['forward','30001']],['swing',['lef']],['wait',['1.5']],['wait',['9007199254740992']],['craft',['oak_planks','65']],
     ['craft',['oak_planks','1','nearby']],['craft',['oak_planks','1','auto','01']],['craft',['oak_planks','1','auto','0']]
   ]
   for(const[name,args]of cases)assert.equal(validateArguments(name,args).errorCode,'INVALID_ARGUMENTS',`${name} ${args}`)
-  for(const[name,args]of [['look',['-1e2','0']],['goto',['-.5','+1.0','2e2']],['mine',['-1','0','1.0']],['move',['FORWARD','30000']],['swing',['LEFT']],['craft',['MINECRAFT:OAK_PLANKS','64','HAND','1']]])assert.equal(validateArguments(name,args),null)
+  for(const[name,args]of [['look',['-1e2','0']],['goto',['-.5','+1.0','2e2']],['dig',['-1','0','1.0']],['move',['FORWARD','30000']],['swing',['LEFT']],['craft',['MINECRAFT:OAK_PLANKS','64','HAND','1']]])assert.equal(validateArguments(name,args),null)
 })
 
 test('enum normalization is shared, missing optional arguments remain omitted', async () => {
@@ -53,7 +53,7 @@ test('failure normalization is idempotent and preserves partial results and reci
   assert.deepEqual(normalizeFailure('craft',r),r)
   assert.equal(normalizeFailure('craft',{ok:false,errorCode:'CANCELLED',error:'[CANCELLED] Stop requested',output:'[CANCELLED] Partial craft; Stop requested'}).output,'[CANCELLED] Partial craft; Stop requested')
   const empty={ok:true,found:false,output:'No matching block'};assert.equal(normalizeFailure('findblock',empty),empty)
-  assert.equal(normalizeFailure('equip',original),original)
+  assert.equal(normalizeFailure('attack',original),original)
 })
 
 test('skill registry and module exports apply the same query validation', async () => {
@@ -62,7 +62,7 @@ test('skill registry and module exports apply the same query validation', async 
   for(const name of ['inventory','nearby','findblock'])assert.equal((await registry.get(name).handler({},['extra','extra','extra'],{})).errorCode,'INVALID_ARGUMENTS')
 })
 
-test('bad actions including stop/stopdig never stop Brain, clear controls, enqueue or cancel', async () => {
+test('bad actions including stop/dig stop never stop Brain, clear controls, enqueue or cancel', async () => {
   const agent=new SteveXAgent({},'contract-test',loadCommands().commands)
   agent.bot={};agent.connected=true
   let effects=0
@@ -70,7 +70,7 @@ test('bad actions including stop/stopdig never stop Brain, clear controls, enque
   agent.stopPhysicalActions=()=>effects++
   agent.executor.run=()=>{effects++;throw Error('must not enqueue')}
   agent.executor.cancelAll=()=>effects++
-  for(const command of ['stop extra','stopdig extra','stand extra','jump extra','look 0 0 extra','goto 1 2','swing typo','mine 1.5 2 3','craft oak_planks 65'])assert.equal((await agent.executeCommand(command)).errorCode,'INVALID_ARGUMENTS')
+  for(const command of ['stop extra','dig stop extra','dig typo','stand extra','jump extra','look 0 0 extra','goto 1 2','swing typo','dig 1.5 2 3','craft oak_planks 65'])assert.equal((await agent.executeCommand(command)).errorCode,'INVALID_ARGUMENTS')
   assert.equal(effects,0)
 })
 
@@ -90,7 +90,7 @@ test('window absence and target/path state failures have explicit machine codes'
   const {commands}=loadCommands()
   assert.equal((await commands.window({},[],{})).errorCode,'NO_WINDOW')
   assert.equal((await commands.dig({blockAtCursor:()=>null},[],{})).errorCode,'NO_TARGET')
-  assert.equal((await commands.mine({},['0','0','0'],{})).errorCode,'PATHFINDER_NOT_READY')
+  assert.equal((await commands.dig({blockAt:()=>({diggable:true,boundingBox:'block'}),canDigBlock:()=>false},['0','0','0'],{})).errorCode,'PATHFINDER_NOT_READY')
   assert.equal((await commands.collect({},[],{movements:{}})).errorCode,'ACTION_FAILED')
   assert.equal((await withContract('pos',async()=>{throw Error('unavailable')})({},[])).errorCode,'QUERY_FAILED')
 })

@@ -4,7 +4,7 @@
  */
 module.exports = {
   name: 'swing',
-  description: 'Play arm swing animation',
+  description: 'Animation only: send a main/right or off/left arm swing packet; never attacks, digs, uses items or interacts. Not a mouse-button press',
   usage: 'swing [hand]',
   async handler(bot, args) {
     const hand = args[0] === 'left' ? 'left' : 'right'

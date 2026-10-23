@@ -89,6 +89,44 @@ test('pickCommand rejects prose and accepts a listed command', () => {
   assert.equal(brain.pickCommand('```\npos\n```'), 'pos')
 })
 
+test('Brain context contains goal and history without executing automatic state queries', async () => {
+  const commands = []
+  const agent = createAgent()
+  agent.executeCommand = async command => { commands.push(command); return { ok: true, output: 'unexpected snapshot' } }
+  const brain = new Brain(agent, {}, { emit() {} }, { goal: 'inspect a chest' })
+  brain.remember('say ready', 'Message sent')
+  const context = await brain.gatherState()
+  assert.deepEqual(commands, [])
+  assert.match(context, /GOAL: inspect a chest/)
+  assert.match(context, /say ready -> Message sent/)
+  assert.doesNotMatch(context, /STATE:|unexpected snapshot/)
+  assert.match(brain.buildSystem(), /No fresh state snapshot is supplied automatically/)
+  const controller = new AbortController()
+  controller.abort(new Error('cancelled context'))
+  await assert.rejects(brain.gatherState(controller.signal), /cancelled context/)
+})
+
+test('Brain executes only model-selected queries and retains their results for the next turn', async () => {
+  const commands = []
+  const brain = activeBrain({ name: 'on-demand', executeCommand: async command => {
+    commands.push(command)
+    return { ok: true, output: 'Inventory: oak_log x2' }
+  } })
+  let calls = 0
+  brain.llm.chat = async messages => {
+    assert.deepEqual(commands, calls === 0 ? [] : ['inventory'])
+    assert.doesNotMatch(messages[1].content, /STATE:/)
+    if (calls++ === 0) return 'inventory'
+    assert.match(messages[1].content, /inventory -> Inventory: oak_log x2/)
+    return 'not a command'
+  }
+  await brain.tick()
+  await brain.tick()
+  assert.equal(calls, 2)
+  assert.deepEqual(commands, ['inventory'])
+  brain.stop()
+})
+
 test('Brain prompt supports recipe selection and verified goals without a hardcoded progression', () => {
   const brain = new Brain(createAgent(), {}, { emit() {} }, { goal: 'craft one iron_ingot' })
   const system = brain.buildSystem()

@@ -3,7 +3,7 @@
  */
 module.exports = {
   name: 'setcommandblock',
-  description: 'Set a command block at coordinates',
+  description: 'Edit the command of an existing command block at coordinates; does not place a block or grant permissions. Requires server permission/mode; hidden from default Brain',
   usage: 'setcommandblock <x> <y> <z> <command>',
   async handler(bot, args) {
     if (args.length < 4) return { ok: false, error: 'Usage: setcommandblock <x> <y> <z> <command>' }

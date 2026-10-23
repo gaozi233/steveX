@@ -17,7 +17,7 @@ const skill = {
 skillRegistry.register(skill);
 
 /**
- * attack — attack the entity in front
+ * attack — assisted target selection; attack the nearest entity, not the cursor
  */
 module.exports = {
   name: skill.name,

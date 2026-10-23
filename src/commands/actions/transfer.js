@@ -3,7 +3,7 @@
  */
 module.exports = {
   name: 'transfer',
-  description: 'Deposit items from inventory into the open container',
+  description: 'Deposit from player inventory into the open container only, never withdraw; item name exact match preferred then substring, count defaults to 1. Cursor must be empty',
   usage: 'transfer <itemName> [count]',
   async handler(bot, args) {
     if (args.length < 1) return { ok: false, error: 'Usage: transfer <itemName> [count]' }

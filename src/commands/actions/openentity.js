@@ -3,7 +3,7 @@
  */
 module.exports = {
   name: 'openentity',
-  description: 'Open an entity with an inventory in sight',
+  description: 'Open the aimed entity inventory within 4.5 blocks; villagers initialize the trade window required by trade. Unlike interactentity, requires pre-aim',
   usage: 'openentity',
   async handler(bot) {
     const entity = bot.entityAtCursor(4.5)

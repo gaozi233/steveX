@@ -1,6 +1,6 @@
 const fs = require('fs')
 const path = require('path')
-const { categoryFor } = require('./catalog')
+const { categoryFor, isDefaultLLMCommand } = require('./catalog')
 const { withContract, contracts } = require('./command_contract')
 
 /**
@@ -34,13 +34,14 @@ function loadCommands() {
       const name = mod.name || path.basename(file, '.js')
       commands[name] = withContract(name, mod.handler)
       if (dir === 'queries') queryNames.add(name)
-      list.push({
+      const definition = {
         name,
         category: categoryFor(name),
         kind: dir === 'queries' ? 'query' : dir === 'creative' ? 'creative' : 'action',
         description: mod.description || '',
         usage: contracts[name]?.usage || mod.usage || name
-      })
+      }
+      list.push({ ...definition, llmDefaultVisible: isDefaultLLMCommand(definition) })
     }
   }
 

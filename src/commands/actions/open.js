@@ -3,7 +3,7 @@
  */
 module.exports = {
   name: 'open',
-  description: 'Open the container/entity in sight',
+  description: 'Open the aimed block container within 4.5 blocks; does not open entities. Use openentity for initialized villager trades or entity inventories',
   usage: 'open',
   async handler(bot) {
     const block = bot.blockAtCursor(4.5)

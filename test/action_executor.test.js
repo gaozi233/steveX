@@ -121,17 +121,17 @@ test('follow is a replaceable background goal and cleans up listeners', async ()
   assert.equal(agent.bot.listenerCount('entityGone'), 0)
 })
 
-test('stopdig interrupts digging without cancelling an unrelated manual action', async () => {
-  const stopdig = require('../src/commands/actions/stopdig')
-  const agent = agentFor({ move: move.handler, stopdig: stopdig.handler })
+test('dig stop interrupts digging without cancelling an unrelated manual action', async () => {
+  const dig = require('../src/commands/actions/dig')
+  const agent = agentFor({ move: move.handler, dig: dig.handler })
   agent.bot.stopDigging = () => {}
   const moving = agent.executeCommand('move forward 30')
   await sleep(5)
-  assert.equal((await agent.executeCommand('stopdig')).ok, true)
+  assert.equal((await agent.executeCommand('dig stop')).ok, true)
   assert.equal((await moving).ok, true)
-  agent.commands.dig = async (bot, args, owner, { signal }) => { await sleep(10000, signal); return { ok: true } }
+  agent.commands.dig = async (bot, args, owner, { signal }) => args[0]==='stop'?dig.handler(bot,args,owner,{signal}):(await sleep(10000, signal),{ ok: true })
   const digging = agent.executeCommand('dig')
   await sleep(5)
-  await agent.executeCommand('stopdig')
+  await agent.executeCommand('dig stop')
   assert.equal((await digging).cancelled, true)
 })

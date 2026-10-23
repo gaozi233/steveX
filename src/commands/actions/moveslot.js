@@ -3,7 +3,7 @@
  */
 module.exports = {
   name: 'moveslot',
-  description: 'Move an item from source slot to destination slot',
+  description: 'Move a source stack to a specified destination slot in the current window (or player inventory if closed); read window/inventory for slot indices. Not a world movement command',
   usage: 'moveslot <sourceSlot> <destSlot>',
   async handler(bot, args) {
     if (args.length < 2) return { ok: false, error: 'Usage: moveslot <sourceSlot> <destSlot>' }

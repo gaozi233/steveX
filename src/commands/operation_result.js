@@ -1,7 +1,7 @@
 const { sleep } = require('../agent/action_executor')
 const { Vec3 } = require('vec3')
 const { withContract, exceptionFailure } = require('./command_contract')
-const operationNames = new Set(['dig', 'mine', 'collect', 'craft', 'place', 'placeentity'])
+const operationNames = new Set(['dig', 'collect', 'craft', 'rightclick'])
 function result(action, value) {
   const completed = value.ok === true && value.confirmed === true
   return { ...value, ok: completed, action, status: completed ? 'completed' : value.cancelled ? 'cancelled' : 'failed', confirmed: completed,

@@ -1,5 +1,7 @@
 /** Place a held entity item without pathfinding, aiming or automatic retries. */
 const { operation, aimedFace, position, counts, inventoryChanges, syncInventory, waitFor } = require('../operation_result')
+const { usedItem } = require('../held_use')
+const { placementCounts } = require('../rightclick_helpers')
 
 function entityType(bot, item) {
   const name = item?.name || ''
@@ -12,18 +14,18 @@ module.exports = {
   name: 'placeentity',
   description: 'Use held boat/raft, spawn egg, armor stand or end crystal at current aim; confirms a new matching spawn and item consumption; failure reports observed effects',
   usage: 'placeentity',
-  handler: operation('placeentity', async (bot, args, agent, { signal } = {}) => {
+  handler: operation('placeentity', async (bot, args, agent, { signal, hand = 'hand', target: aimedTarget } = {}) => {
     const reject = (errorCode, error) => ({ ok: false, errorCode, error, output: error, changes: [] })
     if (args.length) return reject('INVALID_ARGUMENTS', 'Usage: placeentity (no arguments)')
     if (bot.currentWindow) return reject('WINDOW_OPEN', 'Close the current inventory window before placing an entity')
     try { await syncInventory(bot) } catch (error) { return reject('INVENTORY_SYNC_FAILED', `Inventory not synchronized; no interaction sent: ${error.message}`) }
-    const item = bot.heldItem, expected = entityType(bot, item)
+    const item = usedItem(bot,hand), expected = entityType(bot, item)
     if (!expected) return reject('UNSUPPORTED_ITEM', 'Hold a supported boat/raft, spawn egg, armor stand or end crystal; paintings are not supported')
-    const target = bot.blockAtCursor(4.5)
+    const target = aimedTarget || bot.blockAtCursor(4.5)
     if (!target) return reject('NO_TARGET', 'No block in sight within 4.5 blocks')
     if (!target.intersect || (expected.boat ? !bot.activateItem : !bot._genericPlace)) return reject('INTERACTION_UNAVAILABLE', 'Precise native entity interaction unavailable')
     if (item.name === 'end_crystal' && !['obsidian', 'bedrock'].includes(target.name)) return reject('INVALID_SURFACE', 'End crystals require an obsidian or bedrock base; no interaction sent')
-    const face = aimedFace(target), before = counts(bot), existing = new Set(Object.values(bot.entities || {}).map(e => e.id))
+    const face = aimedFace(target), before = placementCounts(bot), existing = new Set(Object.values(bot.entities || {}).map(e => e.id))
     const info = { item: item.name, expectedEntity: expected.name, reference: position(target.position), face: position(face) }
     const spawned = new Map(), destination = target.position.plus(face).offset(0.5, 0, 0.5)
     let disconnected = false, interactionError = null, snapshotError = null, changes = null
@@ -42,14 +44,14 @@ module.exports = {
         signal?.throwIfAborted()
         // Boats use right-click-in-air with fluid raycasting. activateItem supplies
         // the current protocol's sequence/rotation; placeEntity omits these fields.
-        if (expected.boat) bot.activateItem()
-        else await bot._genericPlace(target, face, { swingArm: 'right', showHand: !item.name.endsWith('_spawn_egg'), forceLook: 'ignore', delta: target.intersect.minus(target.position) })
+        if (expected.boat) bot.activateItem(hand==='off-hand')
+        else await bot._genericPlace(target, face, { offhand:hand==='off-hand', swingArm: hand==='off-hand'?'left':'right', showHand: !item.name.endsWith('_spawn_egg'), forceLook: 'ignore', delta: target.intersect.minus(target.position) })
         await waitFor(() => spawned.size > 0 || disconnected, signal, 5000)
       } catch (error) { interactionError = error }
       try {
         if (disconnected) throw new Error('Connection ended; final inventory is unavailable')
         await syncInventory(bot)
-        changes = inventoryChanges(before, counts(bot))
+        changes = inventoryChanges(before, placementCounts(bot))
       } catch (error) { snapshotError = error }
       const observedEntities = [...spawned.values()], entity = observedEntities.length === 1 ? observedEntities[0] : null
       const evidence = [...(observedEntities.length ? ['server-entity-spawn'] : []), ...(!snapshotError ? ['server-inventory-snapshot'] : [])]
@@ -72,3 +74,4 @@ module.exports = {
     }
   })
 }
+module.exports.entityType = entityType

@@ -1,13 +1,11 @@
 /*
  * brain.js — autonomous LLM loop for SteveX agents.
- * State -> single command per tick; reuses vendor DeepSeekClient (OpenAI-compatible).
+ * Goal and recent results -> single command per tick; queries are model-selected.
  * Config: agent cfg may carry cfg.brain = { enabled, goal, intervalMs }
  */
 const { DeepSeekClient } = require('../llm/deepseek_client')
 const { loadCommands } = require('../commands')
 const { formatCommandCatalog } = require('../commands/catalog')
-
-const STATE_QUERIES = ['pos', 'hp', 'inventory', 'nearby', 'time']
 
 class Brain {
   constructor(agent, llmCfg, bus, opts = {}) {
@@ -31,7 +29,7 @@ class Brain {
     this.lastError = null
     const allowed = opts.allowedCommands ? new Set(opts.allowedCommands) : null
     const list = loadCommands().list.filter(c => (!agent.commands || agent.commands[c.name])
-      && (allowed ? allowed.has(c.name) : c.kind !== 'creative'))
+      && (allowed ? allowed.has(c.name) : c.llmDefaultVisible))
     this.commandNames = new Set(list.map(c => c.name))
     this.table = formatCommandCatalog(list)
   }
@@ -40,30 +38,21 @@ class Brain {
     return [
       'You are JeVBot, a Minecraft bot (mineflayer) in a LAN world, Minecraft 1.21.x.',
       `GOAL: ${this.goal}`,
+      'No fresh state snapshot is supplied automatically. Use the listed query commands when needed; recent history contains past observations, not guaranteed current state.',
       'Plan from observed state and the actual goal; do not assume a fixed progression or unavailable resources. recipes lists the full catalog, not currently executable alternatives. craft automatically executes a single available recipe; if multiple are available, RECIPE_SELECTION_REQUIRED lists availableRecipes for the requested batch. craft times counts recipe executions, not output items; optional recipeIndex selects that exact catalog entry without fallback. Choose using ingredients and outputCount, and verify inventory quantities against the goal before declaring completion.',
       'Reply with EXACTLY ONE command line from the list below, nothing else — no prose, no quotes, no markdown.',
-      'Never repeat a command that just failed; if stuck, say something via say <text> or explore with goto <x> <y> <z>.',
+      'Do not blindly repeat a failed command. Inspect the feedback and query relevant state; retry only after correcting arguments or checking changed conditions. If stuck, report via say <text>; do not assume unexplored coordinates are safe.',
       'COMMANDS:',
       this.table,
     ].join('\n')
   }
 
   async gatherState(signal) {
-    const lines = []
-    for (const q of STATE_QUERIES) {
-      signal?.throwIfAborted()
-      try {
-        const r = await this.agent.executeCommand(q, { source: 'brain', signal })
-        if (r && r.ok && r.output) lines.push(`${q}: ${r.output}`)
-        else if (r && r.error) lines.push(`${q}: ERROR ${r.error}`)
-      } catch (e) {
-        lines.push(`${q}: ERROR ${e.message}`)
-      }
-    }
+    signal?.throwIfAborted()
     const hist = this.history
       .map(([c, res]) => `${c} -> ${res}`)
       .join('\n')
-    return `STATE:\n${lines.join('\n')}\n\nRECENT HISTORY:\n${hist}\n\nGOAL: ${this.goal}\nReply with ONE command:`
+    return `RECENT HISTORY:\n${hist}\n\nGOAL: ${this.goal}\nReply with ONE command:`
   }
 
   pickCommand(raw) {

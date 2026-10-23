@@ -3,7 +3,7 @@
  */
 module.exports = {
   name: 'dispenser',
-  description: 'Open the dispenser or dropper block in sight',
+  description: 'Open only the aimed dispenser/dropper within 4.5 blocks; this does not trigger dispensing. Use window to inspect slots',
   usage: 'dispenser',
   async handler(bot) {
     const block = bot.blockAtCursor(4.5)

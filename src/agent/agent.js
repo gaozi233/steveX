@@ -6,7 +6,10 @@ const { spectatorCompatibility } = require('./spectator_compat')
 const { raycastCompatibility } = require('./raycast_compat')
 const { ActionExecutor, cancelled } = require('./action_executor')
 const { craftTimeoutMs } = require('../commands/craft_timing')
-const { validateArguments, normalizeFailure, exceptionFailure } = require('../commands/command_contract')
+const { clearUse, hasUse } = require('../commands/held_use')
+const { clearSneakHold } = require('./sneak_state')
+const itemUseCompatibleActions = new Set(['rightdown', 'rightup', 'sneak', 'wait', 'move', 'jump', 'look', 'lookat', 'stand', 'goto', 'follow'])
+const { effectCommands, validateArguments, normalizeFailure, exceptionFailure } = require('../commands/command_contract')
 
 class SteveXAgent {
   /**
@@ -144,15 +147,14 @@ class SteveXAgent {
 
     const invalid = validateArguments(command, args)
     if (invalid) return invalid
+    if(command==='rightclick' && hasUse(this.bot))return normalizeFailure(command,{ok:false,errorCode:'ITEM_ALREADY_IN_USE',error:'rightup the active held-item request before rightclick',changes:[]})
 
     let operationOutcome
     try {
       options.signal?.throwIfAborted()
       if (this.queryNames.has(command)) return normalizeFailure(command, await handler.call(this, this.bot, args, this, options))
       if (options.source !== 'brain') this.brainLoop?.stop()
-      if (command === 'stopdig') {
-        const task = this.executor.active
-        if (task && ['dig', 'mine'].includes(task.name)) task.controller.abort(cancelled('Digging stopped'))
+      if (command === 'dig' && args[0]?.toLowerCase() === 'stop') {
         return normalizeFailure(command, await handler.call(this, this.bot, args, this, options))
       }
       if (command === 'stop') {
@@ -163,11 +165,11 @@ class SteveXAgent {
       }
       return await this.executor.run(command, async signal => {
         if (!this.connected) throw new Error('Agent is offline')
-        this.stopPhysicalActions()
+        if (command !== 'swing') this.stopPhysicalActions({ preserveItemUse: itemUseCompatibleActions.has(command), preserveSneak:true })
         this.currentAction = command
         try {
           const result = await handler.call(this, this.bot, args, this, { ...options, signal })
-          if (require('../commands/operation_result').operationNames.has(command)) operationOutcome = result
+          if (effectCommands.has(command)) operationOutcome = result
           if (result?.status === 'RUNNING') this.backgroundSource = options.source || 'manual'
           return normalizeFailure(command, result)
         }
@@ -180,7 +182,7 @@ class SteveXAgent {
       if (err.name !== 'AbortError') console.error(`[error](${this.name}) Command error`, err)
 
       const operations = require('../commands/operation_result')
-      if (operations.operationNames.has(command)) {
+      if (effectCommands.has(command)) {
         const failure = exceptionFailure(command,err,options.signal)
         let output = operationOutcome?.output || failure.output
         const oldPrefix = `[${operationOutcome?.errorCode}] `
@@ -192,15 +194,17 @@ class SteveXAgent {
     }
   }
 
-  stopPhysicalActions() {
+  stopPhysicalActions({ preserveItemUse = false, preserveSneak = false } = {}) {
     const bot = this.bot
     if (!bot) return
+    if (!preserveSneak) clearSneakHold(bot)
     if (bot._followInterval) { clearInterval(bot._followInterval); bot._followInterval = null }
     bot._followCleanup?.()
     this.backgroundSource = null
     if (this.connected && !this.executor.active) this.currentAction = 'Idle'
-    for (const stop of [() => bot.pathfinder?.setGoal(null), () => bot.clearControlStates?.(),
-      () => bot.stopDigging?.(), () => bot.deactivateItem?.()]) {
+    for (const stop of [() => bot.pathfinder?.setGoal(null), () => { const sneak=preserveSneak&&bot.getControlState?.('sneak');bot.clearControlStates?.();if(sneak)bot.setControlState('sneak',true) },
+      () => { if (bot.vehicle) require('./vehicle_input').steerVehicle(bot) },
+      () => bot.stopDigging?.(), ...(!preserveItemUse ? [() => { try { bot.deactivateItem?.() } finally { clearUse(bot) } }] : [])]) {
       try { stop()?.catch?.(() => {}) } catch (_) {}
     }
   }
@@ -214,7 +218,7 @@ class SteveXAgent {
     try {
       const frame = await this.executor.run('capture', async signal => {
         if (!this.isOnline()) throw new Error('Agent is offline')
-        this.stopPhysicalActions()
+        this.stopPhysicalActions({ preserveItemUse: true, preserveSneak:true })
         this.currentAction = 'capture'
         try { return await this.renderService.capture(this, signal) }
         finally { this.currentAction = this.connected ? 'Idle' : 'Offline' }

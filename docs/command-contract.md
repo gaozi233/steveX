@@ -1,30 +1,42 @@
 # 查询、移动与采集合成：参数和错误契约
 
-更新：2026-10-23。范围为第 3／4／5 类的 31 个命令（14 query、11 motion、6 gather），不表示其他 47 个命令均已迁移。正式调用形式不变，仍是单条空白分隔的命令字符串。
+更新：2026-10-23。覆盖 36 个命令：14 query、11 motion、4 gather、6 inventory，加 interactentity；当前共 67 命令。dig 统一准星、坐标和停止三种用法；move 兼容乘坐时方向控制，jump glide 请求展翅。其他入口未声明完成契约迁移，窗口槽位操作使用 slotclick。正式调用仍为单条空白分隔字符串。
 
 ## 单一校验入口
 
 `src/commands/command_contract.js` 保存参数数量、格式、范围和规范 usage。命令加载器将该 usage 用于 LLM、网页和生成文档；模块直接调用、已注册 skill 和正式 Agent 调用使用同一校验规则。分类说明来自 `catalog.js`，不额外向 LLM 注入完整验证代码或专用规划逻辑。
 
-Agent 在入队、停止 Brain、清控制键之前校验；包括 `stop`、`stopdig` 的快速通道。非法动作不执行 handler，不停止当前动作，也不占动作队列。执行时依然保留原有前置条件与服务端结果确认。
+Agent 在入队、停止 Brain、清控制键之前校验；包括 `stop`、`dig stop` 的快速通道。非法动作不执行 handler，不停止当前动作，也不占动作队列。执行时依然保留原有前置条件与服务端结果确认。
 
 ## 参数规则
 
 | 命令 | 数量及校验 |
 | --- | --- |
 | pos / hp / hunger / oxygen / inventory / gamemode / xp / time / weather / window | 严格 0 个参数 |
-| jump / stand / stop / stopdig / dig / collect / place / placeentity | 严格 0 个参数 |
+| stand / stop / collect | 严格 0 个参数 |
+| jump | 0..1；normal 默认，glide 请求空中展开鞘翅；不保证已滑翔 |
+| rightclick | 0..1；hand/off-hand，默认 hand；一次世界右键。副手方块自身激活返回 HAND_NOT_SUPPORTED；活动使用须先 rightup，窗口内须 slotclick |
+| dig | 仅无参、stop 或 3 个安全整数值坐标；stop 大小写不敏感；无参不移动，坐标超距时受保护接近，再校验准星遮挡与目标状态；1.0 等整数值可用 |
+| interactentity | 1..2；一个实体名称片段或数字 ID，normal/at 默认 normal；不支持带空格名称 |
 | nearby | 0..2；第 1 位为单个过滤词，第 2 位为整数 radius 1..128；单独数字不会自动解释成半径，应写 nearby all 32 |
 | findplayer / follow | 严格 1 个玩家名称／片段；原有大小写不敏感匹配不变，follow 仍要求精确用户名 |
 | findblock | 1..2；精确注册名及可选整数 radius 1..128 |
 | recipes | 严格 1 个精确物品注册名 |
 | look | 严格 2 个有限十进制弧度；pitch 在 -PI/2..PI/2 |
 | lookat / goto | 严格 3 个有限十进制坐标，绝对值不超过 Number.MAX_SAFE_INTEGER；不替调用者规划路线或保证世界边界可达 |
-| mine | 严格 3 个安全整数值的方块坐标；1.0 等整数值可用，小数位置不能当方块坐标 |
-| move | 1..2；control 为 forward/back/left/right/sprint/sneak，durationMs 为数字串形式整数 1..30000 |
+| move | 1..2；control 为 forward/back/left/right/sprint，durationMs 为数字串形式整数 1..30000；不接受 sneak |
+| sneak | 严格 1 个 on/off/tap；大小写不敏感；tap 固定 150ms，已按住则不释放；保持状态与移动分离 |
 | swing | 0..1；hand 只能 right/left，不再将拼写错误悄悄变成 right |
 | wait | 严格 1 个数字串形式的正安全整数 physics ticks；不新增最大等待时长，仍受动作时限约束 |
 | craft | 1..4；物品注册名、整数执行次数 1..64、auto/hand/table、正安全整数目录编号；编号不接受 0／前导 0 |
+| equip | 1..2；精确物品注册名、可选 hand/head/torso/legs/feet/off-hand，默认 hand |
+| hotbar | 严格 1 个整数索引 0..8；拒绝 2abc 等部分数字 |
+| unequip | 0..1；目的地同 equip，默认 hand；空间不足拒绝，不自动扔物品 |
+| rightdown | 0..1；hand/off-hand，默认 hand；右键持续使用手持物，仅确认请求，不保证进食、格挡或发射效果 |
+| rightup | 严格 0 个参数；松开当前使用，不区分主副手；仅确认请求 |
+| drop | 1..2；精确注册名、可选正安全整数数量；省略为首个匹配堆叠数量，指定数量也不混用不同组件 |
+
+使用状态与运动分开：move/jump/look/lookat/stand/goto/follow、wait 和查询保留使用；切换物品与互斥交互动作仍释放，stop／超时／取消保持完整安全停止。rightup 按动作队列执行，不新增抢占。保持使用不代表格挡效果已确认，须结合方向及后续状态；覆盖摘要见 [背包与持续使用](api-validation/inventory-use-coverage.md)。
 
 有限坐标和角度接受十进制科学记数法，不接受 0x／Infinity／NaN／部分数值字符串。duration、radius、times、ticks 和 recipeIndex 不接受指数或小数写法。枚举值大小写不敏感，会先规范为小写；注册名允许 minecraft: 前缀及大小写，不接受其他命名空间。没有引入通用引号／具名参数／多条命令支持。
 
@@ -50,7 +62,7 @@ Agent 在入队、停止 Brain、清控制键之前校验；包括 `stop`、`sto
 | 查询条件 | NO_WINDOW、UNKNOWN_BLOCK、UNKNOWN_ITEM、RECIPE_CATALOG_UNAVAILABLE |
 | 目标／资源状态 | NO_TARGET、TARGET_NOT_LOADED、TARGET_CHANGED、TARGET_NOT_DIGGABLE、UNSUPPORTED_ITEM、NO_DROPPED_ITEMS、PLAYER_NOT_TRACKED |
 | 寻路 | PATHFINDER_NOT_READY、PATH_NOT_FOUND、PATH_TIMEOUT、PATH_INTERRUPTED、PATH_NOT_REACHED；规划失败不等于数学上证明无路 |
-| 动作确认 | DIG_NOT_CONFIRMED、PICKUP_NOT_CONFIRMED；原有 craft／place／placeentity 具体业务码保留 |
+| 动作确认 | DIG_NOT_CONFIRMED、PICKUP_NOT_CONFIRMED；原 craft 与内部方块／实体放置具体业务码保留；rightclick 普通交互请求可 ok:true、confirmed:false，须读 confirmation/status 区别真实效果 |
 | 生命周期 | NOT_CONNECTED、DISCONNECTED、CANCELLED、ACTION_TIMEOUT；使用结构化超时标记，不靠英文消息猜测动作是否超时 |
 | 未细分异常 | QUERY_FAILED／ACTION_FAILED；保留原错误，不冒充已知缺材料、无路径或零效果 |
 

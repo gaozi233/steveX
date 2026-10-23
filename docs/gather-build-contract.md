@@ -1,12 +1,14 @@
 # 采集、合成与建造：结果契约与 Benchmark 用法
 
+当前补充：place/placeentity 已移为内部实现，外部使用 rightclick。其放置分支仍要求 confirmed:true 才算完成；普通方块／实体／手持物点击可只返回 ok:true、confirmed:false、status:requested，不能据此计作任务成功。详见 [统一右键验收](api-validation/rightclick-validation-2026-10-23.md)。
+
 更新：2026-10-23。适用 Minecraft 1.21.11、当前 Mineflayer 4.39.0。命令分类及参数来自 [共享目录](command-catalog.md)，逐项证据见 [验收台账](api-acceptance-checklist.md)。
 
 ## 统一结果
 
 第 3／4／5 类参数和失败返回已统一，详见 [参数与错误契约](command-contract.md)。参数校验发生在调度副作用之前；执行后的失败仍保留本节约定的部分结果，而非统一归零。
 
-六个动作 `dig / mine / collect / craft / place / placeentity` 的动作结果保留 `ok/output/error`，统一增加：
+当前四个动作 `dig / collect / craft / rightclick` 的动作结果保留 `ok/output/error`，统一增加：
 
 | 字段 | 含义 |
 | --- | --- |
@@ -23,7 +25,7 @@
 
 | 接口 | 成功所需依据 | 不保证的事情 |
 | --- | --- | --- |
-| dig / mine | 目标坐标收到服务端 block_change / multi_block_change，并且最终目标方块类型改变 | 掉落物一定生成或进包 |
+| dig | 目标坐标收到服务端 block_change / multi_block_change，并且最终目标方块类型改变 | 掉落物一定生成或进包 |
 | collect | 自身收到目标的拾取事件，服务端库存快照确认物品正增量 | 一次拾取全部原堆叠；目标在移动时必然追上 |
 | craft | 每批服务端库存快照的材料、产物和返还物净变化匹配配方；最终仍可确认库存 | 所有动态配方／组件配方、其他工作站配方 |
 | place | 命中／相邻位置服务端状态变化与最终区块状态一致，生存物品消耗 1；门、床须两部分均有服务端确认并配对 | 其他多格方块、周围连锁更新或并发修改的完整因果关系 |
@@ -37,13 +39,13 @@
 
 门必须确认 lower／upper，床必须确认 foot／head，且位置及 facing 配对；门还核对 hinge 与 open 一致。两部分均须是本次监视到的服务端状态变化，不能以旧方块或本地预测冒充另一半。`changes` 对成功的门／床列出两个方块、一个物品消耗，`target.position` 指向下半门／床尾。可读 `properties` 返回 type、waterlogged、half、part、facing 等实际方块属性，output 同步带这些事实，不替 LLM 规划朝向。
 
-多个位置共用单组入站数据包监听器，完成后统一清理，不提高 EventEmitter 上限。实测与剩余边界见 [特殊方块放置验收](placement-special-cases-2026-10-23.md)。
+多个位置共用单组入站数据包监听器，完成后统一清理，不提高 EventEmitter 上限。实测与剩余边界见 [特殊方块放置验收](api-validation/placement-coverage.md)。
 
 只有主要部分得到确认而结构不完整时返回 `STRUCTURE_NOT_CONFIRMED`；其他未确认放置返回 `PLACEMENT_NOT_CONFIRMED`，保留已核对的库存和主要方块变化，提示先检查而非自动重试／回滚。附加观察位置不代表所有邻居变化都由本次放置引起；普通方块优先用相邻放置坐标，避免邻近楼梯形状变化使主位置选错。
 
 2026-10-23 实测：上半砖底面合并、悬挂上半砖、侧面上半区放置；水中半砖 waterlogged=true、合并双半砖后 waterlogged=false；北向门、北／西向床；上方受阻的门及床头受阻的床不生成、不消耗。其余水生／含水方块、门床全部材质和方向、其他多格结构仍需扩展。
 
-`mine` 与 `collect` 共用受保护寻路：禁止挖路、脚手架和搭柱，完成／无路／取消后恢复原移动设置，取消时清除寻路目标。仍允许原寻路器的其他移动能力，不承诺绝对无环境副作用（例如踩踏），也不提供自动资源规划。
+`dig <x> <y> <z>` 与 `collect` 共用受保护寻路：禁止挖路、脚手架和搭柱，完成／无路／取消后恢复原移动设置，取消时清除寻路目标。仍允许原寻路器的其他移动能力，不承诺绝对无环境副作用（例如踩踏），也不提供自动资源规划。
 
 ## 实体放置
 
@@ -51,7 +53,7 @@
 
 `target` 包含实体 ID／UUID、类型、生成事件时冻结的位置及准星参考位置／面。船的实际流体命中点可能不同于忽略流体的参考方块，真实生成点以 position 为准；后续运动位置另查 nearby。多个新实体匹配时不随意认领。成功要求新生成和生存物品消耗共同确认，创造模式不要求消耗。
 
-失败也核对库存，返回 errorCode、已观察实体、实际 changes 及可读 output；库存无法确认则 changes=null。没有生成事件不等于没有副作用：点击刷怪笼可能耗蛋、改变类型而不立即生成，此时仍不算实体放置成功。详见 [实体放置验收与错误码](entity-placement-validation-2026-10-23.md)。
+失败也核对库存，返回 errorCode、已观察实体、实际 changes 及可读 output；库存无法确认则 changes=null。没有生成事件不等于没有副作用：点击刷怪笼可能耗蛋、改变类型而不立即生成，此时仍不算实体放置成功。详见 [实体放置验收与错误码](api-validation/placement-coverage.md)。
 
 准星查询对 Mineflayer 4.39.0 使用版本限定的眼高兼容修正，与 lookat 保持同一射线原点；无眼高数据时保留旧兼容路径，升级依赖须复核。
 
@@ -136,7 +138,7 @@ Brain 历史暂时保留最近 10 条命令结果，每条保留完整文本，�
 
 `placeentity` 同样使用命中面，但必须遵守实体物品本身的规则，不意味着盔甲架能放在任意面。画仍明确拒绝；本轮仅盔甲架有真实成功证据，船／刷怪蛋／末影水晶不可当作已验收。
 
-`mine` 接近过程中暂时关闭 pathfinder 的挖掘、脚手架与垫高能力，结束／失败时恢复设置；到达后重新检查目标 stateId 和可挖距离，避免在路上破坏别的方块或挖过期引用。`dig` 不自动挑选最佳工具。
+`dig <x> <y> <z>` 接近过程中暂时关闭 pathfinder 的挖掘、脚手架与垫高能力，结束／失败时恢复设置；到达后重新检查目标 stateId 和可挖距离，避免在路上破坏别的方块或挖过期引用。`dig` 不自动挑选最佳工具。
 
 ## 本轮实测
 
@@ -147,7 +149,7 @@ Brain 历史暂时保留最近 10 条命令结果，每条保留完整文本，�
 
 ### DeepSeek 闭环复测
 
-长程、多目标和批量压力测试见 [复杂合成压力报告](craft-llm-stress.md)。craft 默认动作时限按次数为 `30000 + (times - 1) * 1000` 毫秒（1..64 次对应 30..93 秒），显式调用／runtime 时限优先。取消仍可能有部分结果；Brain 失败历史保留完整 output、completedExecutions、producedCount、changes，应该按实际库存而非仅用 requested-completed 计算补做数量。
+长程、多目标和批量压力测试见 [复杂合成压力报告](api-validation/craft-llm-validation-2026-10-23.md)。craft 默认动作时限按次数为 `30000 + (times - 1) * 1000` 毫秒（1..64 次对应 30..93 秒），显式调用／runtime 时限优先。取消仍可能有部分结果；Brain 失败历史保留完整 output、completedExecutions、producedCount、changes，应该按实际库存而非仅用 requested-completed 计算补做数量。
 
 使用 `./scripts/query-llm-acceptance.ps1 -Suite craft`，复用本机 Windows DPAPI 保存的 Key，不在命令行、配置或日志写明文 Key。默认只查看方案可运行 `node scripts/craft-llm-acceptance.js`，不会调用模型或游戏。实测需要已启动本地验收服务、空背包且无装备的 SteveX-Test，以及忽略目录中的 RCON 测试夹具。
 

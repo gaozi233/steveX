@@ -2,7 +2,7 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { EventEmitter } = require('node:events')
 const { Vec3 } = require('vec3')
-const place = require('../src/commands/actions/place')
+const place = require('../src/commands/placement/block')
 const { protectedApproach } = require('../src/commands/protected_approach')
 
 for (const mode of ['reference', 'adjacent', 'prediction', 'no-consumption', 'unchanged']) {

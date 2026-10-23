@@ -3,11 +3,10 @@ const assert = require('node:assert/strict')
 const { EventEmitter } = require('node:events')
 const { Vec3 } = require('vec3')
 const dig = require('../src/commands/actions/dig')
-const mine = require('../src/commands/actions/mine')
 const collect = require('../src/commands/actions/collect')
 const craft = require('../src/commands/actions/craft')
-const place = require('../src/commands/actions/place')
-const placeentity = require('../src/commands/actions/placeentity')
+const place = require('../src/commands/placement/block')
+const placeentity = require('../src/commands/placement/entity')
 const { result, aimedFace, observeBlock, waitFor } = require('../src/commands/operation_result')
 
 function basic() {
@@ -21,7 +20,7 @@ function basic() {
 test('result contract never upgrades unconfirmed success, and all early failures are structured', async () => {
   assert.equal(result('dig', { ok: true }).ok, false)
   for (const [name, handler, bot, args, agent] of [
-    ['dig',dig.handler,{blockAtCursor:()=>null},[],{}], ['mine',mine.handler,{},['Infinity','0','0'],{}],
+    ['dig',dig.handler,{blockAtCursor:()=>null},[],{}], ['dig',dig.handler,{},['Infinity','0','0'],{}],
     ['collect',collect.handler,{},[],{}], ['craft',craft.handler,{},['stone','2abc'],{}],
     ['place',place.handler,{blockAtCursor:()=>null},[],{}], ['placeentity',placeentity.handler,{blockAtCursor:()=>null},[],{}]
   ]) { const r=await handler(bot,args,agent); assert.equal(r.action,name);assert.equal(r.status,'failed');assert.equal(r.confirmed,false);assert.ok('target' in r && 'changes' in r && 'evidence' in r) }
@@ -34,12 +33,12 @@ test('dig requires inbound server block change, not merely local prediction, and
   const controller=new AbortController();bot.dig=async()=>controller.abort(new Error('stop'))
   assert.equal((await dig.handler(bot,[],{}, {signal:controller.signal})).status,'cancelled');assert.equal(bot._client.listenerCount('multi_block_change'),0)
 })
-test('mine protects approach terrain and restores settings, and refuses changed targets', async () => {
+test('coordinate dig protects approach terrain and restores settings, and refuses changed targets', async () => {
   const bot=basic(), block={position:new Vec3(1,0,0),stateId:1,type:1,name:'stone',diggable:true,boundingBox:'block'}
   let current=block, dug=false
   const movements={canDig:true,allow1by1towers:true,scafoldingBlocks:[1]}
-  bot.blockAt=()=>current;bot.canDigBlock=()=>true;bot.pathfinder={setGoal:()=>{},setMovements:()=>{},goto:async()=>{assert.equal(movements.canDig,false);current={...block,stateId:2}}};bot.dig=async()=>{dug=true}
-  const r=await mine.handler(bot,['1','0','0'],{bot,movements});assert.equal(r.ok,false);assert.equal(dug,false);assert.equal(movements.canDig,true);assert.deepEqual(movements.scafoldingBlocks,[1])
+  bot.blockAt=()=>current;bot.canDigBlock=()=>false;bot.pathfinder={setGoal:()=>{},setMovements:()=>{},goto:async()=>{assert.equal(movements.canDig,false);current={...block,stateId:2}}};bot.dig=async()=>{dug=true}
+  const r=await dig.handler(bot,['1','0','0'],{bot,movements});assert.equal(r.ok,false);assert.equal(dug,false);assert.equal(movements.canDig,true);assert.deepEqual(movements.scafoldingBlocks,[1])
 })
 test('collect confirms own pickup and inventory gain, selects nearest and cleans listeners', async () => {
   const bot=basic();bot.entity={id:10,position:new Vec3(0,0,0)}

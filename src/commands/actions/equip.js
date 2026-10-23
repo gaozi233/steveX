@@ -1,16 +1,12 @@
-/**
- * equip <item name> — equip an item from inventory
- */
+const { inventoryAction,findItem,sameItem,variantCount,compactItemView } = require('../inventory_actions')
 module.exports = {
   name: 'equip',
-  description: 'Equip an item from inventory',
-  usage: 'equip <item name>',
-  async handler(bot, args) {
-    if (args.length < 1) return { ok: false, error: 'Usage: equip <item name>' }
-    const itemName = args.join(' ')
-    const item = bot.inventory.items().find(i => i.name.includes(itemName))
-    if (!item) return { ok: false, error: `No item matching "${itemName}" in inventory` }
-    await bot.equip(item, 'hand')
-    return { ok: true, output: `Equipped ${item.name}` }
-  }
+  description: 'Equip the first exact-name backpack/quickbar item to hand (default) or an equipment slot; confirms item identity, never chooses optimal gear',
+  usage: 'equip <itemName> [hand|head|torso|legs|feet|off-hand]',
+  handler: inventoryAction('equip',async(bot,args)=>{
+    const item=findItem(bot,args[0]);if(item.ok===false)return item
+    const destination=args[1]||'hand',selected=compactItemView(item),before=variantCount(bot,item)
+    await bot.equip(item,destination)
+    return {target:{destination,item:selected},output:`Equipped ${item.name} to ${destination}`,verify:()=>!bot.inventory.selectedItem && sameItem(destination==='hand'?bot.heldItem:bot.inventory.slots[bot.getEquipmentDestSlot(destination)],item) && variantCount(bot,item)===before}
+  })
 }

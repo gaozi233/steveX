@@ -3,7 +3,7 @@
  */
 module.exports = {
   name: 'trade',
-  description: 'Trade with an opened villager',
+  description: 'Execute a zero-based offer in a villager window initialized by openentity; times defaults to 1 (1..64). Read window trades first; a generic entity right-click does not initialize this API',
   usage: 'trade <index> [times]',
   async handler(bot, args) {
     if (args.length < 1) return { ok: false, error: 'Usage: trade <index> [times]' }

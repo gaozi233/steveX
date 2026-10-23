@@ -2,7 +2,6 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 
 const attack = require('../src/commands/actions/attack')
-const eat = require('../src/commands/actions/eat')
 const fish = require('../src/commands/actions/fish')
 const anvil = require('../src/commands/actions/anvil')
 const furnace = require('../src/commands/actions/furnace')
@@ -47,7 +46,7 @@ test('goto never treats an upstream empty-path resolution as proof of arrival', 
   assert.deepEqual(result.target, { x: 106, y: -60, z: 48 })
 })
 
-test('attack and eat handlers use the bot command argument', async () => {
+test('attack handler uses the bot command argument', async () => {
   const entity = { name: 'zombie' }
   let attacked = null
   const attackResult = await attack.handler({
@@ -58,15 +57,6 @@ test('attack and eat handlers use the bot command argument', async () => {
   assert.equal(attackResult.ok, true)
   assert.equal(attacked, entity)
 
-  let consumed = false
-  const eatResult = await eat.handler({
-    heldItem: { name: 'bread' },
-    consume: async () => { consumed = true }
-  }, [])
-
-  assert.equal(eatResult.ok, true)
-  assert.equal(consumed, true)
-  assert.match(eatResult.output, /bread/)
 })
 
 test('gamemode supports modern string values and legacy numeric values', async () => {

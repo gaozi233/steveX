@@ -1,13 +1,13 @@
 /**
- * click <slot> [button] — click a slot in the current window
+ * slotclick <slot> [button] — click a slot in the current window
  * button: 0 = left click, 1 = right click
  */
 module.exports = {
-  name: 'click',
-  description: 'Click a slot in the current window',
-  usage: 'click <slot> [button]',
+  name: 'slotclick',
+  description: 'Click an inventory/window slot, not the world: button 0 left (default), 1 right; uses current window slot indices',
+  usage: 'slotclick <slot> [button]',
   async handler(bot, args) {
-    if (args.length < 1) return { ok: false, error: 'Usage: click <slot> [button]' }
+    if (args.length < 1) return { ok: false, error: 'Usage: slotclick <slot> [button]' }
     const slot = parseInt(args[0], 10)
     if (isNaN(slot) || slot < 0) return { ok: false, error: 'Invalid slot number' }
     const button = args[1] ? parseInt(args[1], 10) : 0
