@@ -26,24 +26,8 @@ let currentPage = 'Agents'
 // ── Page controls visibility ──
 
 function setAgentControlsVisible(visible) {
-  const controls = [
-    searchInput,
-    statusFilter,
-    sortBy,
-    newAgentButton
-  ]
-
-  controls.forEach(el => {
-    if (!el) return
-
-    const wrapper =
-      el.closest('.toolbar, .filter-bar, .control-bar, .top-controls, .search-bar') ||
-      el.parentElement
-
-    if (wrapper) {
-      wrapper.style.display = visible ? '' : 'none'
-    }
-  })
+  const controls = document.querySelector('section.controls')
+  if (controls) controls.hidden = !visible
 }
 
 // ── Sidebar navigation ──
@@ -68,6 +52,7 @@ function setHeader(title, subtitle) {
 }
 
 function showAgentsPage() {
+  if (currentPage !== 'Agents') agentsList.replaceChildren()
   currentPage = 'Agents'
 
   setActiveNav('Agents')
@@ -214,7 +199,7 @@ initWebSocket()
 
 // Initial data load
 fetchStatus().then(() => {
-  renderAgents(agentsList)
+  if (currentPage === 'Agents') renderAgents(agentsList)
   updateUptimeUI()
   updateWsUI()
 })

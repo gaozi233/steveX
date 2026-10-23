@@ -18,4 +18,8 @@ test('inspector preserves long context and raw output as escaped text with expli
   assert.match(html, /Display limit reached/)
   assert.match(html, /<summary>system<\/summary>/)
   assert.match(context.inspectorHtml(), /data-inspect-capture/)
+  const traced = context.traceHtml([{ requestId: 'step', model: 'fixture', startedAt: 1, status: 'responded', messages: [],
+    taskId: 'task-a', step: 2, timings: { queueMs: 12 }, usage: null, executionStatus: 'returned', execution: '<script>not executable</script>' }])
+  assert.match(traced, /task-a/); assert.match(traced, /queueMs/); assert.match(traced, /unavailable/)
+  assert.match(traced, /&lt;script&gt;not executable/); assert.doesNotMatch(traced, /<script>/)
 })

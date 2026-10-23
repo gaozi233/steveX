@@ -14,12 +14,14 @@ class ActionExecutor {
     this.tail = Promise.resolve()
   }
 
-  run(name, operation, { signal, timeoutMs = 30000, source = 'manual' } = {}) {
+  run(name, operation, { signal, timeoutMs = 30000, source = 'manual', onTiming } = {}) {
     if (this.closed) return Promise.reject(cancelled('Agent is closed'))
     if (signal?.aborted) return Promise.reject(cancelled(signal.reason))
     if (this.tasks.size >= this.limit) return Promise.reject(new Error('Action queue is full'))
     if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return Promise.reject(new Error('Invalid action timeout'))
     const controller = new AbortController()
+    const queuedAt = performance.now()
+    let startedAt = null
     const task = { name, source, controller }
     const abort = () => controller.abort(cancelled(signal.reason))
     const interrupt = () => { if (this.active === task) this.onCancel() }
@@ -28,6 +30,7 @@ class ActionExecutor {
     this.tasks.add(task)
     const result = this.tail.then(async () => {
       controller.signal.throwIfAborted()
+      startedAt = performance.now()
       this.active = task
       const timeout = setTimeout(() => controller.abort(Object.assign(cancelled(`Action ${name} timed out`), { code: 'ACTION_TIMEOUT' })), timeoutMs)
       try {
@@ -39,6 +42,8 @@ class ActionExecutor {
         this.active = null
       }
     }).finally(() => {
+      const finishedAt = performance.now()
+      try { onTiming?.({ queueMs: (startedAt ?? finishedAt) - queuedAt, executionMs: startedAt === null ? 0 : finishedAt - startedAt }) } catch {}
       signal?.removeEventListener('abort', abort)
       controller.signal.removeEventListener('abort', interrupt)
       this.tasks.delete(task)

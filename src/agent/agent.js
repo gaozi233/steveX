@@ -116,6 +116,17 @@ class SteveXAgent {
    * @returns {Promise<{ok:boolean,output?:string,error?:string}>}
    */
   async executeCommand(input, options = {}) {
+    const startedAt = performance.now()
+    let measured
+    try {
+      return await this._executeCommand(input, { ...options, onTiming: timing => { measured = timing } })
+    } finally {
+      const commandMs = performance.now() - startedAt
+      try { options.onTiming?.({ queueMs: measured?.queueMs ?? 0, executionMs: measured?.executionMs ?? commandMs, commandMs }) } catch {}
+    }
+  }
+
+  async _executeCommand(input, options = {}) {
     const requested = typeof input === 'string' ? input.trim().split(/\s+/)[0].toLowerCase() : ''
     if (!this.bot || !this.connected) {
       return normalizeFailure(requested, {

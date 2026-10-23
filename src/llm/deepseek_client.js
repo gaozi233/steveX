@@ -8,7 +8,7 @@ class DeepSeekClient {
     this.timeoutMs = options.timeoutMs || 20000
   }
 
-  async chat(messages, { signal } = {}) {
+  async chat(messages, { signal, onUsage } = {}) {
     signal?.throwIfAborted()
     if (!this.apiKey) {
       return 'LLM disabled: missing DEEPSEEK_API_KEY'
@@ -39,6 +39,7 @@ class DeepSeekClient {
       }
 
       const data = await response.json()
+      onUsage?.(require('./usage').modelUsage(data.usage))
       const choice = data.choices && data.choices[0]
       const content = choice && choice.message && choice.message.content
       return content || ''

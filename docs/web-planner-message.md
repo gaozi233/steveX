@@ -1,5 +1,7 @@
 # Web任务输入
 
+> 2026-10-23 更新：下方是旧单步入口的历史记录，不再代表当前任务调度。当前规则见[有界任务使用说明](task-runtime.md)，当前验收见[调度验收](api-validation/task-runtime-validation.md)。
+
 2026-10-23。将 Agents 页原 `Send Message (to LLM Planner)` 占位接入实际 Brain，不是发送Minecraft聊天，也不是直接执行命令。
 
 ## 固定系统提示词

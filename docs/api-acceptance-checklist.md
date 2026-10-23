@@ -1,6 +1,6 @@
 # API 分类清单与人工验收台账
 
-更新：2026-10-23。按当前源码目录整理：**60 个命令（15 query、39 action、6 creative）**，另列 **20 个 HTTP 路由模板**（Brain 操作展开为两行）。分类来源为 `src/commands/catalog.js`，实际用法以运行版本的 `GET /api/commands` 为准。
+更新：2026-10-23。按当前源码目录整理：**60 个命令（15 query、39 action、6 creative）**，另列 **21 个 HTTP 路由模板**（Brain 操作展开为两行）。分类来源为 `src/commands/catalog.js`，实际用法以运行版本的 `GET /api/commands` 为准。
 
 本文仅保留当前接口、最新验收状态与待测项，不保留失效入口和逐轮调试流水。
 
@@ -8,7 +8,7 @@
 
 ## 1. 状态与证据
 
-- Web任务输入与固定英文system调整后，最新全库自动回归为 **465/465**；下方458项是此前交互复测时的回归批次。任务输入边界见 [Web任务输入](web-planner-message.md)。
+- 有界任务循环后最新全库自动回归 **481/481**；下方458项为此前批次。本轮无真实模型／游戏复测，当前语义见[任务运行](task-runtime.md)，记录见[调度验收](api-validation/task-runtime-validation.md)。
 
 - **实测**：当前入口有真实游戏记录，仅覆盖行内列明场景，不代表所有变体通过。
 - **摘要通过**：沿用最近一次真实验收结论；原始过程日志已清理或归档，不代表本轮重新测试。
@@ -209,7 +209,8 @@ Invoke-RestMethod "$base/api/agents/$agent/command" -Method Post -ContentType 'a
 
 | 方法与路径 | 调用与返回边界 | 最新测试状态／待测 |
 | --- | --- | --- |
-| `POST /api/agents/:name/planner/message` | 仅人工Web／后台，默认不向LLM暴露；message非空至4000字符，mode=once默认／continuous；运行中409拒绝；新任务清旧历史，不写配置；once最多一次模型／命令，continuous需主动停止 | 自动HTTP／生命周期及浏览器模拟通过；真实DeepSeek提交“你好”执行say，HTTP200，游戏交付仍未确认；固定英文system本轮仅自动验收，见[任务输入](web-planner-message.md) |
+| `POST /api/agents/:name/planner/message` | 仅人工Web／后台，不向LLM暴露；message至4000字符，mode=once／continuous；operation=new清历史或append保留目标／历史／累计预算，可传taskId防过期操作；默认32次／300秒 | HTTP与Edge模拟通过；本轮无真实模型／游戏验收；见[任务运行](task-runtime.md) |
+| `POST /api/agents/:name/planner/control` | 仅人工Web／后台，不向LLM暴露；operation=continue／pause／cancel／complete／block／wait；可传mode与taskId，继续不重置预算；完成是人工声明 | 自动生命周期、取消、预算及隔离覆盖；Edge核对继续／人工完成／预算耗尽，真实任务待测 |
 | `GET /api/status` | 无 body，角色状态及 uptimeSec | 摘要通过：轮询；断线／多角色刷新待扩展 |
 | `GET /api/commands` | 当前 name/kind/category/description/usage 目录 | 目录自动校验；当前 60 入口的运行服务核对待重载；不是完整参数 schema |
 | `GET /api/skills` | 局部 skillRegistry | 专项待测；不代替完整命令目录 |

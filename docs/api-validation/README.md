@@ -4,6 +4,8 @@
 
 | 记录 | 类型与范围 |
 | --- | --- |
+| [Compact agent workbench](web-compact-layout.md) | 紧凑布局、字体、Configs切换与过期加载修复；Edge桌面预览核对，4K／手机截图待测 |
+| [有界任务循环与调度](task-runtime-validation.md) | 全库481项自动回归、3项HTTP模拟、Edge任务生命周期核对；无付费模型／Minecraft实测 |
 | [交互、背包、窗口和工作站复测](interaction-crafting-recheck.md) | 当前22个命令入口的代表场景、独立DeepSeek复杂合成、SteveX身份及精确版本；保留未测边界 |
 | [Web 视角与 LLM 调试](web-inspector-validation.md) | 真实 A→B→A RGB、无焦点按需渲染、本地模拟 provider 全链路；1次真实 DeepSeek 输入输出及双 agent 隔离通过 |
 | [Web 只读背包与物品详情](web-inventory-validation.md) | 双 agent 9项实机、附魔浮层及刷新专项；全库450项回归；装备开窗滞后与特殊材质限制单列 |

@@ -5,6 +5,7 @@ import { fetchEnvConfig, saveEnvConfig, reloadConfig } from '../lib/api.js'
 
 let editorEl = null
 let statusEl = null
+let loadRevision = 0
 
 function setStatus(message, type = 'info') {
   if (!statusEl) return
@@ -18,10 +19,14 @@ function formatConfig(config) {
 }
 
 async function loadConfig() {
+  const revision = ++loadRevision
+  const editor = editorEl
+  const isCurrent = () => revision === loadRevision && editor === editorEl && editor?.isConnected
   try {
     setStatus('Loading...', 'info')
 
     const data = await fetchEnvConfig()
+    if (!isCurrent()) return
 
     if (editorEl) {
       editorEl.value = formatConfig(data.config)
@@ -29,6 +34,7 @@ async function loadConfig() {
 
     setStatus('Loaded successfully.', 'success')
   } catch (err) {
+    if (!isCurrent()) return
     console.error('[configs] Load failed:', err)
 
     if (editorEl) {

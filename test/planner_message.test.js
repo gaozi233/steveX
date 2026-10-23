@@ -26,6 +26,25 @@ test('system stays English and identical across tasks, histories and window chan
   assert.match(user, /WINDOW: minecraft:furnace/)
   assert.match(user, /COMMANDS:/)
   assert.match(user, /背包观测/)
+  const catalog = user.split('COMMANDS:\n')[1].split('\n\nWINDOW:')[0]
+  assert.doesNotMatch(catalog, /[\u3400-\u9fff]/)
+  assert.match(catalog, /\[State and environment\]/)
+})
+
+test('English catalogs preserve multilingual task and follow-up input verbatim', async () => {
+  const f = fixture(), system = f.brain.buildSystem()
+  const goal = '查询背包：保留中文、English 和符号 ~！'
+  const note = '追加：不要丢弃「石头」，先告诉我数量。'
+  await f.brain.submitTask(goal)
+  await f.brain.submitTask(note, 'once', { operation: 'append' })
+  assert.equal(f.brain.goal, goal)
+  assert.equal(f.brain.task.messages[0], note)
+  assert.ok(f.calls[1][1].content.includes('GOAL: ' + goal))
+  assert.ok(f.calls[1][1].content.includes(JSON.stringify([note])))
+  for (const messages of f.calls) {
+    assert.equal(messages[0].content, system)
+    assert.doesNotMatch(messages[1].content.split('\n\nWINDOW:')[0], /[\u3400-\u9fff]/)
+  }
 })
 test('one-step task changes goal, clears old history and performs exactly one command', async () => {
   const f = fixture(); f.brain.remember('old', 'old task')
@@ -83,4 +102,14 @@ test('planner HTTP isolates agents, validates payload and returns actual one-ste
   const response = await post('a', { message: 'Query position', mode: 'once' })
   assert.equal(response.status, 200); assert.equal((await response.json()).command, 'pos')
   assert.equal(f.calls.length, 1)
+  const control = body => fetch(`http://127.0.0.1:${server.address().port}/api/agents/a/planner/control`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  assert.equal((await control({ operation: 'continue', taskId: 'stale' })).status, 409)
+  const id = f.brain.task.id
+  const continued = await control({ operation: 'continue', mode: 'once', taskId: id })
+  assert.equal(continued.status, 200)
+  assert.equal((await continued.json()).task.id, id)
+  assert.equal(f.calls.length, 2)
+  assert.equal((await control({ operation: 'complete', taskId: id })).status, 200)
+  assert.equal((await control({ operation: 'continue', taskId: id })).status, 400)
 })

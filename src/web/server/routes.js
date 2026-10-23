@@ -133,20 +133,31 @@ function registerRoutes(app, manager) {
   app.post('/api/agents/:name/planner/message', async (req, res) => {
     const agent = manager.agents.get(req.params.name)
     if (!agent) return res.status(404).json({ ok: false, error: 'Agent not found' })
-    const { message, mode = 'once' } = req.body || {}
+    const { message, mode = 'once', operation = 'new', limits, taskId } = req.body || {}
     if (typeof message !== 'string' || !message.trim() || message.length > 4000 || !['once', 'continuous'].includes(mode)) {
       return res.status(400).json({ ok: false, errorCode: 'INVALID_TASK', error: 'Expected task up to 4000 characters and mode once or continuous' })
     }
-    if (!agent.brainLoop) {
-      const { Brain } = require('../../agent/brain')
-      agent.brainLoop = new Brain(agent, agent.config.llm || {}, manager.eventBus, agent.config.brain || {})
-    }
     try {
-      const result = await agent.brainLoop.submitTask(message, mode)
-      res.status(result.errorCode === 'BRAIN_BUSY' ? 409 : result.ok ? 200 : 400).json(result)
+      if (!agent.brainLoop) {
+        const { Brain } = require('../../agent/brain')
+        agent.brainLoop = new Brain(agent, agent.config.llm || {}, manager.eventBus, agent.config.brain || {})
+      }
+      const result = await agent.brainLoop.submitTask(message, mode, { operation, limits, taskId })
+      res.status(['BRAIN_BUSY', 'TASK_CHANGED'].includes(result.errorCode) ? 409 : result.ok ? 200 : 400).json(result)
     } catch (error) {
       res.status(400).json({ ok: false, error: require('./agent_debug').getDebugStore(manager).clean(error.message) })
     }
+  })
+
+  app.post('/api/agents/:name/planner/control', async (req, res) => {
+    const agent = manager.agents.get(req.params.name)
+    if (!agent) return res.status(404).json({ ok: false, error: 'Agent not found' })
+    if (!agent.brainLoop) return res.status(400).json({ ok: false, errorCode: 'NO_TASK', error: 'No planner task' })
+    try {
+      const { operation, mode = 'once', taskId } = req.body || {}
+      const result = await agent.brainLoop.controlTask(operation, { mode, taskId })
+      res.status(['BRAIN_BUSY', 'TASK_CHANGED'].includes(result.errorCode) ? 409 : result.ok ? 200 : 400).json(result)
+    } catch (error) { res.status(400).json({ ok: false, error: require('./agent_debug').getDebugStore(manager).clean(error.message) }) }
   })
 
   app.post('/api/agents/:name/brain/:operation', (req, res) => {

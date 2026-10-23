@@ -2,18 +2,19 @@
 // Rendering + event handlers for the agent management view.
 
 import { getState, subscribe } from '../lib/state.js'
-import { connectAgent, disconnectAgent, sendCommand, sendPlannerMessage, stopPlanner } from '../lib/api.js'
+import { connectAgent, disconnectAgent, sendCommand, sendPlannerMessage, stopPlanner, controlPlanner } from '../lib/api.js'
 import { escapeHtml } from '../lib/utils.js'
 import { hydrateIcons } from '../lib/icons.js'
 import { initInventoryPreview } from '../lib/inventory-preview.js'
 import { inspectorHtml, initAgentInspector } from '../lib/agent-inspector.js'
+import { updatePlannerTask, syncPlannerLimits } from '../lib/planner-controls.js'
 
 const PLACEHOLDER = {
   health: 20,
   maxHealth: 20,
   mode: 'Survival',
-  model: 'deepseek-v4-flash',
-  position: { x: '~', y: '~', z: '~' },
+  model: 'Not configured',
+  position: { x: null, y: null, z: null },
   action: 'Idle'
 }
 
@@ -33,9 +34,9 @@ function getAgentView(agent) {
 function formatPosition(position) {
   const pos = position || PLACEHOLDER.position
 
-  const x = pos.x ?? '~'
-  const y = pos.y ?? '~'
-  const z = pos.z ?? '~'
+  const x = pos.x ?? '\u2014'
+  const y = pos.y ?? '\u2014'
+  const z = pos.z ?? '\u2014'
 
   return `x: ${x}, y: ${y}, z: ${z}`
 }
@@ -98,69 +99,34 @@ function agentCardHtml(agent) {
         </div>
 
         <div class="agent-actions">
-          <button class="btn soft-success" type="button" data-action="connect" data-agent="${escapeHtml(agent.name)}">
+          <button class="btn soft-success" type="button" data-action="connect" data-agent="${escapeHtml(agent.name)}" ${agent.online ? 'hidden' : ''}>
             <span data-icon="link"></span>
             Connect
           </button>
-          <button class="btn soft-danger" type="button" data-action="disconnect" data-agent="${escapeHtml(agent.name)}">
+          <button class="btn soft-danger" type="button" data-action="disconnect" data-agent="${escapeHtml(agent.name)}" ${agent.online ? '' : 'hidden'}>
             <span data-icon="unlink"></span>
             Disconnect
           </button>
-          <button class="btn ghost" type="button" data-action="log" data-agent="${escapeHtml(agent.name)}">
+          <button class="btn ghost icon-button" type="button" data-action="log" data-agent="${escapeHtml(agent.name)}" title="Agent log" aria-label="Agent log">
             <span data-icon="logs"></span>
-            Agent Log
           </button>
         </div>
       </div>
 
       <div class="agent-body">
-        <div class="stats-panel">
-          <div class="stats-column">
-            <div class="stat-row">
-              <div class="stat-label">Health</div>
-              <div class="stat-value">
-                <span data-icon="heart"></span>
-                <span class="health-wrap">
-                  <span class="health-number">${view.health} / ${view.maxHealth}</span>
-                  <span class="health-bar" aria-label="Health ${percent}%">
-                    <span class="health-fill" style="--health:${percent}%"></span>
-                  </span>
-                </span>
-              </div>
-            </div>
-
-            <div class="stat-row">
-              <div class="stat-label">Game Mode</div>
-              <div class="stat-value"><span data-icon="gamepad"></span>${escapeHtml(view.mode)}</div>
-            </div>
-
-            <div class="stat-row">
-              <div class="stat-label">Model</div>
-              <div class="stat-value"><span data-icon="brain"></span>${escapeHtml(view.model)}</div>
-            </div>
+        <div class="stats-panel" aria-label="Agent state">
+          <div class="stat-row">
+            <div class="stat-label">Health</div>
+            <div class="stat-value"><span data-icon="heart"></span><span class="health-wrap"><span class="health-number">${view.health} / ${view.maxHealth}</span><span class="health-bar" aria-label="Health ${percent}%"><span class="health-fill" style="--health:${percent}%"></span></span></span></div>
           </div>
-
-          <div class="stats-column">
-            <div class="stat-row">
-              <div class="stat-label">Position</div>
-              <div class="stat-value"><span data-icon="pin"></span>${escapeHtml(position)}</div>
-            </div>
-
-            <div class="stat-row">
-              <div class="stat-label">Current Action</div>
-              <div class="stat-value"><span data-icon="walk"></span>${escapeHtml(view.action)}</div>
-            </div>
-
-            <div class="stat-row">
-              <div class="stat-label">Status</div>
-              <div class="stat-value"><span class="dot ${statusClass}"></span>${agent.online ? 'Online' : 'Offline'}</div>
-            </div>
-          </div>
+          <div class="stat-row"><div class="stat-label">Game Mode</div><div class="stat-value"><span data-icon="gamepad"></span>${escapeHtml(view.mode)}</div></div>
+          <div class="stat-row"><div class="stat-label">Position</div><div class="stat-value"><span data-icon="pin"></span>${escapeHtml(position)}</div></div>
+          <div class="stat-row"><div class="stat-label">Current Action</div><div class="stat-value"><span data-icon="walk"></span>${escapeHtml(view.action)}</div></div>
         </div>
 
         <div class="command-stack">
           <form class="command-panel" data-action="command" data-agent="${escapeHtml(agent.name)}">
-            <div class="command-title">Send Command <span>(to Agent)</span></div>
+            <div class="command-title">Command</div>
             <div class="command-row">
               <input type="text" name="message" placeholder="Enter command..." autocomplete="off" />
               <button class="btn send" type="submit">Send</button>
@@ -168,13 +134,26 @@ function agentCardHtml(agent) {
           </form>
 
           <form class="command-panel" data-action="message" data-agent="${escapeHtml(agent.name)}">
-            <div class="command-title">Send Message <span>(to LLM Planner)</span></div>
+            <div class="command-title">LLM Planner <span class="planner-model" data-planner-model>${escapeHtml(view.model)}</span></div>
             <div class="command-row">
               <input type="text" name="message" maxlength="4000" aria-label="Planner task" placeholder="Enter task..." autocomplete="off" />
-              <select name="mode" aria-label="Planner run mode"><option value="once">One step</option><option value="continuous">Continuous</option></select>
               <button class="btn send" type="submit">Send</button>
-              <button class="btn" type="button" data-action="planner-stop" data-agent="${escapeHtml(agent.name)}" title="Stop planner"><span data-icon="square"></span>Stop</button>
+              <button class="btn" type="button" data-action="planner-stop" data-agent="${escapeHtml(agent.name)}" title="Cancel planner task"><span data-icon="unlink"></span>Cancel</button>
             </div>
+            <div class="planner-options">
+              <select name="operation" aria-label="Task message type"><option value="append">Follow-up</option><option value="new">New task</option></select>
+              <select name="mode" aria-label="Planner run mode"><option value="once">One step</option><option value="continuous">Continuous</option></select>
+              <label>Call limit <input type="number" name="maxCalls" min="1" max="1000" value="32" /></label>
+              <label>Time limit (s) <input type="number" name="maxSeconds" min="1" max="3600" value="300" /></label>
+            </div>
+            <div class="planner-options">
+              <button class="btn" type="button" data-action="planner-control" data-operation="continue" data-agent="${escapeHtml(agent.name)}" title="Continue current task" disabled><span data-icon="refresh"></span>Continue</button>
+              <button class="btn" type="button" data-action="planner-control" data-operation="pause" data-agent="${escapeHtml(agent.name)}" title="Pause current task" disabled>Pause</button>
+              <select name="finishState" aria-label="Task disposition"><option value="complete">Completed (manual)</option><option value="block">Blocked</option><option value="wait">Waiting for user</option></select>
+              <button class="btn" type="button" data-action="planner-finish" data-agent="${escapeHtml(agent.name)}" title="Set task disposition" disabled><span data-icon="tasks"></span>Set status</button>
+            </div>
+            <output class="planner-task-meta" data-planner-task>No active task</output>
+            <details class="planner-metrics" hidden><summary>Task details</summary><pre data-planner-details></pre></details>
             <div class="planner-feedback" role="status" aria-live="polite"></div>
             <pre class="planner-result" hidden></pre>
           </form>
@@ -322,6 +301,7 @@ export function renderAgents(container) {
 }
 
 function updateDynamicFields(card, agent) {
+  updatePlannerTask(card, agent.brain?.task ?? null)
   const statusClass = agent.online ? 'online' : 'offline'
   const statusText = agent.online ? 'online' : 'offline'
 
@@ -330,6 +310,9 @@ function updateDynamicFields(card, agent) {
   const position = formatPosition(view.position)
 
   // Header dot + state label
+  card.querySelector('[data-action="connect"]').hidden = !!agent.online
+  card.querySelector('[data-action="disconnect"]').hidden = !agent.online
+  card.querySelector('[data-planner-model]').textContent = view.model
   const dot = card.querySelector('.agent-id .dot')
   if (dot) dot.className = `dot ${statusClass}`
 
@@ -377,11 +360,6 @@ function updateDynamicFields(card, agent) {
       hydrateIcons(val)
     }
 
-    if (name === 'Model') {
-      val.innerHTML = `<span data-icon="brain"></span>${escapeHtml(view.model)}`
-      hydrateIcons(val)
-    }
-
     if (name === 'Position') {
       val.innerHTML = `<span data-icon="pin"></span>${escapeHtml(position)}`
       hydrateIcons(val)
@@ -392,9 +370,6 @@ function updateDynamicFields(card, agent) {
       hydrateIcons(val)
     }
 
-    if (name === 'Status') {
-      val.innerHTML = `<span class="dot ${statusClass}"></span>${agent.online ? 'Online' : 'Offline'}`
-    }
   })
 }
 
@@ -415,7 +390,20 @@ function handleClick(e) {
     showLogModal(name)
   } else if (action === 'planner-stop') {
     const feedback = btn.closest('form').querySelector('.planner-feedback')
-    stopPlanner(name).then(() => { feedback.textContent = 'Planner stopped' }).catch(error => { feedback.textContent = error.message })
+    stopPlanner(name).then(() => { feedback.textContent = 'Task cancelled' }).catch(error => { feedback.textContent = error.message })
+  } else if (action === 'planner-control' || action === 'planner-finish') {
+    const form = btn.closest('form')
+    const operation = action === 'planner-finish' ? form.elements.finishState.value : btn.dataset.operation
+    const feedback = form.querySelector('.planner-feedback')
+    btn.disabled = true
+    controlPlanner(name, operation, form.elements.mode.value, form.dataset.taskId || undefined).then(result => {
+      btn.disabled = false
+      feedback.textContent = result.status === 'started' ? 'Task start accepted' : result.command ? `Step returned: ${result.command}` : result.task?.status || 'Task updated'
+      if (result.result) { const box = form.querySelector('.planner-result'); box.textContent = JSON.stringify(result.result, null, 2); box.hidden = false }
+      updatePlannerTask(form.closest('[data-agent-name]'), result.task)
+      const details = form.closest('[data-agent-name]')?.querySelector('.inspector-llm')
+      if (details) details.open = true
+    }).catch(error => { feedback.textContent = error.message; btn.disabled = false })
   }
 }
 
@@ -442,8 +430,13 @@ async function handleSubmit(e) {
     resultBox.hidden = true
     feedback.textContent = 'Waiting for planner...'
     try {
-      const result = await sendPlannerMessage(name, value, form.elements.mode.value)
-      feedback.textContent = result.mode === 'continuous' ? 'Planner running' : `Step finished: ${result.command || 'no command'}`
+      const operation = form.elements.operation.value
+      const options = { operation }
+      if (operation === 'append' && form.dataset.taskId) options.taskId = form.dataset.taskId
+      if (operation === 'new' || !form.dataset.taskId) options.limits = { maxCalls: Number(form.elements.maxCalls.value), maxDurationMs: Number(form.elements.maxSeconds.value) * 1000 }
+      const result = await sendPlannerMessage(name, value, form.elements.mode.value, options)
+      feedback.textContent = result.status === 'queued' ? 'Follow-up queued for next step' : result.status === 'started' ? 'Task start accepted' : `Step returned: ${result.command || 'no command'}`
+      updatePlannerTask(form.closest('[data-agent-name]'), result.task)
       if (result.result) { resultBox.textContent = JSON.stringify({ command: result.command, result: result.result }, null, 2); resultBox.hidden = false }
       if (input.value.trim() === value) input.value = ''
       const details = form.closest('[data-agent-name]')?.querySelector('.inspector-llm')
@@ -466,4 +459,7 @@ export function initAgents(container) {
   initAgentInspector(container)
   container.addEventListener('click', handleClick)
   container.addEventListener('submit', handleSubmit)
+  container.addEventListener('change', event => {
+    if (event.target.matches('form[data-action="message"] select[name="operation"]')) syncPlannerLimits(event.target.closest('form'))
+  })
 }

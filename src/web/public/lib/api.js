@@ -39,12 +39,21 @@ export async function sendCommand(name, command) {
   const result = await res.json()
   return result
 }
-export async function sendPlannerMessage(name, message, mode) {
+export async function sendPlannerMessage(name, message, mode, options = {}) {
   const res = await fetch(`/api/agents/${encodeURIComponent(name)}/planner/message`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, mode })
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, mode, ...options })
   })
   const result = await res.json()
   if (!res.ok) throw Object.assign(new Error(result.error || result.result?.error || 'Planner request failed'), { result })
+  return result
+}
+
+export async function controlPlanner(name, operation, mode, taskId) {
+  const res = await fetch(`/api/agents/${encodeURIComponent(name)}/planner/control`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation, mode, taskId })
+  })
+  const result = await res.json()
+  if (!res.ok) throw Object.assign(new Error(result.error || result.result?.error || 'Task control failed'), { result })
   return result
 }
 

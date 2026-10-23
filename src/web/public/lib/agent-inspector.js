@@ -1,4 +1,5 @@
 import { escapeHtml } from './utils.js'
+import { updatePlannerTask } from './planner-controls.js'
 
 export function inspectorHtml() {
   return `<details class="agent-inspector inspector-vision"><summary>View</summary>
@@ -16,6 +17,9 @@ export function traceHtml(turns) {
     <h4>Input</h4>${turn.messages.map(message => `<details class="llm-message"${message.role === 'user' ? ' open' : ''}><summary>${escapeHtml(message.role)}</summary><pre>${escapeHtml(message.content)}</pre></details>`).join('')}
     <h4>Output</h4><pre class="llm-response">${escapeHtml(turn.response ?? turn.error ?? 'Waiting for response...')}</pre>
     ${turn.command ? `<p class="llm-selected-command">Selected command: <code>${escapeHtml(turn.command)}</code></p>` : ''}
+    ${turn.taskId ? `<p>Task <code>${escapeHtml(turn.taskId)}</code> | step ${escapeHtml(turn.step)}</p>` : ''}
+    ${turn.timings ? `<h4>Timing / Reported Usage</h4><pre>${escapeHtml(JSON.stringify({ timings: turn.timings, usage: turn.usage ?? 'unavailable' }, null, 2))}</pre>` : ''}
+    ${turn.executionStatus ? `<h4>Execution: ${escapeHtml(turn.executionStatus)}</h4>${turn.executionTruncated ? '<p>Execution display truncated</p>' : ''}<pre>${escapeHtml(turn.execution ?? turn.executionError ?? 'No command result')}</pre>` : ''}
   </details>`).join('')
 }
 
@@ -27,6 +31,7 @@ export function initAgentInspector(container) {
   function render(card, state) {
     const data = state.data
     if (!data) return
+    updatePlannerTask(card, data.task)
     const capture = captures.has(card)
     const button = card.querySelector('[data-inspect-capture]')
     button.disabled = capture || !data.online || !data.renderer.enabled || !data.renderer.connected

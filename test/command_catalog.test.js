@@ -3,7 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const { loadCommands } = require('../src/commands')
-const { categories, categoryFor, groupCommands } = require('../src/commands/catalog')
+const { categories, categoryFor, groupCommands, formatCommandCatalog } = require('../src/commands/catalog')
 const { Brain } = require('../src/agent/brain')
 const { generate } = require('../scripts/generate-command-catalog')
 
@@ -29,6 +29,16 @@ test('Brain groups only allowed commands and never accepts category headings as 
 })
 test('generated command documentation stays synchronized', () => {
   assert.equal(fs.readFileSync(path.join(__dirname, '../docs/command-catalog.md'), 'utf8').replace(/\r\n/g, '\n'), generate())
+})
+
+test('all generated catalog text is English, including privileged and window commands', () => {
+  const text = formatCommandCatalog(loadCommands().list)
+  assert.doesNotMatch(text, /[\u3400-\u9fff]/)
+  for (const category of categories) assert.ok(text.includes(`[${category.title}]`))
+  assert.match(text, /\[State and environment\]/)
+  assert.match(text, /\[Workstations and trading\]/)
+  assert.match(text, /\[Client management\]/)
+  assert.doesNotMatch(generate(), /[\u3400-\u9fff]/)
 })
 
 test('move stop replaces stand without duration or immediate global cancellation', async () => {
@@ -98,7 +108,10 @@ test('acceptance checklist sections follow the shared catalog without duplicate 
   const allNames = []
   for (const [index, group] of groups.entries()) {
     const kind = group.id === 'query' ? 'query' : group.id === 'creative' ? '入口' : 'action'
-    const heading = `## ${index + 3}. ${group.title.split(' / ')[0]}（${group.commands.length} 个${kind === '入口' ? '' : ' '}${kind}）`
+    // The retained Chinese acceptance checklist is independent of English catalog titles.
+    const heading = doc.split('\n').map(line => line.trim()).find(line => line.startsWith(`## ${index + 3}. `))
+    assert.ok(heading)
+    assert.ok(heading.endsWith(`（${group.commands.length} 个${kind === '入口' ? '' : ' '}${kind}）`))
     const section = doc.split(heading)[1]?.split('\n## ')[0]
     assert.ok(section, heading)
     const names = [...section.matchAll(/^\| `([a-z]+)(?:[ `])/gm)].map(match => match[1])

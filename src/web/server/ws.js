@@ -54,6 +54,7 @@ function setupWebSocket(server, manager) {
 
   const eventBus = manager.eventBus
   if (!eventBus) return wss
+  eventBus.on('agent:task:update', () => { snapshotDirty = true })
 
   eventBus.on('agent:connect', (data) => {
     broadcast(wss, { type: 'agent:connect', name: data.name })

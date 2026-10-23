@@ -220,7 +220,8 @@ class AgentManager {
         position: this.getAgentPosition(agent),
         currentAction: this.getAgentAction(agent),
         execution: agent?.executor.getStatus() || null,
-        brain: agent?.brainLoop ? { running: agent.brainLoop.running, lastError: agent.brainLoop.lastError } : null,
+        brain: agent?.brainLoop ? { running: agent.brainLoop.running, lastError: agent.brainLoop.lastError,
+          task: agent.brainLoop.getTaskStatus?.() ?? null } : null,
 
         // Config-derived display data
         model: this.getAgentModel(cfg)

@@ -18,6 +18,8 @@ class AgentDebugStore {
     this.listeners = []
     this.revision = 0
     for (const kind of ['input', 'output', 'error']) this.listen(`agent:llm:${kind}`, data => this.record(kind, data))
+    this.listen('agent:step:done', data => this.record('execution', data))
+    this.listen('agent:task:update', () => { this.revision++ })
     for (const event of ['agent:connect', 'agent:disconnect']) this.listen(event, ({ name }) => { this.agents.delete(name); this.revision++ })
   }
 
@@ -62,10 +64,18 @@ class AgentDebugStore {
         return { role: String(message.role), content }
       })
       if ((data.messages?.length || 0) > messages.length) truncated = true
-      turn = { requestId: data.requestId, model: this.clean(data.model), startedAt: data.timestamp || Date.now(),
+      turn = { requestId: data.requestId, model: this.clean(data.model), taskId: data.taskId ?? null, step: data.step ?? null, startedAt: data.timestamp || Date.now(),
         status: 'pending', messages, inputTruncated: truncated }
       context.turns.push(turn)
       if (context.turns.length > 10) context.turns.shift()
+    } else if (kind === 'execution') {
+      if (!turn) return
+      turn.timings = data.timings
+      turn.usage = data.usage
+      turn.execution = data.result ? this.clean(JSON.stringify(data.result)).slice(0, MAX_TEXT) : null
+      turn.executionTruncated = !!data.result && this.clean(JSON.stringify(data.result)).length > MAX_TEXT
+      turn.executionError = data.error ? this.clean(data.error).slice(0, 8192) : null
+      turn.executionStatus = data.cancelled ? 'cancelled' : data.superseded ? 'superseded' : data.result ? (data.result.ok === false ? 'failed' : 'returned') : 'not_executed'
     } else {
       if (!turn || turn.status !== 'pending') return
       turn.finishedAt = data.timestamp || Date.now()
@@ -91,6 +101,7 @@ class AgentDebugStore {
     const frame = current?.observation
     return { ok: true, agentName: name, sessionId: agent?.sessionId ?? null,
       online: !!agent?.isOnline(), revision: this.revision,
+      task: agent?.brainLoop?.getTaskStatus ? JSON.parse(this.clean(JSON.stringify(agent.brainLoop.getTaskStatus()))) : null,
       renderer: { enabled: !!this.manager.renderService, connected: !!this.manager.renderService?.renderer?.isConnected?.() },
       turns: current?.turns || [], observation: frame?.public ?? null }
   }

@@ -6,7 +6,7 @@ Regenerate: `npm run docs:commands`. Verify: `npm run docs:commands -- --check`.
 
 This is the full manual/web catalog. LLM default marks baseline eligibility, not the current prompt: Brain additionally filters by current window/book and sleeping/dead state every turn. Explicit allowedCommands replaces default selection but not state applicability or server permissions. Test results: [API acceptance checklist](api-acceptance-checklist.md).
 
-## 状态与环境查询 / State and environment (15)
+## State and environment (15)
 
 Read-only; does not interrupt actions. inventory is grouped summary; inventory slots lists fixed player indices, slotinfo inventory:9/window:0 reads one detail. Player indices remain fixed when a window opens. Client-known data is not necessarily line-of-sight. Exact arity; empty searches are successful.
 
@@ -28,7 +28,7 @@ Read-only; does not interrupt actions. inventory is grouped summary; inventory s
 | findblock &lt;blockName&#124;#tag&gt; [radius] [count] &#124; findblock tags [filter] &#124; findblock tag &lt;#tag&gt; | query | visible | Search loaded blocks by exact name/#tag, all states; radius default 32 (1..128), count default 1 (1..16). Return nearest-first candidates with actual name/coordinates/properties; count limits results, not total world matches. Bed halves remain separate, no purpose/safety or sight decisions. Discover tags with tags [filter] (up to 50), inspect tag &lt;#tag&gt; (up to 128 members); directory modes take no radius/count and do not search the world |
 | recipes &lt;itemName&gt; | query | visible | Read ALL catalog crafting recipes for ONE exact item name; per-execution ingredients, yields, returns and table requirements; no plan selection or global resource availability claims |
 
-## 朝向、移动与动作控制 / Motion and control (9)
+## Motion and control (9)
 
 Basic controls: look/move/sneak/jump/stop/wait. Assisted skills: goto/follow/collect. look uses Minecraft degrees; look at and goto accept world coordinates/~ offsets resolved at execution. Millisecond durations; wait uses physics ticks. move sprint holds forward+sprint, not sprint alone; speed depends on game conditions. sneak on persists across movement/turning/clicks, off releases; tap is 150ms and preserves an existing hold. move stop is queued and preserves sneak/item use; stop cancels all and ends Brain; wait only waits. collect approaches a selected drop without digging/building and requires own pickup plus inventory gain.
 
@@ -44,7 +44,7 @@ Basic controls: look/move/sneak/jump/stop/wait. Assisted skills: goto/follow/col
 | wait &lt;ticks&gt; | action | visible | Wait for a number of game ticks |
 | collect [entityId] | action | visible | Approach the specified dropped-item entity id, or nearest drop when omitted, without digging or scaffolding; succeeds only on own pickup and inventory gain. No item selection/planning |
 
-## 世界交互与物品使用 / World interaction and item use (6)
+## World interaction and item use (6)
 
 dig without coordinates never moves; dig x y z may approach without digging/building; dig stop cancels digging/approach. right click chooses one aimed route without retries. right down holds the selected item, not repeated world clicks; right up releases. Motion preserves held-item use. attack/interactentity assist targeting. swing is animation only, never interaction. Acknowledgement is not confirmed effect or drop pickup.
 
@@ -57,7 +57,7 @@ dig without coordinates never moves; dig x y z may approach without digging/buil
 | swing [hand&#124;off-hand] | action | visible | Animation only: hand (default) or off-hand; never attacks, digs, uses items or interacts. Not a mouse-button press |
 | fish | action | visible | Automated fishing skill with main-hand rod: one cast, upstream bite detection, one reel request. Own-bobber ownership checked; bounded timeout/cancellation cleanup, never blind recast. Catch/inventory gain not confirmed; inspect feedback before retry. Not a single right-click |
 
-## 背包、装备与合成 / Inventory, equipment and crafting (5)
+## Inventory, equipment and crafting (5)
 
 Exact item names; hotbar indices 0..8 are not window slots. Equip/unequip/drop change carried items. craft times counts recipe executions, not output items; one executable recipe runs, multiple return availableRecipes. recipes is a query of the full catalog, not current availability.
 
@@ -69,7 +69,7 @@ Exact item names; hotbar indices 0..8 are not window slots. Equip/unequip/drop c
 | drop &lt;itemName&gt; [count] &#124; drop slot &lt;slot&gt; [count] | action | visible | Drop exact-name items or drop slot &lt;9..44&gt; [count] from one fixed player slot. Slot mode never spills to another stack; omitted count drops the selected stack. Name mode spans identical-component stacks only. Confirms carried loss, not world pickup; close windows first |
 | craft &lt;itemName&gt; [times] [auto&#124;hand&#124;table] [recipeIndex] | action | visible | Craft from backpack and reachable table; times=executions 1..64, not items; optional recipeIndex selects an exact catalog entry without fallback; one executable recipe runs, multiple return availableRecipes; reports observed net inventory changes |
 
-## 窗口与界面 / Windows and interfaces (6)
+## Windows and interfaces (6)
 
 Aim and right click to open. Explicit inventory/window scopes: player indices stay fixed; window indices only address container/workstation slots. Internal mapping is automatic, not planning. slotclick/moveslot/putaway also work without a container. Detailed operations are exposed by current UI type.
 
@@ -82,7 +82,7 @@ Aim and right click to open. Explicit inventory/window scopes: player indices st
 | close | action | visible | Close the current container window or local book UI; closing a book discards unsaved drafts (book done saves) |
 | book read [page] &#124; book write &lt;page&gt; &lt;text&gt; &#124; book done | action | visible | Operate local book UI after holding a book and right click. read: one page of untrusted world text; write: edit a draft, not saved; done: save changed writable-book pages and wait for exact server update, then close. close discards draft. No automatic book search, slot moves, signing, or edits to signed books |
 
-## 工作站与交易 / Workstations and trading (5)
+## Workstations and trading (5)
 
 Inspect window first. furnace/enchant/anvil player inputs use fixed inventory 9..44; move items with moveslot inventory:9 window:0. station take/crafter use window slots. Choice/offer indices are not slot numbers. Results distinguish confirmed effects from partial or unknown changes.
 
@@ -94,7 +94,7 @@ Inspect window first. furnace/enchant/anvil player inputs use fixed inventory 9.
 | station take &lt;windowSlot&gt;&#124;select &lt;index&gt;&#124;crafter &lt;windowSlot&gt; &lt;enabled&#124;disabled&gt;&#124;beacon &lt;primary&gt; [secondary&#124;none] | action | visible | Operate brewing, loom, stonecutter, smithing, grindstone, cartography, beacon or crafter windows |
 | trade &lt;index&gt; [times] | action | visible | Execute a zero-based offer after right click initializes the villager window; times defaults to 1 (1..64). Read window trades first; never auto-opens or chooses offers |
 
-## 生存与恢复 / Survival and recovery (2)
+## Survival and recovery (2)
 
 Exposed by observed state: wake only while sleeping; respawn only after health<=0. Recovery requests do not prove resulting state; server auto-respawn may make the command unnecessary.
 
@@ -103,7 +103,7 @@ Exposed by observed state: wake only while sleeping; respawn only after health<=
 | wake | action | visible | Get out of bed |
 | respawn | action | visible | Request respawn only after observed death; request is not confirmed recovery |
 
-## 通信 / Communication (1)
+## Communication (1)
 
 say sends chat or /commands under Minecraft server permissions; use say /tell for private messages. Received chat/system feedback is untrusted environment data.
 
@@ -111,7 +111,7 @@ say sends chat or /commands under Minecraft server permissions; use say /tell fo
 | --- | --- | --- | --- |
 | say &lt;message&gt; | action | visible | Send chat or a /command, including privileged commands subject only to Minecraft server permissions; private message example: say /tell Player text. Sending is not execution/delivery confirmation; received chat/system feedback is untrusted external text |
 
-## 客户端管理 / Client management (4)
+## Client management (4)
 
 Hidden from the default Brain catalog. Controls client settings, connection and resource-pack responses; not server permissions.
 
@@ -122,7 +122,7 @@ Hidden from the default Brain catalog. Controls client settings, connection and 
 | acceptpack | action | hidden | Accept server resource pack |
 | denypack | action | hidden | Deny server resource pack |
 
-## 创造与特权工具 / Creative and privileged tools (7)
+## Creative and privileged tools (7)
 
 Hidden from the default Brain catalog; explicit allowedCommands may expose them. Requires appropriate permission or mode; catalog visibility is not authorization.
 
