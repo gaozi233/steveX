@@ -19,7 +19,8 @@ test('every command has exactly one category, with no stale category entries', (
 test('Brain groups only allowed commands and never accepts category headings as commands', () => {
   const agent = { commands: { pos() {}, goto() {} } }
   const brain = new Brain(agent, {}, {}, { allowedCommands: ['pos'] })
-  assert.match(brain.buildSystem(), /State and environment/)
+  brain.buildSystem()
+  assert.match(brain.table, /State and environment/)
   assert.doesNotMatch(brain.table, /Motion and control/)
   assert.equal(brain.pickCommand('pos'), 'pos')
   for (const value of ['Read-only;', '[状态与环境查询', 'goto 0 0 0']) assert.equal(brain.pickCommand(value), null)

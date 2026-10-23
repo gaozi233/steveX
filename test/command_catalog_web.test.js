@@ -10,6 +10,7 @@ test('agent page omits command catalog but keeps inventory preview and command c
   let previews = 0
   const context = vm.createContext({
     initInventoryPreview:()=>{previews++},
+    initAgentInspector:()=>{}, inspectorHtml:()=>'<details class="agent-inspector"></details>',
     escapeHtml: value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   })
   vm.runInContext(source, context)
@@ -22,4 +23,9 @@ test('agent page omits command catalog but keeps inventory preview and command c
   assert.doesNotMatch(source, /\/api\/commands/)
   assert.match(html, /inventory-preview/)
   assert.match(html, /Send Command/)
+  assert.match(html, /name="mode"/)
+  assert.match(html, /value="once">One step/)
+  assert.match(html, /planner-stop/)
+  assert.match(html, /planner-result/)
+  assert.doesNotMatch(source, /alert\('Coming soon'\)/)
 })

@@ -39,6 +39,20 @@ export async function sendCommand(name, command) {
   const result = await res.json()
   return result
 }
+export async function sendPlannerMessage(name, message, mode) {
+  const res = await fetch(`/api/agents/${encodeURIComponent(name)}/planner/message`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, mode })
+  })
+  const result = await res.json()
+  if (!res.ok) throw Object.assign(new Error(result.error || result.result?.error || 'Planner request failed'), { result })
+  return result
+}
+
+export async function stopPlanner(name) {
+  const res = await fetch(`/api/agents/${encodeURIComponent(name)}/brain/stop`, { method: 'POST' })
+  if (!res.ok) throw new Error('Could not stop planner')
+}
+
 export async function fetchEnvConfig() {
   const res = await fetch('/api/config/environment')
 

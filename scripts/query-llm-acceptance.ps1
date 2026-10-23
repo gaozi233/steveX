@@ -1,4 +1,4 @@
-param([switch]$Configure, [ValidateSet('query', 'craft', 'craft-stress')][string]$Suite = 'query', [string]$Case, [int]$MaxModelCalls = 0)
+param([switch]$Configure, [ValidateSet('query', 'craft', 'craft-stress')][string]$Suite = 'query', [string]$Case, [int]$MaxModelCalls = 0, [switch]$Standalone)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $secretPath = Join-Path $root 'runs\secrets\deepseek-key.dpapi'
@@ -21,6 +21,10 @@ try {
     $env:DEEPSEEK_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
     $scriptName = if ($Suite -eq 'query') { 'query-llm-acceptance.js' } else { 'craft-llm-acceptance.js' }
     $runArgs = @('--live')
+    if ($Standalone) {
+        if ($Suite -eq 'query') { throw '-Standalone is only supported with crafting suites' }
+        $runArgs += '--standalone'
+    }
     if ($Suite -eq 'craft-stress') { $runArgs += '--stress' }
     if ($MaxModelCalls -lt 0) { throw 'MaxModelCalls cannot be negative' }
     if ($MaxModelCalls -gt 0) {

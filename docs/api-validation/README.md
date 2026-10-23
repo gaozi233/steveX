@@ -4,6 +4,8 @@
 
 | 记录 | 类型与范围 |
 | --- | --- |
+| [交互、背包、窗口和工作站复测](interaction-crafting-recheck.md) | 当前22个命令入口的代表场景、独立DeepSeek复杂合成、SteveX身份及精确版本；保留未测边界 |
+| [Web 视角与 LLM 调试](web-inspector-validation.md) | 真实 A→B→A RGB、无焦点按需渲染、本地模拟 provider 全链路；1次真实 DeepSeek 输入输出及双 agent 隔离通过 |
 | [Web 只读背包与物品详情](web-inventory-validation.md) | 双 agent 9项实机、附魔浮层及刷新专项；全库450项回归；装备开窗滞后与特殊材质限制单列 |
 | [统一反馈、库存同步与工作站](window-feedback-validation.md) | 全库448项自动回归、紧凑语法16项实机和工作站／反馈10项实机；保留固定编号及组件详情，不新增规划策略 |
 | [固定玩家槽号与按需详情](slot-scope-validation.md) | 紧凑语法16项完整实机；固定编号／详情查询及搬运；工作站新编号另见统一反馈专项 |

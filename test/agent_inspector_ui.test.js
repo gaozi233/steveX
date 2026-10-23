@@ -1,0 +1,21 @@
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const vm = require('node:vm')
+const path = require('node:path')
+
+test('inspector preserves long context and raw output as escaped text with explicit truncation flags', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/web/public/lib/agent-inspector.js'), 'utf8')
+    .replace(/^import .*$/gm, '').replace(/^export /gm, '')
+  const context = vm.createContext({ escapeHtml: value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;') })
+  vm.runInContext(source, context)
+  const html = context.traceHtml([{ requestId: 'request', model: 'fixture', startedAt: 1, status: 'responded', response: '<script>bad</script>',
+    messages: [{ role: 'system', content: 'system '.repeat(1000) }, { role: 'user', content: 'user context' }], inputTruncated: true }])
+  assert.match(html, /system system system/)
+  assert.ok(html.length > 7000)
+  assert.match(html, /&lt;script&gt;bad&lt;\/script&gt;/)
+  assert.doesNotMatch(html, /<script>/)
+  assert.match(html, /Display limit reached/)
+  assert.match(html, /<summary>system<\/summary>/)
+  assert.match(context.inspectorHtml(), /data-inspect-capture/)
+})

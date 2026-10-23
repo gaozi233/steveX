@@ -9,6 +9,8 @@ const { WebSocketServer } = require('ws')
  */
 function setupWebSocket(server, manager) {
   const wss = new WebSocketServer({ server })
+  const debugStore = require('./agent_debug').getDebugStore(manager)
+  wss.once('close', () => debugStore.close())
 
   function broadcastSnapshot() {
     broadcast(wss, {
@@ -100,7 +102,7 @@ function setupWebSocket(server, manager) {
       type: 'agent:llm:input',
       name: data.name,
       model: data.model,
-      prompt: data.prompt,
+      prompt: debugStore.clean(data.prompt),
       timestamp: data.timestamp
     })
   })
@@ -110,7 +112,7 @@ function setupWebSocket(server, manager) {
       type: 'agent:llm:output',
       name: data.name,
       model: data.model,
-      response: data.response,
+      response: debugStore.clean(data.response),
       timestamp: data.timestamp
     })
   })

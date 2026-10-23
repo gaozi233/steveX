@@ -12,6 +12,7 @@ const ENV_CONFIG_RELATIVE_PATH = path.relative(process.cwd(), ENV_CONFIG_PATH)
  */
 function registerRoutes(app, manager) {
   require('./inventory').registerInventoryRoutes(app, manager)
+  require('./agent_debug').registerDebugRoutes(app, manager)
 
   // ---- Status ----
   app.get('/api/status', (req, res) => {
@@ -97,8 +98,12 @@ function registerRoutes(app, manager) {
   })
 
   app.post('/api/agents/:name/observe', async (req, res) => {
-    const result = await manager.captureObservation(req.params.name)
-    res.status(result.ok ? 200 : 400).json(result)
+    const agent = manager.agents.get(req.params.name)
+    try {
+      const result = await manager.captureObservation(req.params.name)
+      const preview = await require('./agent_debug').getDebugStore(manager).rememberObservation(req.params.name, result, agent)
+      res.status(result.ok ? 200 : 400).json({ ...result, preview: preview.observation })
+    } catch (error) { res.status(400).json({ ok: false, error: require('./agent_debug').getDebugStore(manager).clean(error.message) }) }
   })
 
   app.post('/api/agents/:name/nbt/query', async (req, res) => {
@@ -123,6 +128,25 @@ function registerRoutes(app, manager) {
     const agent = manager.agents.get(req.params.name)
     if (!agent) return res.status(404).json({ ok: false, error: 'Agent not started' })
     res.json({ ok: true, ...agent.interactionMemory.snapshot() })
+  })
+
+  app.post('/api/agents/:name/planner/message', async (req, res) => {
+    const agent = manager.agents.get(req.params.name)
+    if (!agent) return res.status(404).json({ ok: false, error: 'Agent not found' })
+    const { message, mode = 'once' } = req.body || {}
+    if (typeof message !== 'string' || !message.trim() || message.length > 4000 || !['once', 'continuous'].includes(mode)) {
+      return res.status(400).json({ ok: false, errorCode: 'INVALID_TASK', error: 'Expected task up to 4000 characters and mode once or continuous' })
+    }
+    if (!agent.brainLoop) {
+      const { Brain } = require('../../agent/brain')
+      agent.brainLoop = new Brain(agent, agent.config.llm || {}, manager.eventBus, agent.config.brain || {})
+    }
+    try {
+      const result = await agent.brainLoop.submitTask(message, mode)
+      res.status(result.errorCode === 'BRAIN_BUSY' ? 409 : result.ok ? 200 : 400).json(result)
+    } catch (error) {
+      res.status(400).json({ ok: false, error: require('./agent_debug').getDebugStore(manager).clean(error.message) })
+    }
   })
 
   app.post('/api/agents/:name/brain/:operation', (req, res) => {

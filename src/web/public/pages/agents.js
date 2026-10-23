@@ -2,10 +2,11 @@
 // Rendering + event handlers for the agent management view.
 
 import { getState, subscribe } from '../lib/state.js'
-import { connectAgent, disconnectAgent, sendCommand } from '../lib/api.js'
+import { connectAgent, disconnectAgent, sendCommand, sendPlannerMessage, stopPlanner } from '../lib/api.js'
 import { escapeHtml } from '../lib/utils.js'
 import { hydrateIcons } from '../lib/icons.js'
 import { initInventoryPreview } from '../lib/inventory-preview.js'
+import { inspectorHtml, initAgentInspector } from '../lib/agent-inspector.js'
 
 const PLACEHOLDER = {
   health: 20,
@@ -169,9 +170,13 @@ function agentCardHtml(agent) {
           <form class="command-panel" data-action="message" data-agent="${escapeHtml(agent.name)}">
             <div class="command-title">Send Message <span>(to LLM Planner)</span></div>
             <div class="command-row">
-              <input type="text" name="message" placeholder="Enter message for LLM Planner..." autocomplete="off" />
+              <input type="text" name="message" maxlength="4000" aria-label="Planner task" placeholder="Enter task..." autocomplete="off" />
+              <select name="mode" aria-label="Planner run mode"><option value="once">One step</option><option value="continuous">Continuous</option></select>
               <button class="btn send" type="submit">Send</button>
+              <button class="btn" type="button" data-action="planner-stop" data-agent="${escapeHtml(agent.name)}" title="Stop planner"><span data-icon="square"></span>Stop</button>
             </div>
+            <div class="planner-feedback" role="status" aria-live="polite"></div>
+            <pre class="planner-result" hidden></pre>
           </form>
         </div>
       </div>
@@ -179,6 +184,7 @@ function agentCardHtml(agent) {
         <summary>Inventory <span class="inventory-readonly">Read only</span></summary>
         <div class="inventory-preview-content" aria-live="polite"></div>
       </details>
+      ${inspectorHtml()}
     </article>
   `
 }
@@ -407,6 +413,9 @@ function handleClick(e) {
     disconnectAgent(name)
   } else if (action === 'log') {
     showLogModal(name)
+  } else if (action === 'planner-stop') {
+    const feedback = btn.closest('form').querySelector('.planner-feedback')
+    stopPlanner(name).then(() => { feedback.textContent = 'Planner stopped' }).catch(error => { feedback.textContent = error.message })
   }
 }
 
@@ -425,7 +434,26 @@ async function handleSubmit(e) {
   if (action === 'command') {
     await sendCommand(name, value)
   } else if (action === 'message') {
-    alert('Coming soon')
+    const button = form.querySelector('button[type="submit"]')
+    if (button.disabled) return
+    const feedback = form.querySelector('.planner-feedback')
+    const resultBox = form.querySelector('.planner-result')
+    button.disabled = true
+    resultBox.hidden = true
+    feedback.textContent = 'Waiting for planner...'
+    try {
+      const result = await sendPlannerMessage(name, value, form.elements.mode.value)
+      feedback.textContent = result.mode === 'continuous' ? 'Planner running' : `Step finished: ${result.command || 'no command'}`
+      if (result.result) { resultBox.textContent = JSON.stringify({ command: result.command, result: result.result }, null, 2); resultBox.hidden = false }
+      if (input.value.trim() === value) input.value = ''
+      const details = form.closest('[data-agent-name]')?.querySelector('.inspector-llm')
+      if (details) details.open = true
+    } catch (error) {
+      feedback.textContent = error.message
+      if (error.result?.result) { resultBox.textContent = JSON.stringify(error.result, null, 2); resultBox.hidden = false }
+    }
+    finally { button.disabled = false }
+    return
   }
 
   input.value = ''
@@ -435,6 +463,7 @@ async function handleSubmit(e) {
 
 export function initAgents(container) {
   initInventoryPreview(container)
+  initAgentInspector(container)
   container.addEventListener('click', handleClick)
   container.addEventListener('submit', handleSubmit)
 }

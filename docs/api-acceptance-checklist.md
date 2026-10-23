@@ -1,6 +1,6 @@
 # API 分类清单与人工验收台账
 
-更新：2026-10-23。按当前源码目录整理：**60 个命令（15 query、39 action、6 creative）**，另列 **17 个 HTTP 路由模板**（Brain 操作展开为两行）。分类来源为 `src/commands/catalog.js`，实际用法以运行版本的 `GET /api/commands` 为准。
+更新：2026-10-23。按当前源码目录整理：**60 个命令（15 query、39 action、6 creative）**，另列 **20 个 HTTP 路由模板**（Brain 操作展开为两行）。分类来源为 `src/commands/catalog.js`，实际用法以运行版本的 `GET /api/commands` 为准。
 
 本文仅保留当前接口、最新验收状态与待测项，不保留失效入口和逐轮调试流水。
 
@@ -8,14 +8,16 @@
 
 ## 1. 状态与证据
 
+- Web任务输入与固定英文system调整后，最新全库自动回归为 **465/465**；下方458项是此前交互复测时的回归批次。任务输入边界见 [Web任务输入](web-planner-message.md)。
+
 - **实测**：当前入口有真实游戏记录，仅覆盖行内列明场景，不代表所有变体通过。
 - **摘要通过**：沿用最近一次真实验收结论；原始过程日志已清理或归档，不代表本轮重新测试。
 - **自动局部**：有参数、mock 或协议回归，不代表游戏效果已验证。
 - **待测**：尚无对应成功路径的专项实测；已测接口的剩余边界列在末栏。
 - 自动回归与真实游戏验收分开计数；统一挖掘已完成独立玩家 6 项游戏实测，未调用 LLM。其余接口不因此升级状态；新增边界见各行待测项。
 - 疾跑／相对寻路／多候选搜索／钓鱼取消独立回归18/18、实机8/8，见 [专项记录](api-validation/motion-search-fish-validation.md)；各自通过范围不扩张为全部API实测。
-- 最新工作区全库自动回归 **450/450**；固定玩家槽号／详情／搬运新语法完整实机 **16/16**，反馈／同步／工作站专项实机 **10/10**，见 [统一反馈与工作站验收](api-validation/window-feedback-validation.md)。Web 双 agent 背包／装备／容器 **9/9** 实机及附魔浮层刷新专项通过，见 [Web 验收](api-validation/web-inventory-validation.md)。固定玩家编号与特殊属性修复保留；这些结果不代表所有工作站配方、异常网络或低 TPS 通过。本轮无模型调用。
-- 目标选择／窗口反馈优化另有 12/12 实机核对，见 [接口优化专项](api-validation/api-refinement-validation.md)。原开窗 7/7、聊天书本 6 项证据分别保留；这些均不代表全部窗口材料／交易组合、低 TPS 通过。本轮无模型调用。
+- 最新工作区全库自动回归 **458/458**；固定玩家槽号／详情／搬运新语法完整实机 **16/16**，反馈／同步／工作站专项实机 **10/10**，见 [统一反馈与工作站验收](api-validation/window-feedback-validation.md)。Web 双 agent 背包／装备／容器 **9/9** 实机及附魔浮层刷新专项通过，见 [Web 验收](api-validation/web-inventory-validation.md)。视角 A→B→A 实机、本地模拟 provider 链路及1次真实 DeepSeek 输入输出／双 agent 隔离已测，见 [调试验收](api-validation/web-inspector-validation.md)。这些结果不代表所有工作站配方、异常网络或低 TPS 通过。
+- 最新第5至8类复测见 [交互与复杂合成复测](api-validation/interaction-crafting-recheck.md)：交互／槽位16项、工作站10项、原生开窗7项、聊天书本6项、装备／鼠标／挖掘／钓鱼取消6项均通过。模型复杂合成独立计数，不以API场景数代替模型成绩；仍不代表全部窗口材料／交易组合、低TPS通过。
 
 当前保留证据位于本地忽略目录，不随 Git 提交：
 
@@ -122,21 +124,21 @@ Invoke-RestMethod "$base/api/agents/$agent/command" -Method Post -ContentType 'a
 | 调用 | 参数与行为 | 最新测试状态 | 待测／边界 |
 | --- | --- | --- | --- |
 | `dig` / `dig <x> <y> <z>` / `dig stop` | 无参只挖准星、不移动；坐标为安全整数，超距时受保护接近，不挖路／搭建，再瞄准校验遮挡与目标；stop 即时取消挖掘及接近，不取消无关移动 | 实测 6/6：近距离不移动、准星破坏、远处接近、遮挡／无路拒绝、接近途中停止；对照服务端 Pos 与方块；参数、目标变化和设置恢复另有自动测试 | 服务端保护拒绝、动态变化、更多工具／材质、低 TPS；依据客户端已同步方块，不自动选工具或保证拾取 |
-| `right <click\|down> [hand\|off-hand]` / `right up` | click 单次准星交互／放置；down 持续使用持物，非世界连点；up 无手参数，报告 hadActiveUse、released、实际 hand，未知为 null；本地松开不等于服务端效果确认 | 点击与持续使用沿用原路径覆盖；新分发和松手反馈自动测试 | 新入口实机整组、低 TPS、其他物品待补；不继承旧名为全量复测 |
+| `right <click\|down> [hand\|off-hand]` / `right up` | click 单次准星交互／放置；down 持续使用持物，非世界连点；up 无手参数，报告 hadActiveUse、released、实际 hand，未知为 null；本地松开不等于服务端效果确认 | 当前入口实测：木板放置与消耗、7种原生开窗、主副手书本、副手盾down／up及无活动重复up | 低TPS、其他物品及动态放置边界待补；盾牌本轮未重测减伤 |
 | `attack <entityName\|id>` | 必须指定目标；精确同名优先，再片段取最近；3 格、遮挡及转向后目标复核，无寻路／敌我判断。hit=true 仅服务端 damage_event 目标及来源均匹配自己；未发包拒绝为 false，发出后 1000ms 无归因证据为 null（未知，不是未命中），不读取目标隐藏血量 | 新目标、归因、取消及未知反馈有自动回归；专项记录见 [接口优化验收](api-validation/api-refinement-validation.md) | 多人同时攻击、低 TPS、特殊实体待补；时间窗不能证明本次独占因果关系 |
 | `interactentity <entityName\|id> [normal\|at] [hand\|off-hand]` | 辅助转向，默认 normal／hand；4.5 格及遮挡检查，无寻路重试；副手正确发包并保留潜行。主手 normal 村民／容器矿车原生开窗，副手该路径拒绝 | 实测：副手小麦 2→1、服务端牛 InLove>0；原主手上下车／喂食有摘要 | 移动目标、at 盔甲架、剪毛／交易实机待补；非开窗请求不等于效果完成 |
-| `swing [hand\|off-hand]` | 默认 hand；只发手臂动画，不是鼠标键，无任何交互；旧 right/left 参数已移除 | 内部左右挥手有历史实测；新手参数自动回归 | 新参数实机待核对；不是攻击或破坏成功证据 |
+| `swing [hand\|off-hand]` | 默认 hand；只发手臂动画，不是鼠标键，无任何交互；旧 right/left 参数已移除 | 当前主副手参数实测：命令成功、背包与准星方块不变；未用动画包证明交互 | 其他客户端动画呈现仍可人工观察；不是攻击或破坏成功证据 |
 | `fish` | 主手持竿自动抛竿／等咬钩／收竿；复用上游识别，独立事件会话只接受自身浮漂。默认会话30s，另受动作时限约束；取消停止事件转发，最多约1s清理，只在确认自身浮漂时尝试收竿，无盲目重抛。反馈 castSent/reelRequested/bobberId/cleanup；不保证捕获或库存增加 | 实测：水中取消、干地超时，均确认浮漂移除、后续命令可继续；归属过滤、迟到生成、断线／换物、迟到事件隔离自动覆盖 | 自然咬钩到实际收获的完整链路、多人同时钓鱼和低 TPS 待测；浮漂移除未知时先观察，不盲重试 |
 
 ## 6. 背包、装备与合成（5 个 action）
 
 | 调用 | 参数与行为 | 最新测试状态 | 待测／边界 |
 | --- | --- | --- | --- |
-| `equip item <itemName> [destination]` / `equip slot <slot> [destination]` / `equip <itemName> [destination]` | 名称精确匹配；默认 hand，可 head/torso/legs/feet/off-hand；槽号为关闭窗口后的背包／快捷栏 9..44。同名附魔、耐久、NBT 或组件不同返回 EQUIP_SELECTION_REQUIRED 及 candidates，不装备；相同属性忽略堆叠数量，取首槽；不选最优装备 | 原按名装备主副手及盔甲已有实测；新增槽位／候选选择 11 项自动测试通过，不冒称新路径实测 | 新入口真实附魔工具、多组件、满包及异常装备验收待补；候选是观测快照，执行时读取当前槽位，无自动回退 |
+| `equip item <itemName> [destination]` / `equip slot <slot> [destination]` / `equip <itemName> [destination]` | 名称精确匹配；默认 hand，可 head/torso/legs/feet/off-hand；槽号为关闭窗口后的背包／快捷栏 9..44。同名附魔、耐久、NBT 或组件不同返回 EQUIP_SELECTION_REQUIRED 及 candidates，不装备；相同属性忽略堆叠数量，取首槽；不选最优装备 | 当前equip slot实测：附魔钻石头盔装备／卸下与服务端组件一致；候选选择11项自动测试，原按名主副手有历史实测 | 同名多组件候选、满包及异常装备实机待补；候选是观测快照，执行时读取当前槽位，无自动回退 |
 | `hotbar <slot>` | 整数 0..8，不是窗口槽号 | 实测：潜行夹具选槽；摘要通过：0/8、空手、非法参数 | 高延迟切换后使用 |
 | `unequip [hand\|head\|torso\|legs\|feet\|off-hand]` | 默认 hand；满包拒绝，不自动丢物 | 摘要通过：盔甲／副手回包、空槽、满包无损拒绝 | 不可卸装备、并发库存变化 |
 | `drop <itemName> [count]` / `drop slot <slot> [count]` | 按名默认首堆，显式数量只跨同组件堆；slot 使用固定玩家9..44，只操作所选堆、不跨槽补足，默认该堆全部 | 实测：指定组件堆部分丢弃、默认全部、超量拒绝及其他堆不变；按名路径自动回归 | 满包光标、网络异常；不保证掉落后安全或一定生成可拾取实体 |
-| `craft <itemName> [times] [auto\|hand\|table] [recipeIndex]` | 默认 auto；times 为合成执行次数 1..64。一种当前可用方案直接做，多种返回 availableRecipes 供选择；不自动规划 | 摘要通过：新版 DeepSeek 基础 5/5、复杂 7/7，含条件拒绝后恢复 | 更多配方、取消及未知效果；失败先查 recipes，自行结合背包／箱子规划；不把未知当零产出 |
+| `craft <itemName> [times] [auto\|hand\|table] [recipeIndex]` | 默认 auto；times 为合成执行次数 1..64。一种当前可用方案直接做，多种返回 availableRecipes 供选择；不自动规划 | 最新DeepSeek复杂组126次调用：6个可行任务物品均达标，缺料正确BLOCKED；严格全流程6/7，红石任务做齐但36次预算内未DONE；动力铁轨384独立计数一致，无合成API失败。见本轮复测 | 重复查询／格式遵守／预算收尾需通用Agent改进；更多配方、取消及未知效果待测，不新增合成专用规划 |
 
 ## 7. 窗口与界面（6 个 action）
 
@@ -207,6 +209,7 @@ Invoke-RestMethod "$base/api/agents/$agent/command" -Method Post -ContentType 'a
 
 | 方法与路径 | 调用与返回边界 | 最新测试状态／待测 |
 | --- | --- | --- |
+| `POST /api/agents/:name/planner/message` | 仅人工Web／后台，默认不向LLM暴露；message非空至4000字符，mode=once默认／continuous；运行中409拒绝；新任务清旧历史，不写配置；once最多一次模型／命令，continuous需主动停止 | 自动HTTP／生命周期及浏览器模拟通过；真实DeepSeek提交“你好”执行say，HTTP200，游戏交付仍未确认；固定英文system本轮仅自动验收，见[任务输入](web-planner-message.md) |
 | `GET /api/status` | 无 body，角色状态及 uptimeSec | 摘要通过：轮询；断线／多角色刷新待扩展 |
 | `GET /api/commands` | 当前 name/kind/category/description/usage 目录 | 目录自动校验；当前 60 入口的运行服务核对待重载；不是完整参数 schema |
 | `GET /api/skills` | 局部 skillRegistry | 专项待测；不代替完整命令目录 |
@@ -218,6 +221,8 @@ Invoke-RestMethod "$base/api/agents/$agent/command" -Method Post -ContentType 'a
 | `POST /api/agents/:name/command` | `{"command":"pos"}`；失败通常 HTTP 400 | 实测：右键 19 组及潜行 12 组经正式 HTTP 入口 |
 | `GET /api/agents/:name/state` | 精确坐标、属性、控制、背包等客户端状态 | 实测：右键／潜行夹具读取；不是实时服务端全知状态 |
 | `GET /api/agents/:name/inventory-preview` | 只读：固定玩家背包／快捷栏、装备副手、光标与当前容器；开窗装备标注 last-known；不自动开窗或读取后台真值 | 双真实 agent 9项实机及浮层刷新专项通过；多agent／重连／只读隔离已核对 |
+| `GET /api/agents/:name/debug` | 当前会话近期LLM记录／视角元数据，ETag；仅人工后台，不自动触发采集或模型 | 自动／浏览器fixture、本地模拟provider及1次真实DeepSeek输入输出链路通过；复杂任务能力不在本次范围 |
+| `GET /api/agents/:name/observation/:frameId/rgb` | 仅该角色当前session最新RGB，不接受任意文件路径 | 真实Fabric A→B→A成功、错误角色URL拒绝；详情见[调试验收](api-validation/web-inspector-validation.md) |
 | `GET /api/item-textures/:version/:name` | 本地导入材质，只允许受限版本／物品名；无图404，网页回退文字 | 1.21.11 本地图标与缺图回退已测；附魔闪光／药水染色／特殊模型未还原 |
 | `GET /api/agents/:name/memory/containers` | actor/session 隔离的历史开窗记录，含来源和观测时间 | 摘要通过：开箱和落盘；历史不是当前库存，旧数据无损转换仍待完善 |
 | `POST /api/agents/:name/brain/start` | 使用该角色在线状态及本地 LLM 配置 | 自动局部；摘要：缺 Key 拒绝；有效配置的路由专项待测，不读取密钥 |

@@ -72,6 +72,12 @@ function assess(scenario, inventory, commands, seedResult) {
   }
 }
 
+function inventoryItems(result) {
+  assert.equal(result.ok, true, 'Inventory query must succeed')
+  assert.ok(Array.isArray(result.slots), 'Current inventory slots contract is required')
+  return result.slots
+}
+
 function serverCount(text) {
   if (/No items were found on player SteveX-Test/.test(text)) return 0
   const match = text.match(/Found (\d+) matching item/)
@@ -111,7 +117,7 @@ async function main() {
   const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
   const rcon = command => execFileSync(process.execPath, [path.join(root, 'runs/api-acceptance-server/rcon.cjs'), command], { encoding: 'utf8', timeout: 15000 }).trim()
   async function api(command) {
-    const response = await fetch(`http://127.0.0.1:8090/api/agents/manual-test/${command ? 'command' : 'state'}`, command
+    const response = await fetch(`${process.env.STEVEX_ACCEPTANCE_ORIGIN || 'http://127.0.0.1:8090'}/api/agents/manual-test/${command ? 'command' : 'state'}`, command
       ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ command }), signal: AbortSignal.timeout(command.startsWith('craft ') ? craftTimeoutMs(command.split(/\s+/).slice(1)) + 15000 : 45000) }
       : { signal: AbortSignal.timeout(10000) })
     const result = await response.json()
@@ -193,9 +199,9 @@ async function main() {
           if (terminalState(row.commands.at(-1))) { row.stopReason = 'model-terminal'; break }
         }
       } finally { brain.stop() }
-      row.finalInventory = await api('inventory')
+      row.finalInventory = await api('inventory slots')
       row.serverInventory = rcon('data get entity SteveX-Test Inventory')
-      row.assessment = assess(scenario, row.finalInventory.inventory, row.commands, row.seed?.result)
+      row.assessment = assess(scenario, inventoryItems(row.finalInventory), row.commands, row.seed?.result)
       row.serverCounts = {}
       for (const item of [...Object.keys(targetsOf(scenario)), ...Object.keys(scenario.preserve || {})]) {
         const response = rcon(`clear SteveX-Test ${item} 0`)
@@ -221,7 +227,7 @@ async function main() {
     if (fixture) rcon('setblock 722 -60 300 air')
     const p = original.position
     rcon(`execute in minecraft:${original.dimension} run tp SteveX-Test ${p.x} ${p.y} ${p.z}`)
-    await api(`look ${original.orientation.yaw} ${original.orientation.pitch}`)
+    await api(`look angle ${original.orientation.yaw} ${original.orientation.pitch}`)
     report.finishedAt = new Date().toISOString()
     save()
     console.log('LOG', file)
@@ -229,5 +235,30 @@ async function main() {
   if (report.interrupted || report.cases.some(row => !row.passed) || report.cases.length !== selectedCases.length) process.exitCode = 1
 }
 
-if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1 })
-module.exports = { cases, stressCases, safeCommand, assess, serverCount, targetsOf, expectedTargets, terminalState }
+async function run() {
+  if (!process.argv.includes('--standalone') || !process.argv.includes('--live')) return main()
+  const { AgentManager } = require('../src/agent/agent_manager')
+  const { createApp } = require('../src/web/server/app')
+  const manager = new AgentManager(() => ({ renderer: { enabled: false }, agents: [{ name: 'manual-test',
+    minecraft: { host: '127.0.0.1', port: 25565, username: 'SteveX-Test', version: '1.21.11', auth: 'offline' },
+    brain: { enabled: false }, llm: { apiKey: '' } }] }))
+  const server = createApp(manager).listen(0, '127.0.0.1')
+  const previous = process.env.STEVEX_ACCEPTANCE_ORIGIN
+  try {
+    await new Promise((resolve, reject) => { server.once('listening', resolve); server.once('error', reject) })
+    process.env.STEVEX_ACCEPTANCE_ORIGIN = `http://127.0.0.1:${server.address().port}`
+    manager.connectAgent('manual-test')
+    for (let i = 0; i < 200 && !manager.agents.get('manual-test')?.isOnline(); i++) await new Promise(r => setTimeout(r, 100))
+    assert.ok(manager.agents.get('manual-test')?.isOnline(), 'Test player must spawn')
+    await main()
+  } finally {
+    await manager.close()
+    require('../src/web/server/agent_debug').getDebugStore(manager).close()
+    server.closeAllConnections()
+    await new Promise(resolve => server.close(resolve))
+    if (previous === undefined) delete process.env.STEVEX_ACCEPTANCE_ORIGIN
+    else process.env.STEVEX_ACCEPTANCE_ORIGIN = previous
+  }
+}
+if (require.main === module) run().catch(error => { console.error(error.message); process.exitCode = 1 })
+module.exports = { cases, stressCases, safeCommand, assess, serverCount, targetsOf, expectedTargets, terminalState, inventoryItems }

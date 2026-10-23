@@ -127,10 +127,11 @@ test('Brain executes only model-selected queries and retains their results for t
   brain.stop()
 })
 
-test('Brain prompt supports recipe selection and verified goals without a hardcoded progression', () => {
+test('Brain prompt supports recipe selection and verified goals without a hardcoded progression', async () => {
   const brain = new Brain(createAgent(), {}, { emit() {} }, { goal: 'craft one iron_ingot' })
   const system = brain.buildSystem()
-  assert.match(system, /craft one iron_ingot/)
+  assert.doesNotMatch(system, /craft one iron_ingot/)
+  assert.match(await brain.gatherState(), /GOAL: craft one iron_ingot/)
   assert.match(system, /recipeIndex/)
   assert.match(system, /verify inventory/i)
   assert.doesNotMatch(system, /Helpful chain|ironstone/)

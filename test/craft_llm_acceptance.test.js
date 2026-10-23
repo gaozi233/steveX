@@ -2,6 +2,14 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { cases, stressCases, safeCommand, assess, serverCount, targetsOf, terminalState } = require('../scripts/craft-llm-acceptance')
 
+test('live crafting assessment consumes current fixed-slot inventory, never obsolete summary fields', () => {
+  const { inventoryItems } = require('../scripts/craft-llm-acceptance')
+  const slots = [{ slot: 9, name: 'hopper', count: 1 }]
+  assert.deepEqual(inventoryItems({ ok: true, slots }), slots)
+  assert.throws(() => inventoryItems({ ok: true, inventory: slots }), /slots contract/)
+  assert.throws(() => inventoryItems({ ok: false, slots }), /must succeed/)
+})
+
 test('craft LLM acceptance allowlists commands and rejects unrelated/multiple actions', () => {
   for (const command of ['inventory', 'recipes white_bed', 'craft oak_planks', 'craft stick 2 auto', 'craft iron_ingot 1 auto 2', 'say DONE', 'say BLOCKED']) assert.ok(safeCommand(command))
   for (const command of [null, 'give diamond', 'craft stick 2; stop', 'inventory\ncraft stick', 'goto 0 0 0', 'say any other text']) assert.equal(safeCommand(command), false)

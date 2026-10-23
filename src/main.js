@@ -4,7 +4,7 @@ const { startWebServer } = require('./web/server')
 
 const manager = new AgentManager(loadConfig)
 
-// Auto-connect all configured agents and attach brains (JeVBot addition)
+// Auto-connect all configured agents and attach their configured brains.
 for (const name of manager.agentConfigs.keys()) {
   manager.connectAgent(name)
 }
