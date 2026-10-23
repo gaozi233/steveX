@@ -66,7 +66,6 @@ npm start
 标签保留。当前主线由 Mineflayer 执行玩家动作，可选共享 Fabric 渲染与独立记忆复原调试；不引入旧 DSH 运行时。
 迁移内容和未完成项见 [迁移核查](docs/research-migration-parity.md)，同学接手见 [Fabric 交接文档](docs/fabric-handover.md)。
 
-研究范围和主线边界见 [`docs/research/visual-world-model.md`](docs/research/visual-world-model.md)，
 项目贡献者见 [`CONTRIBUTORS.md`](CONTRIBUTORS.md)。
 
 ---

@@ -10,7 +10,6 @@
 
 - [Fabric 同学交接](fabric-handover.md)、[迁移核查](research-migration-parity.md)、[集成运行与共享渲染](integration-runtime-render.md)。
 - [NBT 记忆调试](nbt-memory-debug.md)、[旁观模式兼容](spectator-compatibility.md)、[分支整合](branch-consolidation.md)。
-- [视觉研究说明](research/visual-world-model.md)。
 
 ## 设计与历史材料
 
