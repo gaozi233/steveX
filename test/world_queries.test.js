@@ -22,10 +22,18 @@ test('xp exposes only level and progress percentage, omitting total and raw prog
 
 test('time preserves zero values, frozen clock and unknowns', async () => {
   assert.deepEqual(await time.handler({ time: { timeOfDay: 0, day: 0, isDay: true, moonPhase: 0, doDaylightCycle: false } }), {
-    ok: true, output: 'Time: 0 ticks | Day: 0 | day | Moon: full', timeOfDay: 0, day: 0, isDay: true, moonPhase: 0, doDaylightCycle: false
+      ok: true, output: 'Time: 06:00 | Daylight cycle paused', clock: '06:00', timeOfDay: 0, doDaylightCycle: false
   })
-  assert.equal((await time.handler({})).isDay, null)
-  assert.match((await time.handler({})).output, /\| \? \|/)
+  assert.equal((await time.handler({})).clock, null)
+  assert.equal((await time.handler({})).output, 'Time: ?')
+})
+
+test('time formats clock boundaries without moon data or sleeping decisions', async () => {
+  for (const [ticks, clock] of [[6000,'12:00'],[12000,'18:00'],[13000,'19:00'],[18000,'00:00'],[23999,'05:59'],[24000,'06:00']]) {
+    const result = await time.handler({time:{timeOfDay:ticks,moonPhase:0,isDay:true},isRaining:true,thunderState:1})
+    assert.equal(result.clock,clock)
+    for (const key of ['day','isDay','moonPhase','canSleep','sleepEligible','weather']) assert.equal(Object.hasOwn(result,key),false)
+  }
 })
 
 test('weather distinguishes clear rain and thunder, while retaining transition strengths', async () => {

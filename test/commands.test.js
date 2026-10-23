@@ -6,7 +6,6 @@ const fish = require('../src/commands/actions/fish')
 const anvil = require('../src/commands/actions/anvil')
 const furnace = require('../src/commands/actions/furnace')
 const enchant = require('../src/commands/actions/enchant')
-const dispenser = require('../src/commands/actions/dispenser')
 const moveslot = require('../src/commands/actions/moveslot')
 const putaway = require('../src/commands/actions/putaway')
 const stop = require('../src/commands/actions/stop')
@@ -46,17 +45,8 @@ test('goto never treats an upstream empty-path resolution as proof of arrival', 
   assert.deepEqual(result.target, { x: 106, y: -60, z: 48 })
 })
 
-test('attack handler uses the bot command argument', async () => {
-  const entity = { name: 'zombie' }
-  let attacked = null
-  const attackResult = await attack.handler({
-    nearestEntity: () => entity,
-    attack: async target => { attacked = target }
-  }, [])
-
-  assert.equal(attackResult.ok, true)
-  assert.equal(attacked, entity)
-
+test('attack requires an explicit target before game access', async () => {
+  assert.equal((await attack.handler({},[])).errorCode,'INVALID_ARGUMENTS')
 })
 
 test('gamemode supports modern string values and legacy numeric values', async () => {
@@ -73,10 +63,10 @@ test('oxygen reports the normalized body reading without guessing another scale'
 test('basic actions reject nonfinite angles/coordinates and partial duration strings', async () => {
   const bot = { look() { throw Error('must not run') }, lookAt() { throw Error('must not run') }, setControlState() { throw Error('must not run') } }
   const look = require('../src/commands/actions/look')
-  const lookat = require('../src/commands/actions/lookat')
+  const lookat = look
   const move = require('../src/commands/actions/move')
   for (const args of [['Infinity', '0'], ['0', '2'], ['NaN', '0']]) assert.equal((await look.handler(bot, args)).ok, false)
-  assert.equal((await lookat.handler(bot, ['0', 'Infinity', '0'])).ok, false)
+  assert.equal((await lookat.handler(bot, ['at', '0', 'Infinity', '0'])).ok, false)
   for (const duration of ['100abc', '1.5', '0', '-1', '30001']) assert.equal((await move.handler(bot, ['forward', duration])).ok, false)
 })
 
@@ -100,14 +90,13 @@ test('commands reject missing prerequisites without calling Mineflayer', async (
   assert.equal((await fish.handler({ heldItem: null })).error, 'Hold a fishing rod before fishing')
 
   const grassBot = { blockAtCursor: () => ({ name: 'grass_block' }) }
-  assert.match((await anvil.handler(grassBot)).error, /not an anvil/)
-  assert.match((await furnace.handler(grassBot)).error, /not a furnace/)
-  assert.match((await enchant.handler(grassBot)).error, /not an enchanting table/)
-  assert.match((await dispenser.handler(grassBot)).error, /not a dispenser or dropper/)
+  assert.equal((await anvil.handler(grassBot)).errorCode, 'INVALID_ARGUMENTS')
+  assert.equal((await furnace.handler(grassBot)).errorCode, 'INVALID_ARGUMENTS')
+  assert.equal((await enchant.handler(grassBot)).errorCode, 'INVALID_ARGUMENTS')
 
   const emptyInventoryBot = { inventory: { slots: [] } }
-  assert.equal((await moveslot.handler(emptyInventoryBot, ['9', '10'])).error, 'Source slot 9 is empty')
-  assert.equal((await putaway.handler(emptyInventoryBot, ['9'])).error, 'Slot 9 is empty')
+  assert.equal((await moveslot.handler(emptyInventoryBot, ['9', '10'])).errorCode, 'INVENTORY_SYNC_UNAVAILABLE')
+  assert.equal((await putaway.handler(emptyInventoryBot, ['9'])).errorCode, 'INVENTORY_SYNC_UNAVAILABLE')
 })
 
 test('stop clears an active follow loop', async () => {

@@ -59,7 +59,7 @@ test('agent uses batch craft deadlines while preserving explicit caller and runt
   agent.executor.run = async (_name, operation, options) => { timeout = options.timeoutMs; return operation(new AbortController().signal) }
   await agent.executeCommand('craft powered_rail 64 table')
   assert.equal(timeout, 93000)
-  await agent.executeCommand('look 0 0')
+  await agent.executeCommand('look angle 0 0')
   assert.equal(timeout, 30000)
   agent.config.runtime = { actionTimeoutMs: 2000 }
   await agent.executeCommand('craft powered_rail 64 table')
@@ -113,7 +113,7 @@ test('follow is a replaceable background goal and cleans up listeners', async ()
   agent.bot.players = { other: { username: 'Other', entity: { position: { x: 1, y: 64, z: 0 } } } }
   assert.equal((await agent.executeCommand('follow Other')).status, 'RUNNING')
   assert.equal(agent.bot.listenerCount('entityGone'), 1)
-  await agent.executeCommand('look 0 0')
+  await agent.executeCommand('look angle 0 0')
   assert.equal(agent.bot.listenerCount('entityGone'), 0)
   assert.equal(agent.bot._followCleanup, null)
   await agent.executeCommand('follow Other', { source: 'brain' })

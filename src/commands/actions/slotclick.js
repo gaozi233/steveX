@@ -1,18 +1,10 @@
-/**
- * slotclick <slot> [button] — click a slot in the current window
- * button: 0 = left click, 1 = right click
- */
-module.exports = {
-  name: 'slotclick',
-  description: 'Click an inventory/window slot, not the world: button 0 left (default), 1 right; uses current window slot indices',
-  usage: 'slotclick <slot> [button]',
-  async handler(bot, args) {
-    if (args.length < 1) return { ok: false, error: 'Usage: slotclick <slot> [button]' }
-    const slot = parseInt(args[0], 10)
-    if (isNaN(slot) || slot < 0) return { ok: false, error: 'Invalid slot number' }
-    const button = args[1] ? parseInt(args[1], 10) : 0
-    if (button !== 0 && button !== 1) return { ok: false, error: 'Button must be 0 (left) or 1 (right)' }
-    await bot.clickWindow(slot, button, 0)
-    return { ok: true, output: `Clicked slot ${slot} with ${button === 0 ? 'left' : 'right'} button` }
-  }
-}
+const api=require('../window_actions')
+module.exports={name:'slotclick',usage:'slotclick <slot> [left|right|shift-left]',
+  description:'Click a current-window/player-inventory slot: left default, right splits/places one, shift-left asks native quick move. Not world right click; may craft/trade when clicking a result. Reports changed slots and cursor, not inferred task completion',
+  handler:api.action('slotclick',async(bot,w,args,signal)=>{
+    const slot=Number(args[0]),button=args[1]||'left'
+    api.itemAt(w,slot);api.ensureCurrent(bot,w,signal)
+    if(button==='shift-left')api.emptyCursor(w)
+    await bot.clickWindow(slot,button==='right'?1:0,button==='shift-left'?1:0)
+    return {slot,button}
+  })}

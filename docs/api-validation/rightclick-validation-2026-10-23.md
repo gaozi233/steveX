@@ -3,19 +3,19 @@
 ## 当前入口
 
 ```text
-rightclick [hand|off-hand]   # 一次世界右键，默认主手
-rightdown [hand|off-hand]    # 持续使用手持物
-rightup                     # 松开使用（沿用并行对话确认的新名称）
-interactentity <名称或ID> [normal|at]  # 辅助定位实体右键
+right click [hand|off-hand]   # 一次世界右键，默认主手
+right down [hand|off-hand]    # 持续使用手持物
+right up                     # 松开使用（沿用并行对话确认的新名称）
+interactentity <名称或ID> [normal|at] [hand|off-hand]  # 辅助定位实体右键
 ```
 
-当前 70 命令：50 action、14 query、6 creative。世界单击统一使用 rightclick；LLM、网页及生成文档共用命令定义，完整入口与待测项见 [API 验收清单](../api-acceptance-checklist.md)。
+世界单击统一使用 right click；LLM、网页及生成文档共用命令定义，完整入口与待测项见 [API 验收清单](../api-acceptance-checklist.md)。以下 19 组为内部路径在入口改名前的实测覆盖；新入口开窗另见 [窗口专项](window-opening-validation.md)，不把改名视为全量复测。
 
-旧放置代码移至 `src/commands/placement/block.js`、`entity.js`，不再直接暴露为命令。保留半砖原位状态变化、门床双格确认、实体生成位置与消耗、歧义／失败／取消反馈；增加所选副手和副手物品计数。统一入口返回 action:rightclick，placementKind:block/entity，原 target/changes/evidence/confirmed 保留。
+旧放置代码移至 `src/commands/placement/block.js`、`entity.js`，不再直接暴露为命令。保留半砖原位状态变化、门床双格确认、实体生成位置与消耗、歧义／失败／取消反馈；增加所选副手和副手物品计数。当前统一入口返回 action:right、operation:click，放置时 placementKind:block/entity，原 target/changes/evidence/confirmed 保留；以 status／confirmed／evidence 为准，不再重复输出 requested／confirmation 别名。
 
 ## 分流与确认
 
-`src/commands/actions/rightclick.js` 在同步背包、读取准星和所选手后选择一条路径。不会先执行 place 再尝试 interact，也不会失败后重试或自动换手。
+`src/commands/mouse/rightclick.js` 在同步背包、读取准星和所选手后选择一条路径。不会先执行 place 再尝试 interact，也不会失败后重试或自动换手。
 
 - 视线内实体：发一次指定手的实体交互包；盔甲架使用命中位置。选择射线使用眼高与实体包围盒，包含船等 object，不穿透更近的方块。原版上游 entityAtCursor 排除 object，因此本入口未直接沿用它。
 - 已知可交互方块：通常优先开箱／操作，而非用所持方块在旁边放置。已有潜行且持有物品时允许绕过该优先级。原控制状态中的潜行在此次点击前保留，不新增自动潜行策略。
@@ -24,15 +24,15 @@ interactentity <名称或ID> [normal|at]  # 辅助定位实体右键
 
 开窗和操作方块时，观察到服务端 windowOpen 或 block_change 才确认；实体交互、投射物发射等当前只返回 request-sent-only，即使观察到库存差值也不声称伤害／交易已确认。wait 结束或 ok:true 不能单独证明游戏效果完成。
 
-已有 rightdown 活动使用时，rightclick 在清控制／松弓前就拒绝 ITEM_ALREADY_IN_USE，要求明确 rightup，避免一个点击暗中附带松弓发射。开着窗口时拒绝 WINDOW_OPEN；窗口槽位应使用 slotclick，不是世界 rightclick。
+已有 right down 活动使用时，right click 在清控制／松弓前就拒绝 ITEM_ALREADY_IN_USE，要求明确 right up，避免一个点击暗中附带松弓发射。开着窗口时拒绝 WINDOW_OPEN；窗口槽位应使用 slotclick，不是世界 right click。
 
 ## 主副手与目标限制
 
 - 主副手放置、实体交互和手持物点击向对应协议 hand 发包；默认仅主手，不实现原版自动主副手回退。
-- **方块自身的激活目前只支持主手**。实测副手空手 block_place 不能打开箱子，因此可交互方块副手路径直接返回 HAND_NOT_SUPPORTED，并提示 rightclick hand，不假报开窗。副手放方块／刷怪蛋已经实测，不受此限制；潜行跳过方块激活时仍可选择副手放置。
+- **方块自身的激活目前只支持主手**。实测副手空手 block_place 不能打开箱子，因此可交互方块副手路径直接返回 HAND_NOT_SUPPORTED，并提示 right click hand，不假报开窗。副手放方块／刷怪蛋已经实测，不受此限制；潜行跳过方块激活时仍可选择副手放置。
 - 拉杆、按钮在上游碰撞形状中为空，原射线会穿过去。本入口仅给这两类增加保守的安装底座形状，支持瞄准底座点击，不把整格或完整拉杆手柄冒充原版轮廓。墙面／天花及所有朝向未实测，其他无碰撞交互物仍待扩展。
 - 这是一套有限的、明确的单次分流，不是完整原版客户端右键重放器：可交互方块列表、投射物／实体特殊优先级尚非所有物品、模组和实体的全覆盖；不会根据服务器 PASS 自动再发另一类交互包。
-- 与原客户端同样，短按吃喝／拉弓也可能开始随后取消使用；约 50ms 为本地点击时长，不是固定服务端 tick 保证。需要吃完／持续格挡应 rightdown，不是 rightclick。
+- 与原客户端同样，短按吃喝／拉弓也可能开始随后取消使用；约 50ms 为本地点击时长，不是固定服务端 tick 保证。需要吃完／持续格挡应 right down，不是 right click。
 
 ## 实测
 
@@ -58,7 +58,7 @@ Minecraft Java 1.21.11 原版专用服务端，正式 SteveX HTTP，SteveX-Test 
 | 准星喂牛 | 扣 1 小麦、服务端 InLove 增加；接口仍诚实只确认请求 |
 | 对准实体发射已装填弩 | 目标真实扣血，散装箭没有再扣一次，非空实体交互 |
 | 短按食物 | 等待 40 ticks 后仍保留食物，没有偷偷持续到吃完 |
-| 已在举盾时点击 | 拒绝点击，不隐式松盾；明确 rightup 才结束 |
+| 已在举盾时点击 | 拒绝点击，不隐式松盾；明确 right up 才结束 |
 
 本地脚本 `runs/api-acceptance-server/rightclick-live.cjs` 与原始 JSON 均忽略，不提交。单元测试另覆盖每条路径只执行一次、无回退／重试、失败库存损失、副手 hand 字段、实体遮挡、小型按钮／拉杆底座、活动使用保护；原方块／实体放置测试继续针对迁出的内部模块执行。
 

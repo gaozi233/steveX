@@ -12,9 +12,9 @@ function fixture(){
 }
 test('sneak on persists without false pulses through movement, turning, stand and rightclick dispatch',async()=>{
  const f=fixture();f.bot.look=async()=>{};f.bot.lookAt=async()=>{}
- f.agent.commands.rightclick=async()=>({ok:true});f.agent.commands.goto=async()=>({ok:true});f.agent.commands.follow=async()=>({ok:true})
+ f.agent.commands.right=async()=>({ok:true});f.agent.commands.goto=async()=>({ok:true});f.agent.commands.follow=async()=>({ok:true})
  await f.agent.executeCommand('sneak on');f.changes.length=0
- for(const c of ['move forward 1','look 0 0','lookat 1 2 3','stand','rightclick','goto 1 2 3','follow Other']){
+ for(const c of ['move forward 1','look angle 0 0','look at 1 2 3','move stop','right click','goto 1 2 3','follow Other']){
   assert.equal((await f.agent.executeCommand(c)).ok,true,c);assert.equal(f.controls.sneak,true,c)
  }
  assert.equal(f.changes.some(([k,v])=>k==='sneak'&&!v),false)

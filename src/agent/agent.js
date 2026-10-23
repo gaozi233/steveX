@@ -8,7 +8,7 @@ const { ActionExecutor, cancelled } = require('./action_executor')
 const { craftTimeoutMs } = require('../commands/craft_timing')
 const { clearUse, hasUse } = require('../commands/held_use')
 const { clearSneakHold } = require('./sneak_state')
-const itemUseCompatibleActions = new Set(['rightdown', 'rightup', 'sneak', 'wait', 'move', 'jump', 'look', 'lookat', 'stand', 'goto', 'follow'])
+const itemUseCompatibleActions = new Set(['right', 'sneak', 'wait', 'move', 'jump', 'look', 'goto', 'follow'])
 const { effectCommands, validateArguments, normalizeFailure, exceptionFailure } = require('../commands/command_contract')
 
 class SteveXAgent {
@@ -55,11 +55,14 @@ class SteveXAgent {
       version: mc.version
     })
 
+    require('./block_tags').attachBlockTags(this.bot)
+    require('./chat_context').attachChatContext(this.bot)
     this.bot.loadPlugin(pathfinder)
     // Load after Mineflayer's built-ins so this corrects their legacy scaling.
     this.bot.loadPlugin(velocityCompatibility)
     this.bot.loadPlugin(spectatorCompatibility)
     this.bot.loadPlugin(raycastCompatibility)
+    this.bot.loadPlugin(require('./hud_effects').hudEffectsPlugin)
     this.registerEvents()
   }
 
@@ -147,7 +150,7 @@ class SteveXAgent {
 
     const invalid = validateArguments(command, args)
     if (invalid) return invalid
-    if(command==='rightclick' && hasUse(this.bot))return normalizeFailure(command,{ok:false,errorCode:'ITEM_ALREADY_IN_USE',error:'rightup the active held-item request before rightclick',changes:[]})
+    if(command==='right' && args[0]?.toLowerCase()==='click' && hasUse(this.bot))return normalizeFailure(command,{ok:false,errorCode:'ITEM_ALREADY_IN_USE',error:'right up the active held-item request before right click',changes:[]})
 
     let operationOutcome
     try {

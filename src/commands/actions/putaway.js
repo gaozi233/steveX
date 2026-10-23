@@ -1,17 +1,8 @@
-/**
- * putaway <slot> — put item from a slot into empty inventory space
- */
-module.exports = {
-  name: 'putaway',
-  description: 'Move the specified source slot item back into player inventory using native putAway; destination chosen automatically, no item-name search. Uses current window slot indices when open',
-  usage: 'putaway <slot>',
-  async handler(bot, args) {
-    if (args.length < 1) return { ok: false, error: 'Usage: putaway <slot>' }
-    const slot = parseInt(args[0], 10)
-    if (isNaN(slot) || slot < 0) return { ok: false, error: 'Invalid slot number' }
-    const slots = bot.currentWindow?.slots || bot.inventory?.slots || []
-    if (!slots[slot]) return { ok: false, error: `Slot ${slot} is empty` }
-    await bot.putAway(slot)
-    return { ok: true, output: `Put away item from slot ${slot}` }
-  }
-}
+const api=require('../window_actions')
+module.exports={name:'putaway',usage:'putaway <slot>',
+  description:'Move source stack into player backpack; destination chosen automatically among empty/identical-component slots. Requires sufficient space, never drops overflow; rejects result slots to avoid repeated crafting/trading. Reports actual slot changes',
+  handler:api.action('putaway',async(bot,w,args,signal)=>{
+    const slot=Number(args[0]),[start,end]=api.inventoryRange(w)
+    if(slot===w.craftingResultSlot || (w.type==='minecraft:merchant'&&slot===2))api.fail('RESULT_SLOT_REQUIRES_CLICK','Use slotclick for crafting/trading result; putaway does not choose/repeat recipes')
+    return api.intoRange(bot,w,slot,start,end,undefined,signal)
+  })}

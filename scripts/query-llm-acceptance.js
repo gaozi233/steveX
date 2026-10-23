@@ -13,14 +13,14 @@ const cases = [
   ['nearby', 'Find nearby players within 16 blocks, nearest first.'],
   ['gamemode', 'What game mode am I in?'],
   ['xp', 'What is my experience level and percentage toward the next level?'],
-  ['time', 'What is the world time? Do not infer sleeping eligibility from isDay.'],
+  ['time', 'What is the game clock time? Do not infer sleeping eligibility from the clock; inspect weather and nearby as needed.'],
   ['weather', 'What is the weather? Explain any transition uncertainty.'],
   ['window', 'Describe the currently open container and empty slots. If none is open, report that without opening one.'],
   ['findplayer', 'Find players whose username contains piggy985, ignoring case. Do not guess unavailable positions.'],
   ['findblock', 'Find diamond_ore within a block-grid radius of 8. Do not claim it is visually visible.'],
   ['recipes', 'List every catalog crafting recipe for red_bed without choosing a plan or executing crafting.']
 ]
-const limits = 'Only client-known information. hunger saturation is last known, not guaranteed current. nearby uses tracked entities and precise 3D distance, radius integer 1..128 default 32, at most 20; not line-of-sight. findplayer is case-insensitive username substring, no radius, may list untracked names without position. findblock uses exact registry names, optional minecraft: prefix, integer radius 1..128 default 32, loaded chunks only, 3D distance from floored player coordinates; not line-of-sight. window requires an already open window. Inventory omits empty equipment and ordinary/full-durability details. Unknown values are not zero.'
+const limits = 'Only client-known information. hunger saturation is last known, not guaranteed current. nearby uses tracked entities and precise 3D distance, radius integer 1..128 default 32, at most 20; not line-of-sight. findplayer is case-insensitive username substring, no radius, may list untracked names without position. findblock tags [filter] lists server tag names/counts; findblock tag <#tag> inspects member names without world search; neither decides usefulness. World search uses exact registry names or #tags, optional minecraft: prefix, integer radius 1..128 default 32, loaded chunks only, 3D distance from floored player coordinates; not line-of-sight. window requires an already open window. Inventory omits empty equipment and ordinary/full-durability details. Unknown values are not zero.'
 
 function valid(command, expected) {
   if (typeof command !== 'string' || /[\r\n;]/.test(command)) return false

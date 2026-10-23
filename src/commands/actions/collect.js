@@ -8,12 +8,12 @@ const { protectedApproach } = require('../protected_approach')
 
 module.exports = {
   name: 'collect',
-  description: 'Approach nearest loaded item drop without digging or scaffolding; succeeds only on own confirmed pickup and inventory gain',
-  usage: 'collect',
+  description: 'Approach the specified dropped-item entity id, or nearest drop when omitted, without digging or scaffolding; succeeds only on own pickup and inventory gain. No item selection/planning',
+  usage: 'collect [entityId]',
   handler: operation('collect', async (bot, args, agent, { signal } = {}) => {
     if (!agent.movements) return { ok: false, errorCode: 'PATHFINDER_NOT_READY', error: 'Pathfinder not ready' }
 
-    const drop = Object.values(bot.entities).filter(e => e.name === 'item' && e.position)
+    const drop = Object.values(bot.entities).filter(e => e.name === 'item' && e.position && (args[0] === undefined || e.id === Number(args[0])))
       .sort((a, b) => a.position.distanceTo(bot.entity.position) - b.position.distanceTo(bot.entity.position) || a.id - b.id)[0]
     if (!drop) return { ok: false, errorCode: 'NO_DROPPED_ITEMS', error: 'No dropped items nearby' }
     await syncInventory(bot)

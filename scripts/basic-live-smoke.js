@@ -58,7 +58,7 @@ async function main() {
   try {
     await test('invalid arguments have no motion side effects', async () => {
       const before = await state()
-      for (const text of ['look Infinity 0', 'look 0 2', 'lookat 0 Infinity 0', 'move forward 100abc', 'move forward 0']) {
+      for (const text of ['look Infinity 0', 'look 0 2', 'look at 0 Infinity 0', 'move forward 100abc', 'move forward 0']) {
         assert.equal((await command(text)).ok, false)
       }
       const after = await state(); idle(after)
@@ -70,15 +70,15 @@ async function main() {
       let s = await state()
       assert.ok(angleDistance(s.orientation.yaw, original.orientation.yaw + Math.PI / 2) < 0.02)
       await delay(3000)
-      assert.equal((await command(`lookat ${s.position.x + 3} ${s.position.y + 1.62} ${s.position.z}`)).ok, true)
+      assert.equal((await command(`look at ${s.position.x + 3} ${s.position.y + 1.62} ${s.position.z}`)).ok, true)
       s = await state()
       assert.ok(angleDistance(s.orientation.yaw, Math.PI * 1.5) < 0.02)
       return s.orientation
     })
     await test('arm swing', async () => {
       await announce('Swing right arm, then left arm.')
-      assert.equal((await command('swing right')).ok, true); await delay(3000)
-      assert.equal((await command('swing left')).ok, true)
+      assert.equal((await command('swing hand')).ok, true); await delay(3000)
+      assert.equal((await command('swing off-hand')).ok, true)
       return { animation: 'requires human observation; command completion only' }
     })
     await test('single jump', async () => {

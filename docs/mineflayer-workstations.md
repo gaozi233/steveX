@@ -9,35 +9,35 @@
 - `window`：只读查询当前窗口，返回结构化 `window` 字段及 JSON 文本 `output`，不暂停 Brain。
 - 写操作沿用 Agent 的动作仲裁；所有窗口均属于指定 Mineflayer agent，而非共享 Fabric 观察者。
 
-先靠近并用 `lookat x y z` 对准工作站，再打开。`window` 返回 `inventoryStart`、`inventoryEnd`、逐槽物品及组件、光标物品、服务端窗口属性。**槽位编号是当前窗口的编号**，不要直接复用关窗时的背包编号。未知属性返回 `null`，不当成零或空内容。
+先靠近并用 `look at x y z` 对准工作站，再打开。`window` 返回 `inventoryStart`、`inventoryEnd`、逐槽物品及组件、光标物品、服务端窗口属性。**槽位编号是当前窗口的编号**，不要直接复用关窗时的背包编号。未知属性返回 `null`，不当成零或空内容。
 
 ## 命令
 
 | 场景 | 调用 | 说明 |
 | --- | --- | --- |
-| 附魔 | `enchant` / `enchant open` | 打开附魔台 |
+| 附魔 | `right click` | 打开附魔台 |
 | 附魔 | `enchant put <背包槽>`、`enchant lapis <背包槽>` | 放入目标与青金石 |
 | 附魔 | `enchant choose <0..2>`、`enchant take` | 选择可用附魔并取回目标；选项见 `window.enchantments` |
-| 铁砧 | `anvil` / `anvil open` | 支持正常、开裂、损坏铁砧 |
+| 铁砧 | `right click` | 支持正常、开裂、损坏铁砧 |
 | 铁砧 | `anvil rename <背包槽> <名称>` | 改名，名称长度 1..35 |
 | 铁砧 | `anvil combine <背包槽1> <背包槽2> [名称]` | 合并／修复两个物品，消耗材料和经验 |
-| 熔炉 | `furnace` / `furnace open` | 普通熔炉、烟熏炉、高炉 |
+| 熔炉 | `right click` | 普通熔炉、烟熏炉、高炉 |
 | 熔炉 | `furnace input <背包槽> [数量]`、`furnace fuel <背包槽> [数量]` | 默认各放 1 个 |
 | 熔炉 | `furnace take input` / `fuel` / `output` | 取回相应槽位物品 |
-| 其他工作站 | `station open <类型>` | 类型见下表 |
+| 其他工作站 | `right click` | 类型见下表 |
 | 通用搬运 | `station move <来源槽> <目标槽> [数量]` | 默认搬运来源整组，使用 Mineflayer transfer |
 | 通用取出 | `station take <工作站槽>` | 取回输入或输出槽；不接受背包槽 |
 | 切石／织布 | `station select <索引>` | 选择配方／图案按钮；需等待服务端选中属性及输出物品 |
 | 合成器 | `station crafter <0..8> enabled` / `disabled` | 切换空槽开关，光标也必须为空；不负责红石触发 |
 | 信标 | `station beacon <主效果> [副效果或none]` | 需有效金字塔及槽 0 的支付物；校验层级 |
-| 村民 | `openentity`、`window`、`trade <索引> [次数]` | 对准村民后打开，读取真实报价；拒绝不存在、禁用、超剩余次数的交易 |
+| 村民 | `right click`、`window`、`trade <索引> [次数]` | 对准村民后打开，读取真实报价；拒绝不存在、禁用、超剩余次数的交易 |
 | 结束 | `close` | 关闭当前窗口 |
 
 信标主效果：`speed`、`haste`、`resistance`、`jump_boost`、`strength`；副效果为 `none`、`regeneration` 或与主效果相同。服务端仍负责最终规则校验。
 
 ## 通用工作站槽位（1.21.11）
 
-| 类型 | `station open` 参数 | 工作站槽位 |
+| 类型 | 工作站类型（非命令参数） | 工作站槽位 |
 | --- | --- | --- |
 | 酿造台 | `brewing` | 瓶子 0..2，原料 3，燃料 4 |
 | 织布机 | `loom` | 旗帜 0，染料 1，图案物品 2，结果 3 |
@@ -67,7 +67,7 @@
 
 - 协议／窗口适配：`src/commands/workstations.js`。
 - 原生操作封装：`src/commands/workstation_native.js`。
-- 命令入口：`src/commands/actions/{station,enchant,anvil,furnace,openentity,trade}.js` 与 `src/commands/queries/window.js`。
+- 命令入口：`src/commands/actions/{right,station,enchant,anvil,furnace,trade}.js` 与 `src/commands/queries/window.js`。
 - 回归测试：`npm test`，工作站专项 `node --test test/workstations.test.js`。
 - 真实服务器测试记录：本地 `runs/workstations-smoke/results.json`（忽略目录，不提交）。测试使用独立本地世界、管理员准备材料，验证生存模式 Mineflayer 操作链路，不验证自主规划能力。
 

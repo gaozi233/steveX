@@ -6,12 +6,12 @@ function placementCounts(bot) {
   return totals
 }
 const windows = new Set('chest trapped_chest ender_chest barrel hopper dispenser dropper furnace blast_furnace smoker crafting_table enchanting_table anvil chipped_anvil damaged_anvil brewing_stand beacon grindstone cartography_table smithing_table loom stonecutter'.split(' '))
-function opensWindow(block) { return windows.has(block.name)||block.name.endsWith('shulker_box') }
+function opensWindow(block) { return windows.has(block.name)||block.name==='crafter'||block.name.endsWith('shulker_box') }
 function interactive(block) {
   return opensWindow(block)||/(?:_door|_trapdoor|_fence_gate|_button|_bed)$/.test(block.name)||['lever','bell','note_block','repeater','comparator','daylight_detector','respawn_anchor','lectern','jukebox','chiseled_bookshelf','decorated_pot','composter','cake'].includes(block.name)
 }
 function airUse(bot,item) {
-  return !!item && (!!bot.registry.foodsByName?.[item.name]||['bow','crossbow','shield','trident','fishing_rod','ender_pearl','snowball','egg','potion','splash_potion','lingering_potion','spyglass','glass_bottle','bucket'].includes(item.name)||item.name.endsWith('_bucket'))
+  return !!item && (!!bot.registry.foodsByName?.[item.name]||['bow','crossbow','shield','trident','fishing_rod','ender_pearl','snowball','egg','potion','splash_potion','lingering_potion','spyglass','glass_bottle','bucket','writable_book','written_book'].includes(item.name)||item.name.endsWith('_bucket'))
 }
 function blockClick(bot,block,hand) {
   if(!bot.supportFeature('blockPlaceHasInsideBlock'))throw Error('Precise block click requires the modern block-place protocol')

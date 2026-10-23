@@ -4,7 +4,7 @@ const { EventEmitter } = require('node:events')
 const api = require('../src/commands/workstations')
 const native = require('../src/commands/workstation_native')
 const trade = require('../src/commands/actions/trade')
-const openEntity = require('../src/commands/actions/openentity')
+const {openWindow}=require('../src/commands/window_open')
 const { loadCommands } = require('../src/commands')
 
 function fixture(type = 'minecraft:loom', inventoryStart = 4) {
@@ -69,10 +69,10 @@ test('workstation properties are unknown until observed, scoped to window object
 test('villagers use native initialization and invalid trade counts never reach the protocol', async () => {
   const villager = { name: 'villager' }
   let initialized = 0, traded = 0
-  const bot = { entityAtCursor: () => villager, openVillager: async entity => { assert.equal(entity, villager); initialized++ } }
-  assert.equal((await openEntity.handler(bot, [])).ok, true)
+  const bot = Object.assign(new EventEmitter(),{_client:new EventEmitter(),openVillager: async entity => { assert.equal(entity, villager); initialized++;bot.currentWindow={type:'minecraft:merchant'};return bot.currentWindow }})
+  assert.equal((await openWindow(bot, villager,{entity:true})).ok, true)
   assert.equal(initialized, 1)
-  bot.currentWindow = { trades: [{ nbTradeUses: 1, maximumNbTradeUses: 3 }] }
+  bot.currentWindow = { type:'minecraft:merchant', trades: [{ nbTradeUses: 1, maximumNbTradeUses: 3 }] }
   bot.trade = async () => { traded++ }
   assert.equal((await trade.handler(bot, ['0', '0'])).ok, false)
   assert.equal((await trade.handler(bot, ['0x', '1'])).ok, false)

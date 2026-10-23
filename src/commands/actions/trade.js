@@ -3,7 +3,7 @@
  */
 module.exports = {
   name: 'trade',
-  description: 'Execute a zero-based offer in a villager window initialized by openentity; times defaults to 1 (1..64). Read window trades first; a generic entity right-click does not initialize this API',
+  description: 'Execute a zero-based offer after right click initializes the villager window; times defaults to 1 (1..64). Read window trades first; never auto-opens or chooses offers',
   usage: 'trade <index> [times]',
   async handler(bot, args) {
     if (args.length < 1) return { ok: false, error: 'Usage: trade <index> [times]' }
@@ -13,7 +13,9 @@ module.exports = {
     catch (error) { return { ok: false, error: error.message } }
     // First, try to find an open villager window
     const villager = bot.currentWindow
-    if (!villager || !villager.trades) return { ok: false, error: 'No initialized villager window open. Use "openentity" on a villager first.' }
+    if (!villager) return { ok:false,errorCode:'WINDOW_REQUIRED',error:'Aim at a villager and use right click first' }
+    if (!['minecraft:merchant','minecraft:villager'].includes(villager.type)) return {ok:false,errorCode:'WINDOW_TYPE_MISMATCH',error:'Current window is not a merchant'}
+    if (!villager.trades) return {ok:false,errorCode:'WINDOW_NOT_READY',error:'Villager offers have not been initialized yet; inspect window after synchronization'}
     const offer = villager.trades[index]
     if (!offer || offer.tradeDisabled || offer.disabled) return { ok: false, error: 'Trade is missing or disabled' }
     if (Number.isFinite(offer.maximumNbTradeUses) && times > offer.maximumNbTradeUses - offer.nbTradeUses) return { ok: false, error: 'Requested times exceed remaining trade uses' }

@@ -4,7 +4,7 @@ Generated from src/commands/catalog.js and command definitions. Do not edit manu
 
 Regenerate: `npm run docs:commands`. Verify: `npm run docs:commands -- --check`.
 
-This is the full manual/web catalog. LLM default visibility is independent of kind and runtime permissions; explicit allowedCommands replaces the default selection but never grants server permissions. Test results: [API acceptance checklist](api-acceptance-checklist.md).
+This is the full manual/web catalog. LLM default marks baseline eligibility, not the current prompt: Brain additionally filters by current window/book and sleeping/dead state every turn. Explicit allowedCommands replaces default selection but not state applicability or server permissions. Test results: [API acceptance checklist](api-acceptance-checklist.md).
 
 ## 状态与环境查询 / State and environment (14)
 
@@ -13,76 +13,73 @@ Read-only; does not interrupt actions. Client-known data is not necessarily line
 | Command | Kind | LLM default | Description |
 | --- | --- | --- | --- |
 | pos | query | visible | Show current position and dimension |
-| hp | query | visible | Show current health |
-| hunger | query | visible | Show food level and last-known saturation from the health packet |
+| hp | query | visible | Show current/max health and positive absorption; relevant active effects include regeneration, poison, wither, health boost and absorption, with level and duration source; omit effects when absent |
+| hunger | query | visible | Show food and last-known saturation; include active hunger effect level and duration source only when present |
 | oxygen | query | visible | Show oxygen level |
 | inventory | query | visible | List inventory contents |
-| nearby [type&#124;name&#124;all] [radius] | query | visible | List up to 20 entities within a radius (default 32 blocks), nearest first; optionally filter by type/name |
+| nearby [type&#124;name&#124;all] [radius] | query | visible | List up to 20 loaded entities nearest first (radius default 32, 1..128); substring filter type/name or contained item name. Drops/frames include known item name/count; frames may include rotation, arrows/tridents inGround. Unknown details omitted; no line-of-sight filter |
 | gamemode | query | visible | Show current game mode |
 | xp | query | visible | Show experience level and current level progress percentage |
-| time | query | visible | Show game time, day and moon phase |
+| time | query | visible | Read game clock as HH:MM (tick 0 = 06:00), raw timeOfDay and daylight-cycle state. Not sleeping eligibility; query weather and nearby when relevant and decide from observations |
 | weather | query | visible | Show current weather |
 | window | query | visible | Read current window slots, properties, trades and workstation options |
 | findplayer &lt;name&gt; | query | visible | Find players by name and show their info |
-| findblock &lt;blockName&gt; [radius] | query | visible | Find the nearest block by name |
+| findblock &lt;blockName&#124;#tag&gt; [radius] &#124; findblock tags [filter] &#124; findblock tag &lt;#tag&gt; | query | visible | Search nearest loaded block by exact name/#tag, all states; return name/coordinates/properties, no purpose/safety decisions or sight filter. Discover tags with findblock tags [filter] (up to 50 names/counts), inspect with findblock tag &lt;#tag&gt; (up to 128 block names); truncated flags/counts explicit. Directory queries read synchronized server tags only, do not search world or move |
 | recipes &lt;itemName&gt; | query | visible | Read ALL catalog crafting recipes for ONE exact item name; per-execution ingredients, yields, returns and table requirements; no plan selection or global resource availability claims |
 
-## 朝向、移动与动作控制 / Motion and control (11)
+## 朝向、移动与动作控制 / Motion and control (9)
 
-Angles in radians; movement duration in milliseconds; wait uses physics ticks. sneak on persists across motion/turning/clicks; off releases, tap is 150ms and never releases an existing hold. stop/cancellation releases held controls. swing is animation only.
+Basic controls: look/move/sneak/jump/stop/wait. Assisted skills: goto/follow/collect. look uses Minecraft degrees or world coordinates; ~ resolves at execution. Millisecond durations; wait uses physics ticks. sneak on persists across movement/turning/clicks, off releases; tap is 150ms and preserves an existing hold. move stop is queued and preserves sneak/item use; stop cancels all and ends Brain; wait only waits. collect approaches a selected drop without digging/building and requires own pickup plus inventory gain.
 
 | Command | Kind | LLM default | Description |
 | --- | --- | --- | --- |
-| look &lt;yaw&gt; &lt;pitch&gt; | action | visible | Set yaw and pitch in radians; yaw 0 faces -Z, pitch -PI/2..PI/2 (positive looks up) |
-| lookat &lt;x&gt; &lt;y&gt; &lt;z&gt; | action | visible | Turn once toward world coordinates without moving or tracking; unlike look, accepts x/y/z rather than yaw/pitch angles |
-| move &lt;forward&#124;back&#124;left&#124;right&#124;sprint&gt; [durationMs] | action | visible | Hold one movement control for 1..30000ms, then release; while riding, forward/back/left/right steer the vehicle (sprint unsupported). Persistent sneak is separate |
+| look angle &lt;yaw&gt; &lt;pitch&gt; &#124; look at &lt;x&gt; &lt;y&gt; &lt;z&gt; | action | visible | Turn once without moving/tracking. angle: Minecraft degrees, yaw 0 south/+Z, 90 west/-X, -90 east/+X, 180 north/-Z; positive pitch looks down. ~ angles offset current view; ~ coordinates offset feet world position at execution. Relative pitch clamps to -90..90. at aims from eyes; no legacy radians or ^ coordinates |
+| move &lt;forward&#124;back&#124;left&#124;right&#124;sprint&#124;stop&gt; [durationMs] | action | visible | Queued movement: hold a direction for 1..30000ms, then release. Queued move stop stops movement/pathfinding and preserves persistent sneak and held-item use; no duration allowed. Unlike immediate global stop, does not cancel the queue or end Brain; wait only waits. Riding directions steer vehicles; sprint unsupported while riding |
 | sneak &lt;on&#124;off&#124;tap&gt; | action | visible | Keyboard sneak: on holds across movement, turning and right-click; off releases; tap presses for 150ms then releases (may dismount). tap while already held is a no-op. stop/cancellation clears the hold. Client input acknowledgement, not server effect confirmation |
-| jump [normal&#124;glide] | action | visible | Default/normal: hold jump for 200ms then release, landing not awaited. glide: request elytra deployment while airborne with elytra equipped; not confirmed flight |
-| swing [hand] | action | visible | Animation only: send a main/right or off/left arm swing packet; never attacks, digs, uses items or interacts. Not a mouse-button press |
-| stand | action | visible | Queued stop of movement/pathfinding; preserves persistent sneak and held-item use. Does not immediately cancel active/queued actions; use stop for a global safety stop |
-| stop | action | visible | Immediate global safety stop through Agent: cancel active/queued actions, stop Brain/pathfinding/follow and release movement, sneak and held-item use. Unlike queued stand or dig stop |
+| jump [durationMs] | action | visible | Hold Space for durationMs (default 200, integer 1..30000), then release regardless of landing. Water ascent or repeated jumps after landing may occur while held. Only initial press may request elytra deployment if already airborne/equipped; never auto-uses fireworks. Cancellation releases key; not confirmed flight or landing |
+| stop | action | visible | Immediate global safety stop through Agent: cancel active/queued actions, stop Brain/pathfinding/follow and release movement, sneak and held-item use. Unlike queued move stop or dig stop |
 | goto &lt;x&gt; &lt;y&gt; &lt;z&gt; | action | visible | Pathfind to coordinates |
 | follow &lt;playerName&gt; | action | visible | Follow a player continuously |
 | wait &lt;ticks&gt; | action | visible | Wait for a number of game ticks |
+| collect [entityId] | action | visible | Approach the specified dropped-item entity id, or nearest drop when omitted, without digging or scaffolding; succeeds only on own pickup and inventory gain. No item selection/planning |
 
-## 采集、合成与建造 / Gathering and building (4)
+## 世界交互与物品使用 / World interaction and item use (6)
 
-dig without coordinates never moves; dig x y z may approach without digging/building en route; dig stop cancels digging/approach. rightclick chooses one aimed route without retries. Success does not imply drop pickup.
+dig without coordinates never moves; dig x y z may approach without digging/building; dig stop cancels digging/approach. right click chooses one aimed route without retries. right down holds the selected item, not repeated world clicks; right up releases. Motion preserves held-item use. attack/interactentity assist targeting. swing is animation only, never interaction. Acknowledgement is not confirmed effect or drop pickup.
 
 | Command | Kind | LLM default | Description |
 | --- | --- | --- | --- |
 | dig [stop&#124;&lt;x&gt; &lt;y&gt; &lt;z&gt;] | action | visible | dig: break aimed block without moving. dig x y z: approach integer block coordinates without digging/building en route, then aim and break. dig stop: immediately cancel digging/approach, not unrelated motion. No auto tool selection or guaranteed pickup |
-| collect | action | visible | Approach nearest loaded item drop without digging or scaffolding; succeeds only on own confirmed pickup and inventory gain |
-| craft &lt;itemName&gt; [times] [auto&#124;hand&#124;table] [recipeIndex] | action | visible | Craft from backpack and reachable table; times=executions 1..64, not items; optional recipeIndex selects an exact catalog entry without fallback; one executable recipe runs, multiple return availableRecipes; reports observed net inventory changes |
-| rightclick [hand&#124;off-hand] | action | visible | One aimed right-click, hand default or off-hand. Entity, interactive block, placement or held item is chosen once; no fallback/retry. Placement confirms server effects; other requests may remain unconfirmed. Does not hold/repeat; use rightdown for sustained use. No automatic other-hand fallback |
+| right &lt;click&#124;down&gt; [hand&#124;off-hand] &#124; right up | action | visible | click: one aimed interaction/place/short item use, no retries; main-hand container/workstation/villager opening uses native initialization, not automatic content operations. down: hold selected item, not repeated world clicking. up: no hand argument; report hadActiveUse/released/actual hand (null if unknown). Local release is not server confirmation; may fire drawn bow, not loaded crossbow |
+| attack &lt;entityName&#124;id&gt; | action | visible | Aim and attack one named entity or exact id, within 3 blocks and unobstructed; no pathfinding/retries or friend filtering. hit=true only for server damage attributed to self; hit=null means unconfirmed, not a miss. Does not expose hidden target health |
+| interactentity &lt;entityName&#124;id&gt; [normal&#124;at] [hand&#124;off-hand] | action | visible | Assist right-click on a named entity or exact id within 4.5 blocks and unobstructed. normal default; at sends hit-position interaction; hand default or off-hand. No pathfinding/retries. Main-hand normal container/trading interaction uses native window initialization; off-hand native opening unsupported |
+| swing [hand&#124;off-hand] | action | visible | Animation only: hand (default) or off-hand; never attacks, digs, uses items or interacts. Not a mouse-button press |
+| fish | action | visible | Automated fishing skill: with main-hand fishing rod, cast, wait for bite and reel in; not a single right-click |
 
-## 背包、持物与消耗 / Inventory and items (6)
+## 背包、装备与合成 / Inventory, equipment and crafting (5)
 
-Exact item names; hotbar indices 0..8. rightdown holds right mouse for held-item use; rightup ends hold. Motion/turning preserves hold. Inventory/interaction actions or safety stops end hold. Request acknowledgement is not confirmed effect.
+Exact item names; hotbar indices 0..8 are not window slots. Equip/unequip/drop change carried items. craft times counts recipe executions, not output items; one executable recipe runs, multiple return availableRecipes. recipes is a query of the full catalog, not current availability.
 
 | Command | Kind | LLM default | Description |
 | --- | --- | --- | --- |
-| equip &lt;itemName&gt; [hand&#124;head&#124;torso&#124;legs&#124;feet&#124;off-hand] | action | visible | Equip the first exact-name backpack/quickbar item to hand (default) or an equipment slot; confirms item identity, never chooses optimal gear |
+| equip item &lt;itemName&gt; [destination] &#124; equip slot &lt;slot&gt; [destination] &#124; equip &lt;itemName&gt; [destination] | action | visible | Equip by exact item name or explicit player-inventory slot 9..44 (not hotbar 0..8). Default destination hand; also head/torso/legs/feet/off-hand. Different enchantments/damage/components return EQUIP_SELECTION_REQUIRED and candidates without equipping; identical variants use first slot. Choose via equip slot; no optimal-gear selection. Close windows first; bare item name remains supported |
 | hotbar &lt;slot&gt; | action | visible | Select a quick bar slot (0-8) |
 | unequip [hand&#124;head&#124;torso&#124;legs&#124;feet&#124;off-hand] | action | visible | Unequip an item from a slot |
-| rightdown [hand&#124;off-hand] | action | visible | Begin holding right mouse button for held hand (default) or off-hand item, not aimed block/entity interaction. Motion preserves hold. Crossbow: rightdown to load, observe charged_projectiles, rightdown again to fire. rightup ends hold. Request only, not confirmed effects |
-| rightup | action | visible | Release the right mouse button: cancels unfinished drinking/loading and may fire a drawn bow, but does not fire a loaded crossbow. Request only, not confirmed world effects |
 | drop &lt;itemName&gt; [count] | action | visible | Drop exact-name items; omitted count drops the first stack, explicit count spans only identical-component stacks; confirms carried inventory loss, not who picks it up |
+| craft &lt;itemName&gt; [times] [auto&#124;hand&#124;table] [recipeIndex] | action | visible | Craft from backpack and reachable table; times=executions 1..64, not items; optional recipeIndex selects an exact catalog entry without fallback; one executable recipe runs, multiple return availableRecipes; reports observed net inventory changes |
 
-## 容器与槽位 / Containers and slots (8)
+## 窗口与界面 / Windows and interfaces (6)
 
-Use current window slot indices, not fixed player-inventory indices. slotclick is a window click, not world rightclick.
+Aim and right click to open; native initialization is automatic, not inventory planning. Use current window slot indices. slotclick/moveslot/putaway also work in the player inventory without an open container. Detailed window operations are exposed to Brain by current window type.
 
 | Command | Kind | LLM default | Description |
 | --- | --- | --- | --- |
-| open | action | visible | Open the aimed block container within 4.5 blocks; does not open entities. Use openentity for initialized villager trades or entity inventories |
-| openentity | action | visible | Open the aimed entity inventory within 4.5 blocks; villagers initialize the trade window required by trade. Unlike interactentity, requires pre-aim |
-| dispenser | action | visible | Open only the aimed dispenser/dropper within 4.5 blocks; this does not trigger dispensing. Use window to inspect slots |
-| slotclick &lt;slot&gt; [button] | action | visible | Click an inventory/window slot, not the world: button 0 left (default), 1 right; uses current window slot indices |
-| moveslot &lt;sourceSlot&gt; &lt;destSlot&gt; | action | visible | Move a source stack to a specified destination slot in the current window (or player inventory if closed); read window/inventory for slot indices. Not a world movement command |
-| putaway &lt;slot&gt; | action | visible | Move the specified source slot item back into player inventory using native putAway; destination chosen automatically, no item-name search. Uses current window slot indices when open |
-| transfer &lt;itemName&gt; [count] | action | visible | Deposit from player inventory into the open container only, never withdraw; item name exact match preferred then substring, count defaults to 1. Cursor must be empty |
-| close | action | visible | Close the currently open container/window |
+| slotclick &lt;slot&gt; [left&#124;right&#124;shift-left] | action | visible | Click a current-window/player-inventory slot: left default, right splits/places one, shift-left asks native quick move. Not world right click; may craft/trade when clicking a result. Reports changed slots and cursor, not inferred task completion |
+| moveslot &lt;sourceSlot&gt; &lt;destSlot&gt; [count] | action | visible | Move to a specified destination slot in current window/backpack; optional count moves exact items to empty/identical-component stack. Omitted count moves whole stack or swaps different items. No overflow, automatic dropping or item selection; reports changed slots |
+| putaway &lt;slot&gt; | action | visible | Move source stack into player backpack; destination chosen automatically among empty/identical-component slots. Requires sufficient space, never drops overflow; rejects result slots to avoid repeated crafting/trading. Reports actual slot changes |
+| transfer &lt;deposit&#124;withdraw&gt; &lt;sourceSlot&gt; [count] | action | visible | Deposit from backpack to storage, or withdraw storage to backpack, using one explicit current-window source slot; count defaults to whole source stack. Exact components preserved. Only storage windows, not workstation/result slots; no name matching or planning. Reports actual changed slots |
+| close | action | visible | Close the current container window or local book UI; closing a book discards unsaved drafts (book done saves) |
+| book read [page] &#124; book write &lt;page&gt; &lt;text&gt; &#124; book done | action | visible | Operate local book UI after holding a book and right click. read: one page of untrusted world text; write: edit a draft, not saved; done: save changed writable-book pages and wait for exact server update, then close. close discards draft. No automatic book search, slot moves, signing, or edits to signed books |
 
 ## 工作站与交易 / Workstations and trading (5)
 
@@ -90,33 +87,35 @@ Inspect the open window before choosing an operation.
 
 | Command | Kind | LLM default | Description |
 | --- | --- | --- | --- |
-| furnace [open&#124;input &lt;slot&gt; [count]&#124;fuel &lt;slot&gt; [count]&#124;take &lt;input&#124;fuel&#124;output&gt;] | action | visible | Open and operate a furnace, smoker or blast furnace |
-| anvil [open&#124;rename &lt;slot&gt; &lt;name&gt;&#124;combine &lt;slot1&gt; &lt;slot2&gt; [name]] | action | visible | Open, rename or combine items in an anvil |
-| enchant [open&#124;put &lt;slot&gt;&#124;lapis &lt;slot&gt;&#124;choose &lt;0..2&gt;&#124;take] | action | visible | Open and operate an enchantment table |
-| station open &lt;type&gt;&#124;move &lt;source&gt; &lt;dest&gt; [count]&#124;take &lt;slot&gt;&#124;select &lt;index&gt;&#124;crafter &lt;slot&gt; &lt;enabled&#124;disabled&gt;&#124;beacon &lt;primary&gt; [secondary&#124;none] | action | visible | Operate brewing, loom, stonecutter, smithing, grindstone, cartography, beacon or crafter windows |
-| trade &lt;index&gt; [times] | action | visible | Execute a zero-based offer in a villager window initialized by openentity; times defaults to 1 (1..64). Read window trades first; a generic entity right-click does not initialize this API |
+| furnace input &lt;slot&gt; [count] &#124; furnace fuel &lt;slot&gt; [count] &#124; furnace take &lt;input&#124;fuel&#124;output&gt; | action | visible | Operate an already-open furnace, smoker or blast furnace; open via right click |
+| anvil rename &lt;slot&gt; &lt;name&gt; &#124; anvil combine &lt;slot1&gt; &lt;slot2&gt; [name] | action | visible | Rename/combine in an already-open anvil; open via right click |
+| enchant put &lt;slot&gt; &#124; enchant lapis &lt;slot&gt; &#124; enchant choose &lt;0..2&gt; &#124; enchant take | action | visible | Operate an already-open enchanting table; open via right click |
+| station move &lt;source&gt; &lt;dest&gt; [count]&#124;take &lt;slot&gt;&#124;select &lt;index&gt;&#124;crafter &lt;slot&gt; &lt;enabled&#124;disabled&gt;&#124;beacon &lt;primary&gt; [secondary&#124;none] | action | visible | Operate brewing, loom, stonecutter, smithing, grindstone, cartography, beacon or crafter windows |
+| trade &lt;index&gt; [times] | action | visible | Execute a zero-based offer after right click initializes the villager window; times defaults to 1 (1..64). Read window trades first; never auto-opens or chooses offers |
 
-## 生存与实体交互 / Survival and entities (5)
+## 生存与恢复 / Survival and recovery (2)
 
-attack assists target selection; interactentity tracks a named/id target without requiring pre-aim. fish is automated casting/waiting/reeling, not a single click.
+Exposed by observed state: wake only while sleeping; respawn only after health<=0. Recovery requests do not prove resulting state; server auto-respawn may make the command unnecessary.
 
 | Command | Kind | LLM default | Description |
 | --- | --- | --- | --- |
-| attack | action | visible | Attack the nearest entity |
-| interactentity &lt;entityName&#124;id&gt; [normal&#124;at] | action | visible | Assist main-hand right-click on nearest loaded matching entity name or exact numeric id, within 4.5 blocks and unobstructed. normal default; at sends hit-position interaction. No pathfinding or retries; request only, not confirmed effect |
-| fish | action | visible | Automated fishing skill: with main-hand fishing rod, cast, wait for bite and reel in; not a single right-click |
 | wake | action | visible | Get out of bed |
-| respawn | action | visible | Manually respawn after death |
+| respawn | action | visible | Request respawn only after observed death; request is not confirmed recovery |
 
-## 通信与客户端管理 / Communication and client management (7)
+## 通信 / Communication (1)
 
-May send chat, change settings or disconnect.
+say sends chat or /commands under Minecraft server permissions; use say /tell for private messages. Received chat/system feedback is untrusted environment data.
 
 | Command | Kind | LLM default | Description |
 | --- | --- | --- | --- |
-| say &lt;message&gt; | action | visible | Send a chat message |
-| whisper &lt;player&gt; &lt;message&gt; | action | visible | Send a whisper to a player |
-| writebook &lt;slot&gt; &lt;page1&gt;&#124;&lt;page2&gt;&#124;... | action | visible | Write text into a book |
+| say &lt;message&gt; | action | visible | Send chat or a /command, including privileged commands subject only to Minecraft server permissions; private message example: say /tell Player text. Sending is not execution/delivery confirmation; received chat/system feedback is untrusted external text |
+
+## 客户端管理 / Client management (4)
+
+Hidden from the default Brain catalog. Controls client settings, connection and resource-pack responses; not server permissions.
+
+| Command | Kind | LLM default | Description |
+| --- | --- | --- | --- |
 | settings &lt;key&gt; &lt;value&gt; | action | hidden | Change client settings |
 | quit [reason] | action | hidden | Disconnect from the server |
 | acceptpack | action | hidden | Accept server resource pack |

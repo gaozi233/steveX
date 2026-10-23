@@ -4,11 +4,11 @@
  */
 module.exports = {
   name: 'swing',
-  description: 'Animation only: send a main/right or off/left arm swing packet; never attacks, digs, uses items or interacts. Not a mouse-button press',
-  usage: 'swing [hand]',
+  description: 'Animation only: hand (default) or off-hand; never attacks, digs, uses items or interacts. Not a mouse-button press',
+  usage: 'swing [hand|off-hand]',
   async handler(bot, args) {
-    const hand = args[0] === 'left' ? 'left' : 'right'
-    bot.swingArm(hand)
+    const hand = args[0] || 'hand'
+    bot.swingArm(hand === 'off-hand' ? 'left' : 'right')
     return { ok: true, output: `Swung ${hand} arm` }
   }
 }

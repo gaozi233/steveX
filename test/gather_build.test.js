@@ -40,12 +40,13 @@ test('coordinate dig protects approach terrain and restores settings, and refuse
   bot.blockAt=()=>current;bot.canDigBlock=()=>false;bot.pathfinder={setGoal:()=>{},setMovements:()=>{},goto:async()=>{assert.equal(movements.canDig,false);current={...block,stateId:2}}};bot.dig=async()=>{dug=true}
   const r=await dig.handler(bot,['1','0','0'],{bot,movements});assert.equal(r.ok,false);assert.equal(dug,false);assert.equal(movements.canDig,true);assert.deepEqual(movements.scafoldingBlocks,[1])
 })
-test('collect confirms own pickup and inventory gain, selects nearest and cleans listeners', async () => {
+for(const selected of [undefined,'1'])test(`collect confirms own pickup for ${selected===undefined?'nearest drop':'explicit id'} and cleans listeners`, async () => {
   const bot=basic();bot.entity={id:10,position:new Vec3(0,0,0)}
   bot.entities={1:{id:1,name:'item',position:new Vec3(5,0,0)},2:{id:2,name:'item',position:new Vec3(2,0,0)}}
   const movements={canDig:true,allow1by1towers:true,scafoldingBlocks:[1]}
-  bot.pathfinder={setGoal:()=>{},setMovements:()=>{},goto:async goal=>{assert.equal(goal.x,2);assert.equal(movements.canDig,false);assert.equal(movements.allow1by1towers,false);assert.deepEqual(movements.scafoldingBlocks,[]);bot.entity.position=new Vec3(2,0,0);bot.inventory.slots[9]={name:'emerald',count:3};bot.emit('playerCollect',bot.entity,bot.entities[2])}}
-  const r=await collect.handler(bot,[],{movements});assert.equal(r.ok,true);assert.equal(r.changes[0].delta,3);assert.equal(bot.listenerCount('playerCollect'),0);assert.equal(movements.canDig,true);assert.deepEqual(movements.scafoldingBlocks,[1])
+  const id=selected===undefined?2:1,x=id===2?2:5
+  bot.pathfinder={setGoal:()=>{},setMovements:()=>{},goto:async goal=>{assert.equal(goal.x,x);assert.equal(movements.canDig,false);assert.equal(movements.allow1by1towers,false);assert.deepEqual(movements.scafoldingBlocks,[]);bot.entity.position=new Vec3(x,0,0);bot.inventory.slots[9]={name:'emerald',count:3};bot.emit('playerCollect',bot.entity,bot.entities[id])}}
+  const r=await collect.handler(bot,selected===undefined?[]:[selected],{movements});assert.equal(r.ok,true);assert.equal(r.target.entityId,id);assert.equal(r.changes[0].delta,3);assert.equal(bot.listenerCount('playerCollect'),0);assert.equal(movements.canDig,true);assert.deepEqual(movements.scafoldingBlocks,[1])
 })
 function craftingBot() {
   const bot=basic();bot.registry=require('minecraft-data')('1.21.11');bot.entity={position:new Vec3(0,0,0)}

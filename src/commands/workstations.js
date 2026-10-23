@@ -44,8 +44,8 @@ function attach(bot) {
 
 function current(bot, types) {
   const w = bot.currentWindow
-  if (!w) throw new Error('No window open')
-  if (types && !types.includes(w.type)) throw new Error(`Wrong window: ${w.type}; expected ${types.join(' / ')}`)
+  if (!w) throw Object.assign(new Error('No window open; aim and use right click first'),{code:'WINDOW_REQUIRED'})
+  if (types && !types.includes(w.type)) throw Object.assign(new Error(`Wrong window: ${w.type}; expected ${types.join(' / ')}`),{code:'WINDOW_TYPE_MISMATCH'})
   return w
 }
 function properties(bot, w = current(bot)) { return attach(bot).properties.get(w) || {} }
@@ -88,7 +88,7 @@ function describe(bot, { compact = false } = {}) {
 
 async function guarded(operation) {
   try { return await operation() }
-  catch (error) { return { ok: false, error: error.message, cancelled: error.name === 'AbortError' } }
+  catch (error) { return { ok: false, error: error.message, ...(error.code?{errorCode:error.code}:{}), cancelled: error.name === 'AbortError' } }
 }
 function success(bot, output) { return { ok: true, output, window: bot.currentWindow ? describe(bot) : null } }
 
@@ -117,24 +117,12 @@ function confirmedPacket(bot, w, packet, body, expected, signal) {
   })
 }
 
-async function open(bot, blockNames, method = 'openBlock') {
-  const block = bot.blockAtCursor(4.5)
-  if (!block) throw new Error('No block in sight')
-  if (!blockNames.includes(block.name)) throw new Error(`Block in sight is ${block.name}, not ${blockNames[0] === 'enchanting_table' ? 'an enchanting table' : blockNames[0] === 'anvil' ? 'an anvil' : blockNames[0] === 'furnace' ? 'a furnace' : blockNames.join('/')}`)
-  if (bot.currentWindow) throw new Error('Close the current window before opening another workstation')
-  attach(bot)
-  await bot[method](block)
-  return success(bot, `Opened ${block.name}`)
-}
-
 async function station(bot, args = [], signal) {
   signal?.throwIfAborted()
   if (args[0] === 'open') {
-    const def = Object.hasOwn(stations, args[1]) ? stations[args[1]] : null
-    if (!def) throw new Error(`Expected station type: ${Object.keys(stations).join(', ')}`)
-    return open(bot, [def[0]])
+    throw Object.assign(new Error('Aim at the workstation and use right click; station only operates an existing window'),{code:'INVALID_ARGUMENTS'})
   }
-  const w = current(bot)
+  const w = current(bot, Object.values(stations).map(def=>def[1]))
   attach(bot)
   if (args[0] === 'move') {
     const item = slot(w, args[1])
@@ -176,7 +164,7 @@ async function station(bot, args = [], signal) {
     if (!['iron_ingot', 'gold_ingot', 'diamond', 'emerald', 'netherite_ingot'].includes(w.slots[0]?.name)) throw new Error('Put a payment item in beacon slot 0')
     await confirmedPacket(bot, w, 'set_beacon_effect', { primary_effect: primaryId, secondary_effect: secondaryId },
       p => p[1] === primaryId + 1 && p[2] === (secondaryId === null ? 0 : secondaryId + 1), signal)
-  } else throw new Error('Usage: station open <type>|move <source> <dest> [count]|take <slot>|select <index>|crafter <slot> <enabled|disabled>|beacon <primary> [secondary|none]')
+  } else throw new Error('Usage: station move <source> <dest> [count]|take <slot>|select <index>|crafter <slot> <enabled|disabled>|beacon <primary> [secondary|none]')
   return success(bot, `Station operation ${args.join(' ')} completed`)
 }
-module.exports = { attach, integer, current, slot, describe, guarded, success, open, station }
+module.exports = { attach, integer, current, slot, describe, guarded, success, station }

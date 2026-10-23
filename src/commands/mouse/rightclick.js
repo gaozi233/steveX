@@ -6,22 +6,25 @@ const {placementCounts,opensWindow,interactive,airUse,blockClick,aimedEntity,aim
 const blocks=require('../placement/block'),entities=require('../placement/entity')
 module.exports={
  name:'rightclick',usage:'rightclick [hand|off-hand]',
- description:'One aimed right-click, hand default or off-hand. Entity, interactive block, placement or held item is chosen once; no fallback/retry. Placement confirms server effects; other requests may remain unconfirmed. Does not hold/repeat; use rightdown for sustained use. No automatic other-hand fallback',
+ description:'One aimed right-click, hand default or off-hand. Entity, interactive block, placement or held item is chosen once; no fallback/retry. Placement confirms server effects; other requests may remain unconfirmed. Does not hold/repeat; use right down for sustained use. No automatic other-hand fallback',
  handler:withContract('rightclick',async(bot,args,agent,options={})=>{
-  if(bot.currentWindow)return {ok:false,errorCode:'WINDOW_OPEN',error:'Close the inventory window before world right-click'}
-  if(hasUse(bot))return {ok:false,errorCode:'ITEM_ALREADY_IN_USE',error:'rightup the active held-item request before rightclick'}
+  if(bot.currentWindow||require('../book_ui').bookContext(bot))return {ok:false,errorCode:'WINDOW_OPEN',error:'Close the current window/book UI before world right-click'}
+  if(hasUse(bot))return {ok:false,errorCode:'ITEM_ALREADY_IN_USE',error:'right up the active held-item request before right click'}
   const hand=args[0]||'hand',signal=options.signal
   await syncInventory(bot);signal?.throwIfAborted()
   const item=usedItem(bot,hand),block=aimedBlock(bot),hit=aimedEntity(bot,block),sneaking=!!bot.getControlState?.('sneak')
   const projectile=!!item&&['bow','crossbow','trident','snowball','egg','ender_pearl','splash_potion','lingering_potion'].includes(item.name)
   const projectileAtEntity=hit&&projectile&&!['villager','wandering_trader'].includes(hit.entity.name)
   if(hit&&!projectileAtEntity){
+   if(hand==='off-hand'&&!sneaking&&require('../window_open').entityWindowMethod(hit.entity))return {ok:false,errorCode:'HAND_NOT_SUPPORTED',error:'Native entity-window initialization requires right click hand; no fallback or extra click sent'}
+   if(hand==='hand'&&!sneaking&&require('../window_open').entityWindowMethod(hit.entity))return require('../window_open').openWindow(bot,hit.entity,{entity:true,signal})
    const entity=hit.entity,local=hit.point.minus(entity.position)
    bot._client.write('use_entity',{target:entity.id,mouse:entity.name==='armor_stand'?2:0,hand:hand==='off-hand'?1:0,sneaking,x:local.x,y:local.y,z:local.z})
    return {ok:true,requested:true,confirmed:false,status:'requested',action:'rightclick',route:'entity-interaction',hand,target:{id:entity.id,name:entity.name},confirmation:'request-sent-only',output:'Entity right-click sent once; effect not confirmed'}
   }
   const blockFirst=!projectileAtEntity&&block&&interactive(block)&&!(sneaking&&(bot.heldItem||usedItem(bot,'off-hand')))
   if(blockFirst&&hand==='off-hand')return {ok:false,errorCode:'HAND_NOT_SUPPORTED',error:'Block activation uses main hand on this protocol; use rightclick hand. Off-hand placement, entity interaction and item use remain separate supported paths',changes:[]}
+  if(blockFirst&&opensWindow(block))return require('../window_open').openWindow(bot,block,{signal})
   if(!blockFirst&&item&&(entities.entityType(bot,item)||bot.registry.blocksByName[item.name])){
    if(!block)return {ok:false,errorCode:'NO_TARGET',error:'No aimed block for placement; no click sent',changes:[]}
    const kind=entities.entityType(bot,item)?'entity':'block',impl=kind==='entity'?entities:blocks
@@ -49,6 +52,7 @@ module.exports={
    }finally{observation.close();bot.removeListener('windowOpen',opened)}
   }
   if(!item)return {ok:false,errorCode:'NO_TARGET',error:'No aimed entity/block or held item to right-click'}
+  if(['writable_book','written_book'].includes(item.name))return require('../book_ui').openBook(bot,hand)
   try{startUse(bot,hand);await sleep(50,signal)}finally{releaseUse(bot)}
   await syncInventory(bot)
   const changes=inventoryChanges(before,placementCounts(bot))

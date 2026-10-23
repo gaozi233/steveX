@@ -31,3 +31,26 @@ test('nearby truncates after sorting, orders ties by id, excludes self id copies
   assert.deepEqual((await handler(agent.bot, ['all', '1'], agent)).entities.map(e => e.id), Array.from({ length: 20 }, (_, i) => i + 10))
   for (const radius of ['0', '129', '2.5', '10x', 'Infinity', '-1']) assert.equal((await handler(agent.bot, ['all', radius], agent)).ok, false)
 })
+
+test('nearby exposes compact dropped/frame items and projectile state; item names are searchable', async () => {
+  const agent=fixture(),Item=require('prismarine-item')(registry)
+  const add=(id,name,values)=>{
+    const metadata={}
+    for(const [key,value] of Object.entries(values)) metadata[registry.entitiesByName[name].metadataKeys.indexOf(key)]=value
+    agent.bot.entities[id]={id,name,type:'other',position:new Vec3(id-5,64,0),metadata}
+  }
+  const raw=Item.toNotch(new Item(registry.itemsByName.diamond.id,3))
+  add(6,'item',{item:raw})
+  add(7,'item_frame',{item:raw,rotation:2})
+  add(8,'arrow',{in_ground:true})
+  const result=await handler(agent.bot,['diamond','32'],agent)
+  assert.deepEqual(result.entities.map(e=>e.item),[{name:'diamond',count:3},{name:'diamond',count:3}])
+  assert.equal(result.entities[1].rotationDegrees,90)
+  assert.match(result.output,/diamond x3/)
+  const arrow=(await handler(agent.bot,['arrow'],agent)).entities[0]
+  assert.equal(arrow.inGround,true);assert.equal(Object.hasOwn(arrow,'item'),false)
+  agent.bot.entities[8].metadata={}
+  assert.equal(Object.hasOwn((await handler(agent.bot,['arrow'],agent)).entities[0],'inGround'),false)
+  agent.bot.entities[6].metadata={}
+  assert.equal(Object.hasOwn((await handler(agent.bot,['minecraft:item'],agent)).entities[0],'item'),false)
+})

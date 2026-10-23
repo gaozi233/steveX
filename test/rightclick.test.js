@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),{EventEmitter}=require('node:events'),{Vec3}=require('vec3')
-const {handler}=require('../src/commands/actions/rightclick')
+const {handler}=require('../src/commands/mouse/rightclick')
 const {aimedEntity}=require('../src/commands/rightclick_helpers')
 const {controlBaseShapes}=require('../src/commands/rightclick_helpers')
 const {loadCommands}=require('../src/commands'),{SteveXAgent}=require('../src/agent/agent')
@@ -27,7 +27,7 @@ function fixture(name='stone',hand='hand'){
 }
 test('rightclick replaces three old catalog entries without aliases',()=>{
  const {commands}=loadCommands();for(const name of ['place','placeentity','interact'])assert.equal(commands[name],undefined)
- for(const name of ['rightclick','rightdown','rightup','interactentity'])assert.equal(typeof commands[name],'function')
+ for(const name of ['right','interactentity'])assert.equal(typeof commands[name],'function')
 })
 for(const hand of ['hand','off-hand'])for(const item of ['stone','cow_spawn_egg'])test(`${hand} ${item} reuses confirmed placement exactly once`,async()=>{
  const f=fixture(item,hand),r=await handler(f.bot,[hand],{})
@@ -35,8 +35,8 @@ for(const hand of ['hand','off-hand'])for(const item of ['stone','cow_spawn_egg'
  assert.equal(r.changes.find(c=>c.item===item).delta,-1);assert.equal(f.packets.length,1);assert.equal(f.packets[0].data.offhand,hand==='off-hand')
 })
 test('interactive chest takes priority over held block and opens with one click',async()=>{
- const f=fixture();f.target.name='chest';f.bot._client.write=(name,data)=>{f.packets.push({name,data});f.bot.emit('windowOpen',{type:'minecraft:generic_9x3'})}
- const r=await handler(f.bot,[],{});assert.equal(r.confirmed,true);assert.equal(r.route,'block-interaction');assert.equal(f.slots[36].count,2);assert.equal(f.packets.length,1)
+ const f=fixture();f.target.name='chest';f.bot.openBlock=async block=>{f.packets.push({name:'native-open',block});f.bot.currentWindow={type:'minecraft:generic_9x3'};f.bot.emit('windowOpen',f.bot.currentWindow);return f.bot.currentWindow}
+ const r=await handler(f.bot,[],{});assert.equal(r.confirmed,true);assert.equal(r.route,'window-open');assert.equal(f.slots[36].count,2);assert.equal(f.packets.length,1)
 })
 test('sneaking with held item bypasses chest activation and uses placement path once',async()=>{
  const f=fixture();f.target.name='chest';f.bot.getControlState=()=>true
@@ -72,7 +72,7 @@ test('rightclick refuses active use before Agent can implicitly release a bow',a
  const f=fixture('bow');f.bot.usingHeldItem=true
  const agent=new SteveXAgent({},'click-test',loadCommands().commands);agent.bot=f.bot;agent.connected=true
  agent.stopPhysicalActions=()=>{throw Error('must not release bow')}
- assert.equal((await agent.executeCommand('rightclick')).errorCode,'ITEM_ALREADY_IN_USE');assert.equal(f.packets.length,0)
+ assert.equal((await agent.executeCommand('right click')).errorCode,'ITEM_ALREADY_IN_USE');assert.equal(f.packets.length,0)
 })
 test('non-colliding control selection uses small mounting bases, never full cubes',()=>{
  const lever={name:'lever',getProperties:()=>({face:'floor',facing:'north',powered:false})}

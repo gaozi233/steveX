@@ -1,17 +1,4 @@
-/**
- * moveslot <sourceSlot> <destSlot> — move an item between slots
- */
-module.exports = {
-  name: 'moveslot',
-  description: 'Move a source stack to a specified destination slot in the current window (or player inventory if closed); read window/inventory for slot indices. Not a world movement command',
-  usage: 'moveslot <sourceSlot> <destSlot>',
-  async handler(bot, args) {
-    if (args.length < 2) return { ok: false, error: 'Usage: moveslot <sourceSlot> <destSlot>' }
-    const [src, dest] = args.map(Number)
-    if (isNaN(src) || isNaN(dest)) return { ok: false, error: 'Invalid slot numbers' }
-    const slots = bot.currentWindow?.slots || bot.inventory?.slots || []
-    if (!slots[src]) return { ok: false, error: `Source slot ${src} is empty` }
-    await bot.moveSlotItem(src, dest)
-    return { ok: true, output: `Moved item from slot ${src} to slot ${dest}` }
-  }
-}
+const api=require('../window_actions')
+module.exports={name:'moveslot',usage:'moveslot <sourceSlot> <destSlot> [count]',
+  description:'Move to a specified destination slot in current window/backpack; optional count moves exact items to empty/identical-component stack. Omitted count moves whole stack or swaps different items. No overflow, automatic dropping or item selection; reports changed slots',
+  handler:api.action('moveslot',(bot,w,args,signal)=>api.move(bot,w,Number(args[0]),Number(args[1]),args[2]===undefined?undefined:Number(args[2]),signal))}

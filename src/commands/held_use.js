@@ -12,6 +12,7 @@ function clearUse(bot) {
 }
 
 function hasUse(bot) { return active.has(bot) || !!bot.usingHeldItem }
+function useState(bot) { return { active: hasUse(bot), hand: active.get(bot)?.hand || null } }
 
 function usedItem(bot, hand = 'hand') {
   return hand === 'off-hand' ? bot.inventory.slots[bot.getEquipmentDestSlot('off-hand')] : bot.heldItem
@@ -43,7 +44,7 @@ function startUse(bot, hand = 'hand') {
     if (packet.entityId === bot.entity?.id && packet.entityStatus === 9) finish()
   }
   // Mineflayer also clears usingHeldItem on unrelated entity-status packets.
-  active.set(bot, { changed, slotChanged, clear, status })
+  active.set(bot, { hand, changed, slotChanged, clear, status })
   bot.on('heldItemChanged', changed)
   bot.inventory?.on?.('updateSlot',slotChanged)
   bot.once('end', clear)
@@ -55,7 +56,8 @@ function releaseUse(bot) {
   const requested = hasUse(bot)
   if (requested) bot.deactivateItem()
   clearUse(bot)
+  if (requested) bot.usingHeldItem = false
   return requested
 }
 
-module.exports = { clearUse, hasUse, startUse, releaseUse, usedItem }
+module.exports = { clearUse, hasUse, useState, startUse, releaseUse, usedItem }

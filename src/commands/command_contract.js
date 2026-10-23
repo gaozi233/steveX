@@ -1,6 +1,6 @@
 const decimal = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i
-const operations = new Set(['dig', 'collect', 'craft', 'rightclick'])
-const effectCommands = new Set([...operations, 'equip', 'hotbar', 'unequip', 'drop'])
+const operations = new Set(['dig', 'collect', 'craft', 'right'])
+const effectCommands = new Set([...operations, 'equip', 'hotbar', 'unequip', 'drop','attack','interactentity','slotclick','moveslot','putaway','transfer'])
 const queries = new Set('pos hp hunger oxygen inventory nearby gamemode xp time weather window findplayer findblock recipes'.split(' '))
 const finite = value => decimal.test(value) && Number.isFinite(Number(value))
 const coordinate = value => finite(value) && Math.abs(Number(value)) <= Number.MAX_SAFE_INTEGER
@@ -9,29 +9,35 @@ const registryName = value => /^(?:minecraft:)?[a-z0-9_]+$/i.test(value)
 const field = (name, check, expected, values) => ({ name, check, expected, values })
 const enumField = (name, values) => field(name, value => values.includes(value.toLowerCase()), values.join(' | '), values)
 const coords = () => ['x','y','z'].map(name => field(name, coordinate, 'finite decimal coordinate within safe numeric range'))
-const contracts = Object.fromEntries('pos hp hunger oxygen inventory gamemode xp time weather window jump stand stop collect'.split(' ').map(name => [name, { usage:name, min:0, fields:[] }]))
+const contracts = Object.fromEntries('pos hp hunger oxygen inventory gamemode xp time weather window jump stop collect'.split(' ').map(name => [name, { usage:name, min:0, fields:[] }]))
 Object.assign(contracts, {
-  jump: {usage:'jump [normal|glide]',min:0,fields:[enumField('mode',['normal','glide'])]},
+  attack: {usage:'attack <entityName|id>',min:1,fields:[field('target',()=>true,'entity name fragment or exact numeric id')]},
+  collect: {usage:'collect [entityId]',min:0,fields:[field('entityId',integer(0),'nonnegative entity id')]},
+  slotclick: {usage:'slotclick <slot> [left|right|shift-left]',min:1,fields:[field('slot',integer(0),'nonnegative window slot'),enumField('button',['left','right','shift-left'])]},
+  moveslot: {usage:'moveslot <sourceSlot> <destSlot> [count]',min:2,fields:[field('sourceSlot',integer(0),'nonnegative window slot'),field('destSlot',integer(0),'nonnegative window slot'),field('count',integer(1,64),'item count 1..64')]},
+  putaway: {usage:'putaway <slot>',min:1,fields:[field('slot',integer(0),'nonnegative window slot')]},
+  transfer: {usage:'transfer <deposit|withdraw> <sourceSlot> [count]',min:2,fields:[enumField('direction',['deposit','withdraw']),field('sourceSlot',integer(0),'source slot in current window'),field('count',integer(1,64),'item count 1..64')]},
+  wake: {usage:'wake',min:0,fields:[]},
+  respawn: {usage:'respawn',min:0,fields:[]},
+  jump: {usage:'jump [durationMs]',min:0,fields:[field('durationMs',integer(1,30000),'integer milliseconds 1..30000')]},
   sneak: {usage:'sneak <on|off|tap>',min:1,fields:[enumField('mode',['on','off','tap'])]},
-  rightclick: {usage:'rightclick [hand|off-hand]',min:0,fields:[enumField('hand',['hand','off-hand'])]},
+  right: {usage:'right <click|down> [hand|off-hand] | right up',min:1,fields:[enumField('operation',['click','down','up']),enumField('hand',['hand','off-hand'])]},
   dig: {usage:'dig [stop|<x> <y> <z>]',min:0,fields:['x','y','z'].map(name=>field(name,v=>coordinate(v)&&Number.isSafeInteger(Number(v)),'safe integer block coordinate'))},
-  interactentity: {usage:'interactentity <entityName|id> [normal|at]',min:1,fields:[field('target',()=>true,'one entity name fragment or numeric entity id'),enumField('mode',['normal','at'])]},
+  interactentity: {usage:'interactentity <entityName|id> [normal|at] [hand|off-hand]',min:1,fields:[field('target',()=>true,'one entity name fragment or numeric entity id'),enumField('mode',['normal','at']),enumField('hand',['hand','off-hand'])]},
   nearby: { usage:'nearby [type|name|all] [radius]', min:0, fields:[field('filter',()=>true,'entity type/name/all'),field('radius',integer(1,128),'integer 1..128')] },
   findplayer: { usage:'findplayer <name>', min:1, fields:[field('name',()=>true,'one player-name fragment')] },
-  findblock: { usage:'findblock <blockName> [radius]', min:1, fields:[field('blockName',registryName,'exact registry name, optional minecraft: prefix'),field('radius',integer(1,128),'integer 1..128')] },
+  findblock: { usage:'findblock <blockName|#tag> [radius] | findblock tags [filter] | findblock tag <#tag>', min:1, fields:[field('blockName',v=>registryName(v)||/^#(?:[a-z0-9_.-]+:)?[a-z0-9_./-]+$/i.test(v),'exact block name or #namespace:tag'),field('radius',integer(1,128),'integer 1..128')] },
   recipes: { usage:'recipes <itemName>', min:1, fields:[field('itemName',registryName,'exact registry name, optional minecraft: prefix')] },
-  look: { usage:'look <yaw> <pitch>', min:2, fields:[field('yaw',finite,'finite decimal radians'),field('pitch',v=>finite(v)&&Math.abs(Number(v))<=Math.PI/2,'finite radians -PI/2..PI/2')] },
-  lookat: { usage:'lookat <x> <y> <z>', min:3, fields:coords() },
+  look: { usage:'look angle <yaw> <pitch> | look at <x> <y> <z>', min:3, fields:[enumField('mode',['angle','at']),...['a','b','c'].map(name=>field(name,()=>true,'decimal or ~ relative value'))] },
   goto: { usage:'goto <x> <y> <z>', min:3, fields:coords() },
-  move: { usage:'move <forward|back|left|right|sprint> [durationMs]', min:1, fields:[enumField('control',['forward','back','left','right','sprint']),field('durationMs',integer(1,30000),'integer milliseconds 1..30000')] },
-  swing: { usage:'swing [hand]', min:0, fields:[enumField('hand',['right','left'])] },
+  move: { usage:'move <forward|back|left|right|sprint|stop> [durationMs]', min:1, fields:[enumField('control',['forward','back','left','right','sprint','stop']),field('durationMs',integer(1,30000),'integer milliseconds 1..30000')] },
+  swing: { usage:'swing [hand|off-hand]', min:0, fields:[enumField('hand',['hand','off-hand'])] },
   follow: { usage:'follow <playerName>', min:1, fields:[field('playerName',()=>true,'one exact player name')] },
   wait: { usage:'wait <ticks>', min:1, fields:[field('ticks',integer(1),'positive safe integer physics ticks')] },
   craft: { usage:'craft <itemName> [times] [auto|hand|table] [recipeIndex]', min:1, fields:[field('itemName',registryName,'exact registry name, optional minecraft: prefix'),field('times',integer(1,64),'integer recipe executions 1..64'),enumField('station',['auto','hand','table']),field('recipeIndex',v=>/^[1-9]\d*$/.test(v)&&Number.isSafeInteger(Number(v)),'positive safe integer catalog index')] },
-  equip: { usage:'equip <itemName> [hand|head|torso|legs|feet|off-hand]', min:1, fields:[field('itemName',registryName,'exact registry name, optional minecraft: prefix'),enumField('destination',['hand','head','torso','legs','feet','off-hand'])] },
+  equip: { usage:'equip item <itemName> [destination] | equip slot <slot> [destination] | equip <itemName> [destination]', min:1, fields:[field('source',()=>true,'item name, item or slot'),field('selection',()=>true,'item name, slot or destination'),enumField('destination',['hand','head','torso','legs','feet','off-hand'])] },
   hotbar: { usage:'hotbar <slot>', min:1, fields:[field('slot',integer(0,8),'integer quickbar index 0..8')] },
   unequip: { usage:'unequip [hand|head|torso|legs|feet|off-hand]', min:0, fields:[enumField('destination',['hand','head','torso','legs','feet','off-hand'])] },
-  rightdown: {usage:'rightdown [hand|off-hand]',min:0,fields:[enumField('hand',['hand','off-hand'])]}, rightup: {usage:'rightup',min:0,fields:[]},
   drop: {usage:'drop <itemName> [count]',min:1,fields:[field('itemName',registryName,'exact registry name, optional minecraft: prefix'),field('count',integer(1),'positive safe integer count')]},
 })
 
@@ -51,10 +57,24 @@ function normalizeFailure(name, value) {
 function invalid(name, message, argument) {
   const spec = contracts[name], error = `${message}. Usage: ${spec.usage}`
   return normalizeFailure(name, { ok:false, errorCode:'INVALID_ARGUMENTS', error, usage:spec.usage, ...(argument ? { argument } : {}),
+    ...(name==='attack'?{hit:false}:{}),
     ...(effectCommands.has(name) ? { action:name, status:'failed', confirmed:false, target:null, changes:[], evidence:[] } : {}),
     ...(name === 'craft' ? { phase:'preflight', effect:'none', completedExecutions:0, producedCount:0 } : {}) })
 }
 function validateArguments(name, args) {
+  if (name === 'findblock' && Array.isArray(args) && typeof args[0] === 'string' && ['tags','tag'].includes(args[0].toLowerCase())) {
+    const mode=args[0].toLowerCase()
+    if (args.length > 2 || (mode === 'tag' && args.length !== 2)) return invalid(name, 'Expected tags [filter] or tag <#tag>')
+    if (args[1] !== undefined && (typeof args[1] !== 'string' || !(mode === 'tag' ? /^#(?:[a-z0-9_.-]+:)?[a-z0-9_./-]+$/i : /^[a-z0-9_./:#-]+$/i).test(args[1]))) return invalid(name, 'Invalid tag name/filter; tag lookup requires #')
+    return null
+  }
+  if (name === 'equip') return require('./equip_input').parseEquip(args) ? null : invalid(name, 'Use an exact item name or a player-inventory slot 9..44; destination: hand/head/torso/legs/feet/off-hand')
+  if (name === 'right' && Array.isArray(args) && typeof args[0] === 'string' && args[0].toLowerCase() === 'up' && args.length !== 1) return invalid(name, 'right up takes no hand argument')
+  if (name === 'look') {
+    const reason = require('./look_input').validateLook(args)
+    return reason ? invalid(name, reason) : null
+  }
+  if (name === 'move' && Array.isArray(args) && typeof args[0] === 'string' && args[0].toLowerCase() === 'stop' && args.length !== 1) return invalid(name, 'move stop takes no duration')
   const spec = contracts[name]
   if (!spec) return null
   if (!Array.isArray(args) || args.length < spec.min || args.length > spec.fields.length) return invalid(name, `Expected ${spec.min === spec.fields.length ? spec.min : spec.min + '..' + spec.fields.length} arguments`)
@@ -75,14 +95,24 @@ function exceptionFailure(name, error, signal) {
   return normalizeFailure(name, { ok:false, cancelled, errorCode, error:error?.message || String(error) })
 }
 const wrapped = Symbol('command-contract')
+function feedback(name,value) {
+  if(!effectCommands.has(name))return normalizeFailure(name,value)
+  return normalizeFailure(name,{action:name,status:value?.ok===false?(value.cancelled?'cancelled':'failed'):value?.confirmed===true?'completed':'requested',
+    confirmed:value?.confirmed===true,evidence:[],...value})
+}
 function withContract(name, handler) {
+  const subcommand = {rightclick:'click',rightdown:'down',rightup:'up'}[name]
+  if (subcommand) {
+    const guarded = withContract('right', function(bot,args,agent,options) { return handler.call(this,bot,args.slice(1),agent,options) })
+    return function(bot,args=[],agent,options) { return guarded.call(this,bot,[subcommand,...args],agent,options) }
+  }
   if (!contracts[name] || handler[wrapped]) return handler
   const guarded = async function (bot, args = [], agent, options = {}) {
     const failure = validateArguments(name,args)
     if (failure) return failure
     const normalized = name === 'dig' && args.length === 1 ? ['stop'] : args.map((value,i)=>contracts[name].fields[i].values ? value.toLowerCase() : value)
-    try { return normalizeFailure(name,await handler.call(this,bot,normalized,agent,options)) }
-    catch (error) { return exceptionFailure(name,error,options.signal) }
+    try { return feedback(name,await handler.call(this,bot,normalized,agent,options)) }
+    catch (error) { return feedback(name,exceptionFailure(name,error,options.signal)) }
   }
   guarded[wrapped] = true
   return guarded

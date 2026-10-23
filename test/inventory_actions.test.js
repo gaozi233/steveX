@@ -6,7 +6,7 @@ const {loadCommands}=require('../src/commands')
 const {sleep}=require('../src/agent/action_executor')
 const {sameItem}=require('../src/commands/inventory_actions')
 const equip=require('../src/commands/actions/equip').handler,unequip=require('../src/commands/actions/unequip').handler,hotbar=require('../src/commands/actions/hotbar').handler
-const use=require('../src/commands/actions/rightdown').handler,rightup=require('../src/commands/actions/rightup').handler,drop=require('../src/commands/actions/drop').handler
+const use=require('../src/commands/mouse/rightdown').handler,rightup=require('../src/commands/mouse/rightup').handler,drop=require('../src/commands/actions/drop').handler
 function fixture(){
   const bot=new EventEmitter(),slots=Array(46).fill(null)
   bot.registry={itemsByName:{stone:{id:1},arrow:{id:2},spectral_arrow:{id:3},iron_helmet:{id:4},bread:{id:5},shield:{id:6},crossbow:{id:7},potion:{id:8},glass_bottle:{id:9},milk_bucket:{id:10},bucket:{id:11}}}
@@ -98,13 +98,13 @@ test('Agent keeps use active across queries and wait, and releases exactly on ex
   const f=fixture();f.put(36,'bread',2);let releases=0
   f.bot.deactivateItem=()=>{f.bot.usingHeldItem=false;releases++};f.bot.clearControlStates=()=>{};f.bot.stopDigging=()=>{}
   const loaded=loadCommands(),agent=new SteveXAgent({},'inventory-test',loaded.commands,{queryNames:loaded.queryNames});agent.bot=f.bot;agent.connected=true
-  await agent.executeCommand('rightdown');assert.equal(releases,0)
+  await agent.executeCommand('right down');assert.equal(releases,0)
   await agent.executeCommand('hp');assert.equal(releases,0)
   const waiting=agent.executeCommand('wait 2');await sleep(1);f.bot.emit('physicsTick');f.bot.emit('physicsTick');await waiting
   assert.equal(releases,0);assert.equal(f.bot.usingHeldItem,true)
   f.bot.usingHeldItem=false
   assert.equal((await use(f.bot,[])).errorCode,'ITEM_ALREADY_IN_USE')
-  await agent.executeCommand('rightup');assert.equal(releases,1);await agent.executeCommand('rightup');assert.equal(releases,1)
+  await agent.executeCommand('right up');assert.equal(releases,1);await agent.executeCommand('right up');assert.equal(releases,1)
 })
 
 test('held-use intent ignores unrelated status but clears on own completion and changed stack',async()=>{
@@ -146,15 +146,15 @@ test('Agent movement and turning preserve held use until an inventory action or 
   const f=fixture();f.put(45,'shield');let releases=0
   f.bot.deactivateItem=()=>{f.bot.usingHeldItem=false;releases++};f.bot.clearControlStates=()=>{};f.bot.stopDigging=()=>{}
   const loaded=loadCommands(),commands={...loaded.commands}
-  const motions=['move forward 1','jump','look 1 0','lookat 1 2 3','stand','goto 1 2 3','follow Other','wait 1']
+  const motions=['move forward 1','jump','look angle 122.7042204869 0','look at 1 2 3','move stop','goto 1 2 3','follow Other','wait 1']
   for(const command of motions)commands[command.split(' ')[0]]=async()=>({ok:true})
   const agent=new SteveXAgent({},'shield-motion',commands,{queryNames:loaded.queryNames});agent.bot=f.bot;agent.connected=true
-  await agent.executeCommand('rightdown off-hand')
+  await agent.executeCommand('right down off-hand')
   for(const command of motions){assert.equal((await agent.executeCommand(command)).ok,true);assert.equal(releases,0,command)}
-  assert.equal((await agent.executeCommand('rightdown off-hand')).errorCode,'ITEM_ALREADY_IN_USE')
+  assert.equal((await agent.executeCommand('right down off-hand')).errorCode,'ITEM_ALREADY_IN_USE')
   await agent.executeCommand('hotbar 1');assert.equal(releases,1)
-  assert.equal((await agent.executeCommand('rightup')).requested,false)
-  await agent.executeCommand('rightdown off-hand');await agent.executeCommand('rightup');assert.equal(releases,2)
+  assert.equal((await agent.executeCommand('right up')).released,false)
+  await agent.executeCommand('right down off-hand');await agent.executeCommand('right up');assert.equal(releases,2)
 })
 
 test('stop and aborted motion remain full safety stops while ordinary move preserves use',async()=>{
@@ -162,11 +162,11 @@ test('stop and aborted motion remain full safety stops while ordinary move prese
   f.bot.deactivateItem=()=>{f.bot.usingHeldItem=false;releases++};f.bot.clearControlStates=()=>{for(const k of Object.keys(controls))controls[k]=false};f.bot.stopDigging=()=>{}
   f.bot.setControlState=(k,v)=>{controls[k]=v}
   const loaded=loadCommands(),agent=new SteveXAgent({},'shield-stop',loaded.commands,{queryNames:loaded.queryNames});agent.bot=f.bot;agent.connected=true
-  await agent.executeCommand('rightdown off-hand');await agent.executeCommand('move forward 1');assert.equal(releases,0)
-  await agent.executeCommand('stop');assert.ok(releases>0);assert.equal((await agent.executeCommand('rightup')).requested,false)
-  await agent.executeCommand('rightdown off-hand');const moving=agent.executeCommand('move forward 30000',{timeoutMs:10})
+  await agent.executeCommand('right down off-hand');await agent.executeCommand('move forward 1');assert.equal(releases,0)
+  await agent.executeCommand('stop');assert.ok(releases>0);assert.equal((await agent.executeCommand('right up')).released,false)
+  await agent.executeCommand('right down off-hand');const moving=agent.executeCommand('move forward 30000',{timeoutMs:10})
   const result=await moving;assert.equal(result.ok,false);assert.equal(controls.forward,false)
-  assert.equal((await agent.executeCommand('rightup')).requested,false)
+  assert.equal((await agent.executeCommand('right up')).released,false)
 })
 
 test('observation capture does not silently rightup held use',async()=>{
@@ -175,8 +175,8 @@ test('observation capture does not silently rightup held use',async()=>{
   const loaded=loadCommands(),agent=new SteveXAgent({},'shield-capture',loaded.commands,{queryNames:loaded.queryNames,
     renderService:{capture:async()=>({timestamp:Date.now(),agentId:'shield-capture'})}})
   agent.bot=f.bot;agent.connected=true
-  await agent.executeCommand('rightdown off-hand');assert.equal((await agent.captureObservation()).ok,true);assert.equal(releases,0)
-  assert.equal((await agent.executeCommand('rightup')).requested,true);assert.equal(releases,1)
+  await agent.executeCommand('right down off-hand');assert.equal((await agent.captureObservation()).ok,true);assert.equal(releases,0)
+  assert.equal((await agent.executeCommand('right up')).released,true);assert.equal(releases,1)
 })
 
 for(const hand of ['hand','off-hand'])test(`${hand} crossbow loading and firing complete use without type/count changes`,async()=>{

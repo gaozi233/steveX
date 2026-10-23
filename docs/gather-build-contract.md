@@ -1,14 +1,14 @@
-# 采集、合成与建造：结果契约与 Benchmark 用法
+# 交互、采集与合成：结果契约与 Benchmark 用法
 
-当前补充：place/placeentity 已移为内部实现，外部使用 rightclick。其放置分支仍要求 confirmed:true 才算完成；普通方块／实体／手持物点击可只返回 ok:true、confirmed:false、status:requested，不能据此计作任务成功。详见 [统一右键验收](api-validation/rightclick-validation-2026-10-23.md)。
+当前补充：place/placeentity 已移为内部实现，外部使用 right click。其放置分支仍要求 confirmed:true 才算完成；普通方块／实体／手持物点击可只返回 ok:true、confirmed:false、status:requested，不能据此计作任务成功。详见 [统一右键验收](api-validation/rightclick-validation-2026-10-23.md)。
 
 更新：2026-10-23。适用 Minecraft 1.21.11、当前 Mineflayer 4.39.0。命令分类及参数来自 [共享目录](command-catalog.md)，逐项证据见 [验收台账](api-acceptance-checklist.md)。
 
 ## 统一结果
 
-第 3／4／5 类参数和失败返回已统一，详见 [参数与错误契约](command-contract.md)。参数校验发生在调度副作用之前；执行后的失败仍保留本节约定的部分结果，而非统一归零。
+本文跨越当前移动、世界交互和背包装备合成分类，不再代表独立的“采集、合成与建造”类别。严格参数和失败返回的实际覆盖范围见 [参数与错误契约](command-contract.md)，不因重分类而宣称所有交互已统一。参数校验发生在调度副作用之前；执行后的失败仍保留本节约定的部分结果，而非统一归零。
 
-当前四个动作 `dig / collect / craft / rightclick` 的动作结果保留 `ok/output/error`，统一增加：
+当前四个动作 `dig / collect / craft / right click` 的动作结果保留 `ok/output/error`，统一增加：
 
 | 字段 | 含义 |
 | --- | --- |

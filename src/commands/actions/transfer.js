@@ -1,41 +1,12 @@
-/**
- * Deposit items from the open window's player inventory into its container area.
- */
-module.exports = {
-  name: 'transfer',
-  description: 'Deposit from player inventory into the open container only, never withdraw; item name exact match preferred then substring, count defaults to 1. Cursor must be empty',
-  usage: 'transfer <itemName> [count]',
-  async handler(bot, args) {
-    if (args.length < 1) return { ok: false, error: 'Usage: transfer <itemName> [count]' }
-    const itemName = args[0].toLowerCase()
-    const count = args[1] === undefined ? 1 : Number(args[1])
-    if ((args[1] !== undefined && !/^\d+$/.test(args[1])) || !Number.isSafeInteger(count) || count < 1) return { ok: false, error: 'Invalid count' }
-
-    const window = bot.currentWindow
-    if (!window) return { ok: false, error: 'No container window open' }
-    if (!Number.isInteger(window.inventoryStart) || window.inventoryStart < 1 ||
-        !Number.isInteger(window.inventoryEnd) || window.inventoryEnd <= window.inventoryStart ||
-        !Array.isArray(window.slots) || window.inventoryEnd > window.slots.length) {
-      return { ok: false, error: 'Invalid container inventory range' }
-    }
-    if (window.selectedItem) return { ok: false, error: 'Empty the cursor before transferring items' }
-    const items = window.slots.slice(window.inventoryStart, window.inventoryEnd).filter(Boolean)
-    const item = items.find(i => i.name === itemName) || items.find(i => i.name.includes(itemName))
-    if (!item) return { ok: false, error: `No "${itemName}" in inventory` }
-
-    // Mineflayer transfer uses half-open ranges in the active window's slot space.
-    await bot.transfer({
-      window,
-      itemType: item.type,
-      metadata: item.metadata,
-      nbt: item.nbt,
-      count,
-      sourceStart: window.inventoryStart,
-      sourceEnd: window.inventoryEnd,
-      destStart: 0,
-      destEnd: window.inventoryStart
-    })
-
-    return { ok: true, output: `Transferred ${count} x ${item.name} to container` }
-  }
-}
+const api=require('../window_actions')
+const storage=new Set(['minecraft:generic_9x1','minecraft:generic_9x2','minecraft:generic_9x3','minecraft:generic_9x4','minecraft:generic_9x5','minecraft:generic_9x6','minecraft:generic_3x3','minecraft:hopper','minecraft:shulker_box'])
+module.exports={name:'transfer',usage:'transfer <deposit|withdraw> <sourceSlot> [count]',
+  description:'Deposit from backpack to storage, or withdraw storage to backpack, using one explicit current-window source slot; count defaults to whole source stack. Exact components preserved. Only storage windows, not workstation/result slots; no name matching or planning. Reports actual changed slots',
+  handler:api.action('transfer',async(bot,w,args,signal)=>{
+    if(!bot.currentWindow)api.fail('WINDOW_REQUIRED','Open a storage window first')
+    if(!storage.has(w.type))api.fail('WINDOW_TYPE_MISMATCH','Use workstation operations or slotclick/moveslot for this window')
+    const [start,end]=api.inventoryRange(w),source=Number(args[1]),deposit=args[0]==='deposit'
+    api.itemAt(w,source)
+    if(deposit ? source<start||source>=end : source>=start)api.fail('INVALID_SOURCE_REGION',`Source must be in ${deposit?'player inventory':'storage'} region`)
+    return {...await api.intoRange(bot,w,source,deposit?0:start,deposit?start:end,args[2]===undefined?undefined:Number(args[2]),signal),direction:args[0]}
+  })}

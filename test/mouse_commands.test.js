@@ -9,12 +9,12 @@ function fixture(){
 test('removed commands disappear from dispatch, catalog and skill registry',()=>{
   const {commands,list}=loadCommands(),registry=require('../src/runtime/skill_registry.ts')
   for(const name of ['use','stopdig','eat','sleep','useon','interactat','toss','click','release','mount','dismount']){assert.equal(commands[name],undefined);assert.equal(list.some(c=>c.name===name),false);assert.equal(registry.get(name),undefined)}
-  for(const name of ['attack','fish','swing','dig','rightdown','rightup','drop','slotclick','interactentity'])assert.equal(typeof commands[name],'function')
+  for(const name of ['attack','fish','swing','dig','right','drop','slotclick','interactentity'])assert.equal(typeof commands[name],'function')
 })
 test('swing only sends arm animation, not attack or interaction',async()=>{
   const calls=[],swing=require('../src/commands/actions/swing').handler
   const bot={swingArm:hand=>calls.push(hand)}
-  await swing(bot,[]);await swing(bot,['left']);assert.deepEqual(calls,['right','left'])
+  await swing(bot,[]);await swing(bot,['off-hand']);assert.deepEqual(calls,['right','left'])
   assert.match(loadCommands().list.find(c=>c.name==='swing').description,/never attacks/)
 })
 test('Agent swing never implicitly releases a drawn bow or stops other physical controls',async()=>{
@@ -30,7 +30,7 @@ test('entity interaction chooses nearest name match and supports exact id withou
 })
 test('entity at mode is a single explicit request at a current hit position',async()=>{
   const f=fixture(),r=await interact(f.bot,['cow','AT'])
-  assert.equal(r.confirmation,'request-sent-only');assert.deepEqual(f.calls,[['at',2,0.7]])
+  assert.equal(r.status,'requested');assert.equal(r.confirmed,false);assert.deepEqual(f.calls,[['at',2,0.7]])
 })
 test('entity interaction rejects unknown, distant and obstructed targets without requests',async()=>{
   const f=fixture();assert.equal((await interact(f.bot,['zombie'])).errorCode,'ENTITY_NOT_FOUND')
@@ -52,9 +52,9 @@ test('dig stop works directly and malformed subcommands never stop digging',asyn
 
 test('slotclick keeps window-slot behavior and left/right button mapping',async()=>{
   const handler=require('../src/commands/actions/slotclick').handler,calls=[]
-  const bot={clickWindow:async(...args)=>calls.push(args)}
-  assert.equal((await handler(bot,['9'])).ok,true)
-  assert.equal((await handler(bot,['10','1'])).ok,true)
+  const bot={inventory:{slots:Array(12).fill(null)},_syncWindow:async()=>{},clickWindow:async(...args)=>calls.push(args)}
+  assert.equal((await handler(bot,['9'])).confirmed,false)
+  assert.equal((await handler(bot,['10','right'])).confirmed,false)
   assert.deepEqual(calls,[[9,0,0],[10,1,0]])
   assert.match((await handler(bot,[])).error,/slotclick/)
 })
