@@ -56,7 +56,7 @@ const skill = {
     const request = { item: name, requestedExecutions: times, station: mode, ...(recipeIndex === undefined ? {} : { recipeIndex }) }
     if(bot.currentWindow) return rejected('WINDOW_OPEN', 'Craft requires no currently open window', request)
     if(bot.inventory.selectedItem) return rejected('CURSOR_NOT_EMPTY', 'Craft requires an empty cursor', request)
-    try { await syncInventory(bot) }
+    try { await syncInventory(bot,{signal}) }
     catch(e) { return rejected('INVENTORY_SYNC_FAILED', `No crafting started: ${e.message}`, request) }
     let preflight
     try { preflight = diagnoseCraft(bot, item, times, mode, mode === 'hand' ? null : tableInReach(bot), hasRoom, recipeIndex) }
@@ -76,7 +76,7 @@ const skill = {
         if(table && bot.blockAt(table.position)?.name!=='crafting_table') throw Object.assign(Error('Crafting table changed'), { code: 'WORKBENCH_CHANGED' })
         await bot.craft(recipe,1,table)
         await sleep(100,signal)
-        await syncInventory(bot)
+        await syncInventory(bot,{signal})
         const current=counts(bot)
         if([...expected].some(([n,delta])=>(current.get(n)||0)-(before.get(n)||0)!==delta*(i+1))) throw Object.assign(Error('Server inventory delta mismatches recipe; no automatic retry'), { code: 'INVENTORY_MISMATCH' })
         completed++

@@ -11,6 +11,7 @@ const ENV_CONFIG_RELATIVE_PATH = path.relative(process.cwd(), ENV_CONFIG_PATH)
  * Register all API routes on the Express app.
  */
 function registerRoutes(app, manager) {
+  require('./inventory').registerInventoryRoutes(app, manager)
 
   // ---- Status ----
   app.get('/api/status', (req, res) => {

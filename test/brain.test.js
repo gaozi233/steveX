@@ -156,13 +156,13 @@ test('Brain preserves complete command results and keeps the existing ten-entry 
   assert.equal(new Brain(createAgent(), {}, { emit() {} }).history.length, 0)
 })
 
-test('Brain keeps recipe query hint at the start of failed command history', async () => {
+test('Brain preserves structured recipe query hints in failed command history', async () => {
   const brain = activeBrain({ name: 'query-hint', executeCommand: async command => command.startsWith('craft')
     ? { ok: false, error: 'long error '.repeat(50), nextQuery: 'recipes white_bed' }
     : { ok: true, output: 'state' } })
   brain.llm.chat = async () => 'craft white_bed'
   await brain.tick()
-  assert.match(brain.history.at(-1)[1], /Next query: recipes white_bed/)
+  assert.equal(JSON.parse(brain.history.at(-1)[1]).nextQuery,'recipes white_bed')
   brain.stop()
 })
 

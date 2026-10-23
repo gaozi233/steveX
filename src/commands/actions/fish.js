@@ -3,13 +3,7 @@
  */
 module.exports = {
   name: 'fish',
-  description: 'Automated fishing skill: with main-hand fishing rod, cast, wait for bite and reel in; not a single right-click',
+  description: 'Automated fishing skill with main-hand rod: one cast, upstream bite detection, one reel request. Own-bobber ownership checked; bounded timeout/cancellation cleanup, never blind recast. Catch/inventory gain not confirmed; inspect feedback before retry. Not a single right-click',
   usage: 'fish',
-  async handler(bot) {
-    if (bot.heldItem?.name !== 'fishing_rod') {
-      return { ok: false, error: 'Hold a fishing rod before fishing' }
-    }
-    await bot.fish()
-    return { ok: true, output: 'Finished fishing' }
-  }
+  handler:require('../command_contract').withContract('fish',(bot,args,agent,options)=>require('../fishing_session').fishSession(bot,options))
 }

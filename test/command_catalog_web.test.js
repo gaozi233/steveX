@@ -4,20 +4,22 @@ const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 
-test('web catalog loads on expansion, escapes data and never dispatches a command', async () => {
+test('agent page omits command catalog but keeps inventory preview and command controls', () => {
   const source = fs.readFileSync(path.join(__dirname, '../src/web/public/pages/agents.js'), 'utf8').replace(/^import .*$/gm, '').replace(/^export /gm, '')
-  const listeners = {}, content = {}, details = { open: true, dataset: {}, matches: s => s === '.command-catalog', querySelector: () => content }
-  let requests = 0
+  const listeners = {}
+  let previews = 0
   const context = vm.createContext({
-    fetch: async url => { requests++; assert.equal(url, '/api/commands'); return { ok: true, json: async () => ({ ok: true, categories: [{ title: '<group>', note: '<note>', commands: [{ usage: 'move <forward>', kind: 'action', description: '<script>' }] }] }) } },
+    initInventoryPreview:()=>{previews++},
     escapeHtml: value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   })
   vm.runInContext(source, context)
   context.initAgents({ addEventListener: (event, handler) => { listeners[event] = handler } })
-  await listeners.toggle({ target: details })
-  assert.match(content.innerHTML, /move &lt;forward&gt;/)
-  assert.match(content.innerHTML, /&lt;script&gt;/)
-  assert.doesNotMatch(content.innerHTML, /<script>/)
-  await listeners.toggle({ target: details })
-  assert.equal(requests, 1)
+  assert.equal(previews, 1)
+  assert.equal(typeof listeners.click, 'function')
+  assert.equal(typeof listeners.submit, 'function')
+  const html = vm.runInContext('agentCardHtml({name:"test", online:true})', context)
+  assert.doesNotMatch(html, /Command Catalog|command-catalog/)
+  assert.doesNotMatch(source, /\/api\/commands/)
+  assert.match(html, /inventory-preview/)
+  assert.match(html, /Send Command/)
 })

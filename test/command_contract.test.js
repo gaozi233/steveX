@@ -7,10 +7,10 @@ const { SteveXAgent } = require('../src/agent/agent')
 const { sleep } = require('../src/agent/action_executor')
 
 const defaults = {nearby:[],findplayer:['SteveX-Test'],findblock:['stone'],recipes:['oak_planks'],look:['angle','0','0'],goto:['0','0','0'],dig:['0','0','0'],move:['forward'],right:['click'],swing:[],follow:['SteveX-Test'],wait:['1'],craft:['oak_planks'],equip:['stone'],hotbar:['0'],drop:['stone'],interactentity:['cow']}
-function valid(name){return ({attack:['cow'],slotclick:['9'],moveslot:['9','10'],putaway:['9'],transfer:['deposit','27'],sneak:['off']})[name]||defaults[name]||[]}
+function valid(name){return ({attack:['cow'],slotinfo:['inventory:9'],slotclick:['inventory:9'],moveslot:['inventory:9','inventory:10'],putaway:['inventory:9'],transfer:['deposit','9'],sneak:['off']})[name]||defaults[name]||[]}
 test('contracts cover core commands, slot operations and recovery with shared catalog usage', () => {
-  const expected = categories.filter(c=>['query','motion','interaction','inventory','survival'].includes(c.id)).flatMap(c=>c.names.split(' ')).filter(name=>name!=='fish').concat(['slotclick','moveslot','putaway','transfer']).sort(), {list}=loadCommands()
-  assert.equal(expected.length,39);assert.deepEqual(Object.keys(contracts).sort(),expected)
+  const expected = categories.filter(c=>['query','motion','interaction','inventory','survival'].includes(c.id)).flatMap(c=>c.names.split(' ')).concat(['slotclick','moveslot','putaway','transfer']).sort(), {list}=loadCommands()
+  assert.equal(expected.length,41);assert.deepEqual(Object.keys(contracts).sort(),expected)
   for(const name of expected){assert.equal(validateArguments(name,valid(name)),null);assert.equal(list.find(c=>c.name===name).usage,contracts[name].usage)}
 })
 
@@ -53,7 +53,7 @@ test('failure normalization is idempotent and preserves partial results and reci
   assert.deepEqual(normalizeFailure('craft',r),r)
   assert.equal(normalizeFailure('craft',{ok:false,errorCode:'CANCELLED',error:'[CANCELLED] Stop requested',output:'[CANCELLED] Partial craft; Stop requested'}).output,'[CANCELLED] Partial craft; Stop requested')
   const empty={ok:true,found:false,output:'No matching block'};assert.equal(normalizeFailure('findblock',empty),empty)
-  assert.equal(normalizeFailure('fish',original),original)
+  assert.equal(normalizeFailure('say',original),original)
 })
 
 test('skill registry and module exports apply the same query validation', async () => {

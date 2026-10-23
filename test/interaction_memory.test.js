@@ -9,17 +9,17 @@ const { InteractionMemory, playerState } = require('../src/agent/interaction_mem
 test('open-window inventory wins over the stale player inventory cache', async () => {
   const bot = botFixture('body')
   const agent = { name: 'a', bot, isOnline: () => true }
-  bot.currentWindow = { inventoryStart: 2, inventoryEnd: 4, slots: [
-    { name: 'diamond', count: 64, slot: 0 }, null,
-    { name: 'iron_ingot', count: 1, slot: 2 }, null
-  ] }
+  bot.inventory.slots=Array(46).fill(null)
+  bot.currentWindow = { inventoryStart: 2, inventoryEnd: 38, slots: Array(38).fill(null) }
+  bot.currentWindow.slots[0]={name:'diamond',count:64,slot:0}
+  bot.currentWindow.slots[2]={name:'iron_ingot',count:1,slot:2}
   const state = playerState(agent)
   assert.equal(state.inventorySlotSpace, 'current-window')
   assert.deepEqual(state.inventory.map(item => item.name), ['iron_ingot'])
   const result = await require('../src/commands/queries/inventory').handler(bot, [], agent)
-  assert.equal(result.output, 'Inventory: iron_ingot x1 | Empty slots: 1')
-  assert.equal(result.emptySlotCount, 1)
-  assert.equal(state.emptySlotCount, 1)
+  assert.equal(result.backpack[0].name,'iron_ingot')
+  assert.equal(result.emptySlotCount,35)
+  assert.equal(state.emptySlotCount, 35)
   bot.currentWindow = null
   assert.equal(playerState(agent).inventorySlotSpace, 'player-inventory')
   assert.equal(playerState(agent).inventory[0].name, 'apple')

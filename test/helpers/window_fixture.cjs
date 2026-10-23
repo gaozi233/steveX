@@ -2,7 +2,7 @@ const {isDeepStrictEqual}=require('node:util')
 function fixture(start=27,type='minecraft:generic_9x3') {
   const w={id:1,type,inventoryStart:start,inventoryEnd:start+36,slots:Array(start+36).fill(null),selectedItem:null},calls=[]
   const same=(a,b)=>a&&b&&a.name===b.name&&isDeepStrictEqual(a.components,b.components)
-  const bot={currentWindow:w,inventory:w,_syncWindow:async()=>{},clickWindow:async(slot,button,mode)=>{
+  const bot={currentWindow:w,inventory:{slots:Array(46).fill(null),inventoryStart:9,inventoryEnd:45},_syncWindow:async()=>{},clickWindow:async(slot,button,mode)=>{
     calls.push([slot,button,mode])
     const item=w.slots[slot],held=w.selectedItem
     if(mode===1){

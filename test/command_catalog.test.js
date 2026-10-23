@@ -12,8 +12,8 @@ test('every command has exactly one category, with no stale category entries', (
   const names = categories.flatMap(c => c.names.split(' '))
   assert.equal(new Set(names).size, names.length)
   assert.deepEqual([...names].sort(), list.map(c => c.name).sort())
-  assert.equal(groupCommands(list).flatMap(c => c.commands).length, 59)
-  assert.equal(groupCommands(list)[0].commands.length, 14)
+  assert.equal(groupCommands(list).flatMap(c => c.commands).length, 60)
+  assert.equal(groupCommands(list)[0].commands.length, 15)
   assert.throws(() => categoryFor('unregistered'), /Missing/)
 })
 test('Brain groups only allowed commands and never accepts category headings as commands', () => {
@@ -34,7 +34,7 @@ test('move stop replaces stand without duration or immediate global cancellation
   const { commands, list } = loadCommands()
   assert.equal(commands.stand, undefined)
   assert.equal(new Brain({}, {}, {}).pickCommand('stand'), null)
-  assert.equal(list.length, 59)
+  assert.equal(list.length, 60)
   let clears = 0
   const bot = { clearControlStates() { clears++ } }
   assert.equal((await commands.move(bot, ['stop'])).ok, true)
@@ -125,7 +125,8 @@ test('shared descriptions distinguish targeting, window movement and safety stop
   const byName = Object.fromEntries(loadCommands().list.map(c => [c.name, c]))
   assert.match(byName.stop.description, /Immediate global.*cancel active\/queued/)
   assert.match(byName.move.description, /Queued.*preserves.*held-item/)
-  assert.match(byName.transfer.description, /Deposit.*withdraw.*explicit/)
+  assert.match(byName.transfer.description, /deposit.*fixed player inventory.*withdraw.*container slot/)
+  assert.match(byName.transfer.description,/Do not add a redundant scope argument/)
   assert.match(byName.putaway.description, /destination chosen automatically/)
   assert.match(byName.moveslot.description, /specified destination slot/)
   assert.match(byName.setcommandblock.description, /existing command block.*does not place/)

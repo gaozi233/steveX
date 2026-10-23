@@ -19,7 +19,7 @@ function inventoryAction(name,execute) {
     const reject=(code,message)=>result(name,{...failure(code,message),changes:[]})
     if(bot.currentWindow)return reject('WINDOW_OPEN','Close the current window before changing inventory')
     if(bot.inventory?.selectedItem)return reject('CURSOR_NOT_EMPTY','Empty the cursor before changing inventory')
-    try {await syncInventory(bot)}catch(e){return reject('INVENTORY_SYNC_FAILED',`No inventory action started: ${e.message}`)}
+    try {await syncInventory(bot,{signal})}catch(e){return result(name,{...exceptionFailure(name,e,signal),changes:[],phase:'preflight',output:`No inventory action started: ${e.message}`})}
     const before=totals(bot)
     let outcome,cause,changes=null,snapshotError
     try {signal?.throwIfAborted();outcome=await execute(bot,args,signal)}catch(e){cause=e}
@@ -35,9 +35,12 @@ function inventoryAction(name,execute) {
 }
 function dropAction(name) {
   return inventoryAction(name,async(bot,args,signal)=>{
-    const item=findItem(bot,args[0]);if(item.ok===false)return item
-    const selected=compactItemView(item), matching=bot.inventory.items().filter(i=>sameItem(i,item))
-    const requested=args[1]===undefined?item.count:Number(args[1]),available=matching.reduce((n,i)=>n+i.count,0)
+    const bySlot=args[0].toLowerCase()==='slot',slot=bySlot?Number(args[1]):null
+    const item=bySlot?bot.inventory.slots[slot]:findItem(bot,args[0])
+    if(!item)return failure('EMPTY_SLOT',`Player inventory slot ${slot} is empty`)
+    if(item.ok===false)return item
+    const selected=compactItemView(item),matching=bySlot?[item]:bot.inventory.items().filter(i=>sameItem(i,item))
+    const rawCount=args[bySlot?2:1],requested=rawCount===undefined?item.count:Number(rawCount),available=matching.reduce((n,i)=>n+i.count,0)
     if(requested>available)return failure('INSUFFICIENT_ITEMS',`Requested ${requested} ${item.name}, available ${available} with the selected components`)
     const before=variantCount(bot,item)
     let remaining=requested
@@ -52,7 +55,7 @@ function dropAction(name) {
       await bot.transfer({window:bot.inventory,itemType:current.type,metadata:current.metadata,count,sourceStart:source.slot,sourceEnd:source.slot+1,destStart:-999})
       remaining-=count
     }
-    return {target:{item:selected,requestedCount:requested},output:`Dropped ${requested} ${item.name}; inventory reduction confirmed, world pickup is not guaranteed`,verify:()=>!bot.inventory.selectedItem && before-variantCount(bot,item)===requested}
+    return {target:{item:selected,requestedCount:requested,...(bySlot?{source:{slotSpace:'inventory',slot}}:{})},output:`Dropped ${requested} ${item.name}; inventory reduction confirmed, world pickup is not guaranteed`,verify:()=>!bot.inventory.selectedItem && before-variantCount(bot,item)===requested}
   })
 }
 module.exports={failure,sameItem,variantCount,findItem,inventoryAction,dropAction,compactItemView}

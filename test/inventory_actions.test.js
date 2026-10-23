@@ -73,6 +73,14 @@ test('omitted drop quantity means first stack, explicit count can span identical
   assert.equal((await drop(f.bot,['stone','65'])).ok,true);assert.equal(f.slots[9],null);assert.equal(f.slots[10].count,5)
   assert.equal((await drop(f.bot,['stone'])).ok,true);assert.equal(f.slots[10],null)
 })
+test('drop slot selects exact variant, defaults to that stack and never spills to others',async()=>{
+ const f=fixture();f.put(9,'stone',4,[{type:'custom_data',data:{variant:'A'}}]);f.put(10,'stone',5,[{type:'custom_data',data:{variant:'B'}}])
+ assert.equal((await drop(f.bot,['slot','10','6'])).errorCode,'INSUFFICIENT_ITEMS');assert.equal(f.slots[10].count,5)
+ const r=await drop(f.bot,['slot','10','2']);assert.equal(r.confirmed,true);assert.deepEqual(r.target.source,{slotSpace:'inventory',slot:10});assert.equal(f.slots[9].count,4);assert.equal(f.slots[10].count,3)
+ assert.equal((await drop(f.bot,['slot','10'])).confirmed,true);assert.equal(f.slots[10],null)
+ assert.equal((await drop(f.bot,['slot','10'])).errorCode,'EMPTY_SLOT')
+ for(const args of [['slot','45'],['slot','5'],['slot','9','0'],['slot','9','1x']])assert.equal((await drop(f.bot,args)).errorCode,'INVALID_ARGUMENTS')
+})
 test('component comparison handles nested data and removed components',()=>{
   const f=fixture(),a=f.put(9,'stone',1,[{type:'custom_data',data:{x:1n}}]),b=f.put(10,'stone',2,[{type:'custom_data',data:{x:1n}}])
   assert.equal(sameItem(a,b),true);b.removedComponents=['custom_name'];assert.equal(sameItem(a,b),false)

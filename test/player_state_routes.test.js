@@ -15,7 +15,7 @@ test('player state and interaction routes select the named Mineflayer, not the r
   const catalog = await (await fetch(base + '/api/commands')).json()
   assert.equal(catalog.ok, true)
   assert.equal(catalog.categories.flatMap(group => group.commands).length, catalog.commands.length)
-  assert.equal(catalog.categories.find(group => group.id === 'query').commands.length, 14)
+  assert.equal(catalog.categories.find(group => group.id === 'query').commands.length, 15)
   assert.equal(catalog.commands.find(command => command.name === 'goto').category, 'motion')
   assert.equal(catalog.categories.some(group => group.id === 'gather'), false)
   for (const [id, names] of Object.entries({ motion: ['collect'], interaction: ['dig', 'right', 'attack', 'interactentity', 'swing'], inventory: ['craft'] })) {

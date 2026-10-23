@@ -1,0 +1,33 @@
+const test=require('node:test'),assert=require('node:assert/strict')
+const {commands}=require('../src/commands').loadCommands(),{fixture}=require('./helpers/window_fixture.cjs')
+const {nativeSlot}=require('../src/commands/slot_scope'),{Brain}=require('../src/agent/brain')
+for(const [start,type]of [[5,'minecraft:hopper'],[27,'minecraft:generic_9x3'],[54,'minecraft:generic_9x6']])test(`fixed player 9/36/44 map correctly across ${type}`,async()=>{
+ const f=fixture(start,type)
+ for(const slot of [9,36,44])assert.equal(nativeSlot(f.bot,'inventory',slot),start+slot-9)
+ f.put(start,'stone',5);f.put(0,'dirt',1)
+ const r=await commands.moveslot(f.bot,['inventory:9','window:1','2'])
+ assert.equal(r.confirmed,true);assert.deepEqual(r.source,{slotSpace:'inventory',slot:9});assert.deepEqual(r.destination,{slotSpace:'window',slot:1})
+ assert.ok(r.changes.some(c=>c.slotSpace==='inventory'&&c.slot===9));assert.ok(r.changes.some(c=>c.slotSpace==='window'&&c.slot===1))
+ assert.equal(f.w.slots[start].count,3);assert.equal(f.w.slots[1].count,2)
+})
+test('same number has explicit different meanings; neither scope is guessed',async()=>{
+ const f=fixture();f.put(9,'dirt',1);f.put(27,'stone',3)
+ assert.equal((await commands.slotinfo(f.bot,['inventory:9'])).item.name,'stone')
+ assert.equal((await commands.slotinfo(f.bot,['window:9'])).item.name,'dirt')
+ assert.equal((await commands.slotclick(f.bot,['9'])).errorCode,'INVALID_ARGUMENTS');assert.equal(f.calls.length,0)
+})
+test('window scope refuses player-region aliases and closed windows; inventory special slots cannot be clicked through containers',async()=>{
+ const f=fixture()
+ assert.equal((await commands.slotclick(f.bot,['window:27'])).errorCode,'INVALID_SLOT')
+ for(const slot of ['0','5','45'])assert.equal((await commands.slotclick(f.bot,[`inventory:${slot}`])).errorCode,'SLOT_UNAVAILABLE_IN_WINDOW')
+ f.bot.currentWindow=null
+ assert.equal((await commands.slotclick(f.bot,['window:9'])).errorCode,'WINDOW_REQUIRED')
+ assert.equal((await commands.slotinfo(f.bot,['window:9'])).errorCode,'WINDOW_REQUIRED');assert.equal(f.calls.length,0)
+})
+test('queries remain read-only and expose slotinfo even without open window',async()=>{
+ const f=fixture(),brain=new Brain({bot:f.bot},{},{})
+ assert.equal(brain.commandNames.has('slotinfo'),true);assert.match(brain.buildSystem(),/unchanged when windows open/)
+ f.put(27,'stone',1)
+ await commands.inventory(f.bot,[]);await commands.inventory(f.bot,['slots']);await commands.slotinfo(f.bot,['inventory:9'])
+ assert.equal(f.calls.length,0)
+})

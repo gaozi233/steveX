@@ -31,9 +31,10 @@ test('compact window partitions all slots into occupied and empty while retainin
   bot.currentWindow.slots[27] = { name: 'book', count: 1, slot: 27, components: [{ type: 'writable_book_content', data: { pages: ['text'] } }] }
   const data = api.describe(bot, { compact: true })
   assert.equal(data.slotCount, 63)
-  assert.deepEqual(data.slots.map(i => i.slot), [0, 26, 27])
-  assert.deepEqual(data.slots[1], { name: 'pickaxe', count: 1, slot: 26 })
-  assert.deepEqual([...data.slots.map(i => i.slot), ...data.emptySlots].sort((a, b) => a - b), Array.from({ length: 63 }, (_, i) => i))
+  assert.deepEqual(data.slots.map(i => [i.slotSpace,i.slot]), [['window',0],['window',26],['inventory',9]])
+  assert.deepEqual(data.slots[1], { name: 'pickaxe', count: 1, slotSpace:'window',slot: 26 })
+  const references=[...data.slots,...data.emptySlots].map(i=>i.slotSpace+':'+i.slot)
+  assert.equal(new Set(references).size,63)
   for (const key of ['id', 'properties', 'source', 'cursor']) assert.equal(Object.hasOwn(data, key), false)
   bot.currentWindow.selectedItem = { name: 'diamond', count: 2 }
   assert.equal(api.describe(bot, { compact: true }).cursor.count, 2)
@@ -72,8 +73,9 @@ test('villagers use native initialization and invalid trade counts never reach t
   const bot = Object.assign(new EventEmitter(),{_client:new EventEmitter(),openVillager: async entity => { assert.equal(entity, villager); initialized++;bot.currentWindow={type:'minecraft:merchant'};return bot.currentWindow }})
   assert.equal((await openWindow(bot, villager,{entity:true})).ok, true)
   assert.equal(initialized, 1)
-  bot.currentWindow = { type:'minecraft:merchant', trades: [{ nbTradeUses: 1, maximumNbTradeUses: 3 }] }
-  bot.trade = async () => { traded++ }
+  const w=Object.assign(new EventEmitter(),{id:3,type:'minecraft:merchant',inventoryStart:3,inventoryEnd:39,slots:Array(39).fill(null),trades:[{nbTradeUses:1,maximumNbTradeUses:3,outputItem:{name:'emerald',type:2,metadata:0,count:1}}]})
+  bot.currentWindow=w;bot._syncWindow=async()=>{}
+  bot.trade = async () => { traded++;w.slots[3]={...w.trades[0].outputItem,count:2} }
   assert.equal((await trade.handler(bot, ['0', '0'])).ok, false)
   assert.equal((await trade.handler(bot, ['0x', '1'])).ok, false)
   assert.equal((await trade.handler(bot, ['0', '3'])).ok, false)
@@ -91,11 +93,11 @@ test('enchant operations delegate to upstream methods using the current window i
   w.enchantments = [{ level: 1 }]
   w.enchant = async value => calls.push(['enchant', value])
   w.takeTargetItem = async () => calls.push(['take'])
-  await native.enchant(bot, ['put', '2']); await native.enchant(bot, ['lapis', '3'])
+  await native.enchant(bot, ['put', '9']); await native.enchant(bot, ['lapis', '10'])
   await native.enchant(bot, ['choose', '0'])
   item(bot, 0, 'diamond_sword'); await native.enchant(bot, ['take'])
   assert.deepEqual(calls, [['put', 2], ['lapis', 3], ['enchant', 0], ['take']])
-  await assert.rejects(native.enchant(bot, ['lapis', '2']), /lapis/)
+  await assert.rejects(native.enchant(bot, ['lapis', '9']), /lapis/)
   await assert.rejects(native.enchant(bot, ['choose', '3']), /choice/)
 })
 
@@ -105,18 +107,18 @@ test('anvil and furnace delegate complete operations and reject invalid slots/co
   let name, pair
   a.currentWindow.rename = async (value, text) => { assert.equal(value, first); name = text }
   a.currentWindow.combine = async (...values) => { pair = values }
-  await native.anvil(a, ['rename', '3', 'Test', 'Sword'])
-  await native.anvil(a, ['combine', '3', '4'])
+  await native.anvil(a, ['rename', '9', 'Test', 'Sword'])
+  await native.anvil(a, ['combine', '9', '10'])
   assert.equal(name, 'Test Sword'); assert.deepEqual(pair.slice(0, 2), [first, second])
-  await assert.rejects(native.anvil(a, ['combine', '3', '3']), /different/)
+  await assert.rejects(native.anvil(a, ['combine', '9', '9']), /different/)
   const f = fixture('minecraft:furnace', 3)
   item(f, 3, 'raw_iron'); item(f, 2, 'iron_ingot', 1)
-  let quantity, took = false
-  f.currentWindow.putInput = async (type, metadata, count) => { quantity = count }
+  let took = false
+  f.clickWindow=async(slot,button)=>{const w=f.currentWindow;if(!w.selectedItem){w.selectedItem=w.slots[slot];w.slots[slot]=null}else if(button===1){w.slots[slot]={...w.selectedItem,count:(w.slots[slot]?.count||0)+1};if(--w.selectedItem.count===0)w.selectedItem=null}else{w.slots[slot]=w.selectedItem;w.selectedItem=null}}
   f.currentWindow.takeOutput = async () => { took = true }
-  await native.furnace(f, ['input', '3', '2']); await native.furnace(f, ['take', 'output'])
-  assert.equal(quantity, 2); assert.equal(took, true)
-  await assert.rejects(native.furnace(f, ['input', '3', '5']), /count/)
+  await native.furnace(f, ['input', '9', '2']); await native.furnace(f, ['take', 'output'])
+  assert.equal(f.currentWindow.slots[0].count, 2); assert.equal(took, true)
+  await assert.rejects(native.furnace(f, ['input', '9', '5']), /count/)
 })
 
 test('selection waits for the correct server property and does not accept unrelated window updates', async () => {

@@ -59,9 +59,8 @@ async function digConfirmed(bot, block, signal) {
     return { ok: true, confirmed: true, target, changes: [{ kind: 'block', position: position(block.position), before: block.name, after: after.name }], evidence: ['server-block-update'], output: `Removed ${block.name} at ${block.position.x} ${block.position.y} ${block.position.z}; drops not guaranteed collected` }
   } finally { observed.close() }
 }
-async function syncInventory(bot) {
-  if (!bot._syncWindow) throw new Error('Server inventory synchronization unavailable')
-  await bot._syncWindow(bot.currentWindow || bot.inventory)
+async function syncInventory(bot,options) {
+  await require('./inventory_sync').syncWindow(bot,bot.currentWindow||bot.inventory,options)
 }
 function counts(bot) {
   const items = bot.currentWindow ? bot.currentWindow.slots.slice(bot.currentWindow.inventoryStart, bot.currentWindow.inventoryEnd).filter(Boolean) : bot.inventory.items()

@@ -9,7 +9,7 @@
 - `window`：只读查询当前窗口，返回结构化 `window` 字段及 JSON 文本 `output`，不暂停 Brain。
 - 写操作沿用 Agent 的动作仲裁；所有窗口均属于指定 Mineflayer agent，而非共享 Fabric 观察者。
 
-先靠近并用 `look at x y z` 对准工作站，再打开。`window` 返回 `inventoryStart`、`inventoryEnd`、逐槽物品及组件、光标物品、服务端窗口属性。**槽位编号是当前窗口的编号**，不要直接复用关窗时的背包编号。未知属性返回 `null`，不当成零或空内容。
+先靠近并用 `look at x y z` 对准后 `right click` 打开。`window` 返回逐槽摘要、slotSpace、窗口类型及选项；详情用 `slotinfo inventory:9` 或 `slotinfo window:0`。**玩家槽号开关窗口固定不变**：材料用inventory 9..44，window只表示工作站自身槽。内部转换原生玩家区域偏移。未知属性不当成零或空内容。
 
 ## 命令
 
@@ -25,7 +25,7 @@
 | 熔炉 | `furnace input <背包槽> [数量]`、`furnace fuel <背包槽> [数量]` | 默认各放 1 个 |
 | 熔炉 | `furnace take input` / `fuel` / `output` | 取回相应槽位物品 |
 | 其他工作站 | `right click` | 类型见下表 |
-| 通用搬运 | `station move <来源槽> <目标槽> [数量]` | 默认搬运来源整组，使用 Mineflayer transfer |
+| 通用搬运 | `moveslot inventory:9 window:0 [数量]` | 两端独立槽位引用；默认整组，内部转换固定玩家编号；不再提供station move |
 | 通用取出 | `station take <工作站槽>` | 取回输入或输出槽；不接受背包槽 |
 | 切石／织布 | `station select <索引>` | 选择配方／图案按钮；需等待服务端选中属性及输出物品 |
 | 合成器 | `station crafter <0..8> enabled` / `disabled` | 切换空槽开关，光标也必须为空；不负责红石触发 |
@@ -48,7 +48,7 @@
 | 信标 | `beacon` | 支付物 0 |
 | 合成器 | `crafter` | 九宫格 0..8 |
 
-例如制图：打开后查询 `window`，找到已填写地图及纸的背包槽，分别 `station move <地图槽> 0 1`、`station move <纸槽> 1 1`；待 `window` 的槽 2 出现物品，再 `station take 2`。
+例如制图：打开后查询window，若地图和纸分别位于固定玩家槽9与10，则 `moveslot inventory:9 window:0 1`、`moveslot inventory:10 window:1 1`；待window槽2出现物品，再 `station take 2`。
 
 `window.brewing` 提供剩余酿造 tick 和燃料次数；`window.furnace` 提供燃烧／进度 tick；`window.disabledSlots` 提供合成器槽位开关。tick 字段不是墙钟倒计时，进程卡顿时不要据此假设真实完成时间。
 
@@ -64,6 +64,8 @@
 - 这不是服务器全局 NBT 查询；只能读取当前身体已打开窗口可见的信息。窗口记忆按 agent/session 隔离，不等于实时全世界状态。
 
 ## 验证与代码位置
+
+最新紧凑语法、固定编号及统一反馈见 [2026-10-23专项](api-validation/window-feedback-validation.md)：炉子、铁砧改名、附魔、合成器、村民交易已实机复核。工作站结果统一status／confirmed／changes／stateChanges／evidence，失败保留部分变化，最终快照未知为null；不重复整窗内容，需再次查询window。炉子按所选源槽组件搬运；原生非快照等待仍有取消边界，不宣称所有网络条件已解决。
 
 - 协议／窗口适配：`src/commands/workstations.js`。
 - 原生操作封装：`src/commands/workstation_native.js`。

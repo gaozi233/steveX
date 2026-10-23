@@ -1,7 +1,7 @@
 const api = require('../workstations')
 const native = require('../workstation_native')
 module.exports = {
-  name: 'furnace', description: 'Operate an already-open furnace, smoker or blast furnace; open via right click',
-  usage: 'furnace input <slot> [count] | furnace fuel <slot> [count] | furnace take <input|fuel|output>',
-  handler: (bot, args = [], agent, options = {}) => api.guarded(() => native.furnace(bot, args, options.signal))
+  name: 'furnace', description: 'Operate open furnace/smoker/blast furnace. input/fuel take FIXED inventory slots 9..44, not native window player indices. Open via right click',
+  usage: 'furnace input <inventorySlot> [count] | furnace fuel <inventorySlot> [count] | furnace take <input|fuel|output>',
+  handler: require('../workstation_feedback').workstationAction('furnace',native.furnace)
 }

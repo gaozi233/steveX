@@ -68,6 +68,7 @@ class SteveXAgent {
 
   registerEvents() {
     this.bot.once('spawn', () => {
+      require('../commands/inventory_sync').installInventorySync(this.bot)
       require('../commands/workstations').attach(this.bot)
       this.interactionMemory.attach(this.bot)
       this.connected = true

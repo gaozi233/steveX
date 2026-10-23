@@ -5,6 +5,7 @@ import { getState, subscribe } from '../lib/state.js'
 import { connectAgent, disconnectAgent, sendCommand } from '../lib/api.js'
 import { escapeHtml } from '../lib/utils.js'
 import { hydrateIcons } from '../lib/icons.js'
+import { initInventoryPreview } from '../lib/inventory-preview.js'
 
 const PLACEHOLDER = {
   health: 20,
@@ -165,11 +166,6 @@ function agentCardHtml(agent) {
             </div>
           </form>
 
-          <details class="command-catalog">
-            <summary>Command Catalog</summary>
-            <div class="command-catalog-content" aria-live="polite"></div>
-          </details>
-
           <form class="command-panel" data-action="message" data-agent="${escapeHtml(agent.name)}">
             <div class="command-title">Send Message <span>(to LLM Planner)</span></div>
             <div class="command-row">
@@ -179,6 +175,10 @@ function agentCardHtml(agent) {
           </form>
         </div>
       </div>
+      <details class="inventory-preview">
+        <summary>Inventory <span class="inventory-readonly">Read only</span></summary>
+        <div class="inventory-preview-content" aria-live="polite"></div>
+      </details>
     </article>
   `
 }
@@ -284,6 +284,8 @@ export function renderAgents(container) {
     container.innerHTML = '<div class="empty-state">No agents match the current filters.</div>'
     return
   }
+
+  container.querySelector('.empty-state')?.remove()
 
   // Smart diff: update existing cards, add new ones, remove gone ones
   const existingNames = new Set()
@@ -432,20 +434,7 @@ async function handleSubmit(e) {
 // ── Init ──
 
 export function initAgents(container) {
+  initInventoryPreview(container)
   container.addEventListener('click', handleClick)
   container.addEventListener('submit', handleSubmit)
-  container.addEventListener('toggle', async event => {
-    const details = event.target
-    if (!details.matches('.command-catalog') || !details.open || details.dataset.loaded) return
-    const content = details.querySelector('.command-catalog-content')
-    content.textContent = 'Loading...'
-    try {
-      const response = await fetch('/api/commands')
-      if (!response.ok) throw new Error('Command catalog unavailable')
-      const result = await response.json()
-      if (!result.ok || !Array.isArray(result.categories)) throw new Error('Command catalog unavailable')
-      content.innerHTML = result.categories.map(group => `<section><h4>${escapeHtml(group.title)} (${group.commands.length})</h4><p>${escapeHtml(group.note)}</p><dl>${group.commands.map(command => `<dt><code>${escapeHtml(command.usage)}</code> <small>${escapeHtml(command.kind)}</small></dt><dd>${escapeHtml(command.description)}</dd>`).join('')}</dl></section>`).join('')
-      details.dataset.loaded = 'true'
-    } catch (error) { content.textContent = error.message }
-  }, true)
 }

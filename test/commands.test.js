@@ -87,7 +87,7 @@ test('nearby applies a radius, sorts nearest first, and matches player usernames
 })
 
 test('commands reject missing prerequisites without calling Mineflayer', async () => {
-  assert.equal((await fish.handler({ heldItem: null })).error, 'Hold a fishing rod before fishing')
+  assert.equal((await fish.handler({ heldItem: null })).errorCode, 'NO_FISHING_ROD')
 
   const grassBot = { blockAtCursor: () => ({ name: 'grass_block' }) }
   assert.equal((await anvil.handler(grassBot)).errorCode, 'INVALID_ARGUMENTS')
@@ -95,8 +95,8 @@ test('commands reject missing prerequisites without calling Mineflayer', async (
   assert.equal((await enchant.handler(grassBot)).errorCode, 'INVALID_ARGUMENTS')
 
   const emptyInventoryBot = { inventory: { slots: [] } }
-  assert.equal((await moveslot.handler(emptyInventoryBot, ['9', '10'])).errorCode, 'INVENTORY_SYNC_UNAVAILABLE')
-  assert.equal((await putaway.handler(emptyInventoryBot, ['9'])).errorCode, 'INVENTORY_SYNC_UNAVAILABLE')
+  assert.equal((await moveslot.handler(emptyInventoryBot, ['inventory:9','inventory:10'])).errorCode, 'INVENTORY_SYNC_UNAVAILABLE')
+  assert.equal((await putaway.handler(emptyInventoryBot, ['inventory:9'])).errorCode, 'INVENTORY_SYNC_UNAVAILABLE')
 })
 
 test('stop clears an active follow loop', async () => {

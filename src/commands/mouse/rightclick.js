@@ -11,7 +11,7 @@ module.exports={
   if(bot.currentWindow||require('../book_ui').bookContext(bot))return {ok:false,errorCode:'WINDOW_OPEN',error:'Close the current window/book UI before world right-click'}
   if(hasUse(bot))return {ok:false,errorCode:'ITEM_ALREADY_IN_USE',error:'right up the active held-item request before right click'}
   const hand=args[0]||'hand',signal=options.signal
-  await syncInventory(bot);signal?.throwIfAborted()
+  await syncInventory(bot,{signal});signal?.throwIfAborted()
   const item=usedItem(bot,hand),block=aimedBlock(bot),hit=aimedEntity(bot,block),sneaking=!!bot.getControlState?.('sneak')
   const projectile=!!item&&['bow','crossbow','trident','snowball','egg','ender_pearl','splash_potion','lingering_potion'].includes(item.name)
   const projectileAtEntity=hit&&projectile&&!['villager','wandering_trader'].includes(hit.entity.name)

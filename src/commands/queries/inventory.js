@@ -1,33 +1,20 @@
-const skillRegistry = require("../../runtime/skill_registry.ts");
-
-const args = {};
-
-const skill = {
-  name: 'inventory',
-  description: 'List inventory contents',
-  args,
-  async handler(_b, _a, agent) {
-    const { inventoryItems, compactItemView, inventoryCapacity, equipmentView } = require('../../agent/interaction_memory')
-    const items = inventoryItems(agent.bot)
-    const data = { inventory: items.map(compactItemView),
-      inventorySlotSpace: agent.bot.currentWindow ? 'current-window' : 'player-inventory', ...inventoryCapacity(agent.bot), ...equipmentView(agent.bot) }
-    const equipment = Object.entries(data.equipment || {}).map(([slot, item]) => `${slot}=${item.name} x${item.count}`).join(', ')
-    const extra = (data.emptySlotCount === undefined ? '' : ` | Empty slots: ${data.emptySlotCount}`) + (equipment ? ` | Equipment: ${equipment}` : '')
-    if (items.length === 0) return { ok: true, output: `Inventory is empty${extra}`, ...data }
-    const list = items.map(i => `${i.name} x${i.count}`).join(', ')
-    return { ok: true, output: `Inventory: ${list}${extra}`, ...data }
-  }
+const {withContract}=require('../command_contract')
+const {playerSlots}=require('../slot_scope')
+const {brief}=require('../item_details')
+const groups={equipment:[5,6,7,8,45],hotbar:Array.from({length:9},(_,i)=>36+i),backpack:Array.from({length:27},(_,i)=>9+i)}
+const equipmentNames={5:'head',6:'torso',7:'legs',8:'feet',45:'off-hand'}
+const command={
+  name:'inventory',usage:'inventory [slots]',
+  description:'Default: compact equipment/off-hand, hotbar and backpack groups, current selected item and backpack empty count, no slot numbers/full components. slots: all nonempty fixed PLAYER inventory slots 0..45, not current-window indices. Use slotinfo inventory:9 or window:0 for details; identical-name variants stay separate',
+  handler:withContract('inventory',async(bot,args)=>{
+    const slots=playerSlots(bot),showSlots=args[0]==='slots'
+    const make=slot=>({...brief(slots[slot]),...(showSlots?{slot}:{}),...(slot===36+bot.quickBarSlot?{selected:true}:{}),...(equipmentNames[slot]?{destination:equipmentNames[slot]}:{})})
+    const data={slotSpace:'inventory',mode:showSlots?'slots':'summary',source:bot.currentWindow?'mapped-window-player-region-and-player-cache':'player-inventory-cache',
+      emptySlotCount:slots.slice(9,45).filter(i=>!i).length,capacity:36}
+    if(!showSlots)for(const [group,indices]of Object.entries(groups))data[group]=indices.filter(i=>slots[i]).map(make)
+    if(showSlots)data.slots=Array.from({length:46},(_,slot)=>slot).filter(slot=>slots[slot]).map(make)
+    return {ok:true,...data,output:JSON.stringify(data)}
+  })
 }
-
-skill.handler = require('../command_contract').withContract(skill.name, skill.handler)
-skillRegistry.register(skill);
-
-/**
- * inventory — list inventory
- */
-module.exports = {
-  name: skill.name,
-  description: skill.description,
-  usage: 'inventory',
-  handler: skill.handler
-}
+require('../../runtime/skill_registry.ts').register({...command,args:{mode:{required:false,desc:'slots for fixed player slot numbers'}}})
+module.exports=command

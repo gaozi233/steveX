@@ -9,12 +9,13 @@ const args = {
     desc: 'Search: radius integer 1..128 (default 32). tags: optional name filter. tag: required #tag; neither directory mode takes a radius',
     default: 32,
     required: false
-  }
+  },
+  count: {desc:'World-search result limit 1..16, default 1; not accepted in tags/tag directory modes',default:1,required:false}
 }
 
 const skill = {
   name: 'findblock',
-  description: 'Search nearest loaded block by exact name/#tag, all states; return name/coordinates/properties, no purpose/safety decisions or sight filter. Discover tags with findblock tags [filter] (up to 50 names/counts), inspect with findblock tag <#tag> (up to 128 block names); truncated flags/counts explicit. Directory queries read synchronized server tags only, do not search world or move',
+  description: 'Search loaded blocks by exact name/#tag, all states; radius default 32 (1..128), count default 1 (1..16). Return nearest-first candidates with actual name/coordinates/properties; count limits results, not total world matches. Bed halves remain separate, no purpose/safety or sight decisions. Discover tags with tags [filter] (up to 50), inspect tag <#tag> (up to 128 members); directory modes take no radius/count and do not search the world',
   args,
   async handler(_b, args, agent) {
     if (args.length < 1) return { ok: false, error: 'Usage: findblock <blockName> [radius]' }
@@ -57,23 +58,19 @@ const skill = {
     }
 
     const origin = agent.bot.entity.position.floored()
-
-    const found = Array.isArray(matching)&&matching.length===0 ? null : agent.bot.findBlock({
-      matching,
-      point: origin,
-      maxDistance,
-      count: 1
-    })
-
-    if (!found) return { ok: true, output: `No "${targetName}" found within ${maxDistance}m`, found: false, radius: maxDistance }
-
-    const pos = found.position
-    const distance = pos.distanceTo(origin)
-    const properties=found.getProperties?.() || {}
-    const block=found.name || targetName
-    const state=Object.entries(properties).map(([key,value])=>`${key}=${value}`).join(',')
-    return { ok: true, output: `Found ${block}${state?'['+state+']':''} at ${pos.x} ${pos.y} ${pos.z} (block-grid distance: ${distance.toFixed(1)}m)`,
-      found: true, block, properties, position: { x: pos.x, y: pos.y, z: pos.z }, distance, radius: maxDistance }
+    const count=args[2]===undefined?1:Number(args[2]),options={matching,point:origin,maxDistance,count}
+    let candidates=[]
+    if(!(Array.isArray(matching)&&matching.length===0)) {
+      if(count===1){const block=agent.bot.findBlock(options);if(block)candidates=[block]}
+      else candidates=agent.bot.findBlocks(options).map(p=>agent.bot.blockAt(p)).filter(Boolean)
+    }
+    const blocks=candidates.map(b=>({block:b.name||targetName,position:{x:b.position.x,y:b.position.y,z:b.position.z},
+      distance:b.position.distanceTo(origin),properties:b.getProperties?.()||{}}))
+      .sort((a,b)=>a.distance-b.distance||a.position.x-b.position.x||a.position.y-b.position.y||a.position.z-b.position.z).slice(0,count)
+    const describe=b=>`${b.block}${Object.keys(b.properties).length?'['+Object.entries(b.properties).map(([k,v])=>`${k}=${v}`).join(',')+']':''} at ${b.position.x} ${b.position.y} ${b.position.z} (block-grid distance: ${b.distance.toFixed(1)}m)`
+    return {ok:true,found:blocks.length>0,radius:maxDistance,count,returned:blocks.length,blocks,
+      ...(count===1&&blocks.length?blocks[0]:{}),
+      output:blocks.length?`Found ${blocks.length}/${count} requested candidates (not a total match count):\n${blocks.map(describe).join('\n')}`:`No "${targetName}" found within ${maxDistance}m`}
   }
 }
 
@@ -86,6 +83,6 @@ skillRegistry.register(skill);
 module.exports = {
   name: skill.name,
   description: skill.description,
-  usage: 'findblock <blockName|#tag> [radius] | findblock tags [filter] | findblock tag <#tag>',
+  usage: 'findblock <blockName|#tag> [radius] [count] | findblock tags [filter] | findblock tag <#tag>',
   handler: skill.handler
 }

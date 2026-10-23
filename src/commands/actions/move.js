@@ -6,7 +6,7 @@
 const { sleep } = require('../../agent/action_executor')
 module.exports = {
   name: 'move',
-  description: 'Queued movement: hold a direction for 1..30000ms, then release. Queued move stop stops movement/pathfinding and preserves persistent sneak and held-item use; no duration allowed. Unlike immediate global stop, does not cancel the queue or end Brain; wait only waits. Riding directions steer vehicles; sprint unsupported while riding',
+  description: 'Queued movement for 1..30000ms (default 1000). sprint means forward+sprint together, not sprint key alone; releases both when done/cancelled. Actual sprint speed depends on game conditions. Queued move stop stops movement/pathfinding and preserves persistent sneak and held-item use; no duration allowed. Unlike immediate global stop, does not cancel queue/end Brain; wait only waits. Riding directions steer vehicles; sprint unsupported while riding',
   usage: 'move <forward|back|left|right|sprint|stop> [durationMs]',
   async handler(bot, args, agent, { signal } = {}) {
     if (args.length < 1) return { ok: false, error: 'Usage: move <forward|back|left|right|sprint> [durationMs]' }
@@ -33,12 +33,19 @@ module.exports = {
       }
       return { ok: true, output: `Released vehicle ${control} after ${duration}ms; travel distance not guaranteed`, control, durationMs: duration, mode: 'vehicle' }
     }
-    bot.setControlState(control, true)
-
-    try { await sleep(duration, signal) }
-    finally { bot.setControlState(control, false) }
-
-    return { ok: true, output: `Released ${control} after ${duration}ms`, control, durationMs: duration }
+    const controls = control === 'sprint' ? ['forward','sprint'] : [control]
+    signal?.throwIfAborted()
+    try {
+      for (const key of controls) bot.setControlState(key, true)
+      await sleep(duration, signal)
+    } finally {
+      let cleanupError
+      for (const key of [...controls].reverse()) {
+        try { bot.setControlState(key, false) } catch(error) { cleanupError ||= error }
+      }
+      if(cleanupError)throw cleanupError
+    }
+    return { ok: true, output: `Released ${controls.join('+')} after ${duration}ms; distance/sprint speed not guaranteed`, control, controls, durationMs: duration }
   }
 }
 

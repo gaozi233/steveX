@@ -50,23 +50,26 @@ function current(bot, types) {
 }
 function properties(bot, w = current(bot)) { return attach(bot).properties.get(w) || {} }
 function slot(w, value, inventoryOnly = false) {
-  const index = integer(value, 'slot', inventoryOnly ? w.inventoryStart : 0,
-    inventoryOnly ? w.inventoryEnd - 1 : w.slots.length - 1)
+  const logical=integer(value,'slot',inventoryOnly?9:0,inventoryOnly?44:w.inventoryStart-1)
+  const index=inventoryOnly?w.inventoryStart+logical-9:logical
   if (!w.slots[index]) throw new Error(`Slot ${index} is empty`)
   return w.slots[index]
 }
 
 function describe(bot, { compact = false } = {}) {
   const w = current(bot), p = properties(bot, w)
-  const view = compact ? compactItemView : itemView
+  const view = compact ? require('./item_details').brief : itemView
   const data = compact ? {
-    type: w.type, slotCount: w.slots.length, inventoryStart: w.inventoryStart, inventoryEnd: w.inventoryEnd,
-    slots: Array.from({ length: w.slots.length }, (_, slot) => w.slots[slot] ? { ...view(w.slots[slot]), slot } : null).filter(Boolean),
-    emptySlots: Array.from({ length: w.slots.length }, (_, slot) => slot).filter(slot => !w.slots[slot]),
+    type: w.type, windowId:w.id, slotCount: w.slots.length, windowSlotCount:w.inventoryStart, playerSlotRange:[9,44],
+    slots: Array.from({ length: w.slots.length }, (_, index) => {
+      if(!w.slots[index])return null
+      const {slot,...item}=view(w.slots[index]);return {...item,...require('./slot_scope').logicalSlot(w,index)}
+    }).filter(Boolean),
+    emptySlots: Array.from({ length: w.slots.length }, (_, slot) => slot).filter(slot => !w.slots[slot]).map(slot=>require('./slot_scope').logicalSlot(w,slot)),
     ...(w.selectedItem ? { cursor: view(w.selectedItem) } : {})
-  } : { id: w.id, type: w.type, inventoryStart: w.inventoryStart, inventoryEnd: w.inventoryEnd,
+  } : { windowId: w.id, type: w.type, windowSlotCount:w.inventoryStart, playerSlotRange:[9,44],
     source: 'mineflayer-window-cache', properties: { ...p },
-    slots: w.slots.map((item, index) => ({ slot: index, item: itemView(item) })), cursor: itemView(w.selectedItem) }
+    slots: w.slots.map((item, index) => {const data=itemView(item);if(data)delete data.slot;return {...require('./slot_scope').logicalSlot(w,index),item:data}}), cursor: itemView(w.selectedItem) }
   if (w.trades) data.trades = w.trades.map((t, index) => ({ index, input: view(t.inputItem1),
     secondInput: view(t.inputItem2), output: view(t.outputItem), price: t.realPrice,
     disabled: t.tradeDisabled, uses: t.nbTradeUses, maxUses: t.maximumNbTradeUses }))
@@ -125,12 +128,7 @@ async function station(bot, args = [], signal) {
   const w = current(bot, Object.values(stations).map(def=>def[1]))
   attach(bot)
   if (args[0] === 'move') {
-    const item = slot(w, args[1])
-    const dest = integer(args[2], 'destination slot', 0, w.slots.length - 1)
-    if (Number(args[1]) === dest) throw new Error('Source and destination must differ')
-    const count = integer(args[3] ?? item.count, 'count', 1, item.count)
-    await bot.transfer({ window: w, itemType: item.type, metadata: item.metadata, nbt: item.nbt, count,
-      sourceStart: Number(args[1]), sourceEnd: Number(args[1]) + 1, destStart: dest, destEnd: dest + 1 })
+    throw Object.assign(new Error('station move was removed; use moveslot <inventory:slot|window:slot> <inventory:slot|window:slot> [count]'),{code:'INVALID_ARGUMENTS'})
   } else if (args[0] === 'take') {
     const index = integer(args[1], 'container slot', 0, w.inventoryStart - 1)
     slot(w, String(index)); await bot.putAway(index)
@@ -164,7 +162,8 @@ async function station(bot, args = [], signal) {
     if (!['iron_ingot', 'gold_ingot', 'diamond', 'emerald', 'netherite_ingot'].includes(w.slots[0]?.name)) throw new Error('Put a payment item in beacon slot 0')
     await confirmedPacket(bot, w, 'set_beacon_effect', { primary_effect: primaryId, secondary_effect: secondaryId },
       p => p[1] === primaryId + 1 && p[2] === (secondaryId === null ? 0 : secondaryId + 1), signal)
-  } else throw new Error('Usage: station move <source> <dest> [count]|take <slot>|select <index>|crafter <slot> <enabled|disabled>|beacon <primary> [secondary|none]')
-  return success(bot, `Station operation ${args.join(' ')} completed`)
+  } else throw new Error('Usage: station take <slot>|select <index>|crafter <slot> <enabled|disabled>|beacon <primary> [secondary|none]')
+  const verify=()=>args[0]==='crafter'?properties(bot,w)[Number(args[1])] === (args[2]==='enabled'?0:1):args[0]==='select'?properties(bot,w)[0]===Number(args[1]):args[0]==='take'?!w.slots[Number(args[1])]:true
+  return {...success(bot, `Station operation ${args.join(' ')} completed`),verify,allowUnchanged:['crafter','select'].includes(args[0])}
 }
 module.exports = { attach, integer, current, slot, describe, guarded, success, station }

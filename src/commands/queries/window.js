@@ -1,6 +1,6 @@
 const api = require('../workstations')
 module.exports = {
-  name: 'window', description: 'Read current window slots, properties, trades and workstation options', usage: 'window',
+  name: 'window', description: 'Read current UI, scoped slots, empty slots, trades and options. Player region uses fixed inventory 9..44; window scope only container/workstation region. Never mix scopes; slotinfo reads details. Book UI is not a slot window', usage: 'window',
   handler: bot => {
     const book=require('../book_ui').describeBook(bot)
     if(book)return {ok:true,window:book,output:JSON.stringify(book)}

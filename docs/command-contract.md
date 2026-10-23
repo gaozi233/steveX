@@ -1,6 +1,6 @@
 # 查询、移动与采集合成：参数和错误契约
 
-更新：2026-10-23。覆盖 39 个命令：14 个查询、9 个移动、5 个背包装备合成、5 个世界交互（不含 fish）、4 个槽位操作及 2 个恢复入口；完整目录仍为 59 命令。新增 attack 目标及命中反馈、collect 目标 ID、实体副手交互、显式窗口搬运及状态化恢复目录，不引入自动规划。正式调用仍为单条空白分隔字符串。
+更新：2026-10-23。覆盖查询、移动、背包装备合成、世界交互、槽位及恢复等入口；fish 已纳入统一无参校验。本轮补充向前疾跑、goto 相对坐标、findblock 候选数量及钓鱼取消，不引入自动规划。背包／槽位接口正在并行演进，命令数量以共享目录和 command_contract.js 实际定义为准。正式调用仍为单条空白分隔字符串。
 
 ## 单一校验入口
 
@@ -12,7 +12,9 @@ Agent 在入队、停止 Brain、清控制键之前校验；包括 `stop`、`dig
 
 | 命令 | 数量及校验 |
 | --- | --- |
-| pos / hp / hunger / oxygen / inventory / gamemode / xp / time / weather / window | 严格 0 个参数 |
+| pos / hp / hunger / oxygen / gamemode / xp / time / weather / window | 严格 0 个参数 |
+| inventory | 无参为分区摘要、不带槽号及完整组件；仅可选 slots，列非空固定玩家槽0..45，开关窗口不改编号 |
+| slotinfo | 单个槽位引用 inventory:9 或 window:0；inventory固定0..45，window仅窗口自身区域。无窗口／越界明确拒绝；只读详情，满耐久／空属性省略，未知收纳内容不当空，嵌套截断明确 |
 | stop / wake / respawn | 严格 0 个参数；wake／respawn 还须满足实际睡眠／死亡状态 |
 | collect | 可选非负整数掉落物实体 ID；省略为最近目标，不按物品用途选择 |
 | attack | 严格 1 个实体名称片段／ID；3 格及遮挡检查；必须指定目标，不默认攻击最近实体 |
@@ -22,17 +24,18 @@ Agent 在入队、停止 Brain、清控制键之前校验；包括 `stop`、`dig
 | interactentity | 1..3；名称片段或 ID、normal/at、hand/off-hand；默认 normal／hand，不支持带空格名称。副手原生容器／交易开窗拒绝，不自动回退主手 |
 | nearby | 0..2；第 1 位为单个过滤词，第 2 位为整数 radius 1..128；单独数字不会自动解释成半径，应写 nearby all 32 |
 | findplayer / follow | 严格 1 个玩家名称／片段；原有大小写不敏感匹配不变，follow 仍要求精确用户名 |
-| findblock | 搜索：精确名或 #tag，加可选 radius 1..128；目录：tags [filter] 列名称／数量，tag <#tag> 列方块名，不接受半径、不搜索世界。标签默认 minecraft；列表限50、成员限128，报告 total/returned/truncated，未知注册项报告 unresolvedCount；未知／未同步标签明确报错 |
+| findblock | 搜索：精确名或 #tag、可选 radius=1..128（默认32）、count=1..16（默认1）；默认兼容单结果顶层字段，并统一返回 blocks/count/returned/found。按距离排序，床头尾不合并，不把候选上限当世界总数。tags/tag 目录模式不接受 radius/count，原截断／未知标签规则不变 |
 | recipes | 严格 1 个精确物品注册名 |
 | look | angle 严格 2 个原版度数；at 严格 3 个世界坐标；均支持 ~，出队计算。绝对 pitch -90..90，相对结果限幅；旧格式拒绝 |
-| goto | 严格 3 个有限十进制坐标，绝对值不超过 Number.MAX_SAFE_INTEGER；不替调用者规划路线或保证世界边界可达 |
-| move | 方向 forward/back/left/right/sprint 加可选整数 durationMs 1..30000；move stop 无时长；不接受 sneak |
+| goto | 严格3个绝对十进制或 ~ 相对坐标；以出队时脚部坐标解析，再向下取整，原始数值和解析结果均须有限且在安全范围；不支持 ^，不增加自动安全策略 |
+| move | 方向 forward/back/left/right/sprint，加可选整数 durationMs 1..30000；sprint=forward+sprint，结束／取消释放双键，非保证速度；move stop 无时长；载具拒绝 sprint |
+| fish | 严格无参。默认会话超时30s，同时接受正式动作取消信号；复用上游钓鱼识别的私有事件桥，只转发自身浮漂。取消／超时阻断未来自动动作，清理最多约1s，无自身浮漂证据不盲目右键重抛；只声明收竿请求，不冒称拾取成功 |
 | sneak | 严格 1 个 on/off/tap；大小写不敏感；tap 固定 150ms，已按住则不释放；保持状态与移动分离 |
 | swing | 0..1；hand/off-hand，默认 hand；旧 right/left 拒绝；只发动画，不产生交互 |
-| slotclick | 槽号为非负安全整数；left/right/shift-left 默认 left；数字按钮格式拒绝。只能使用当前窗口有效槽，shift-left 要求空光标 |
-| moveslot | 源／目标槽及可选 count=1..64；省略数量为整堆移动或不同物品交换；指定数量只允许空目标或同组件合并，空间不足拒绝，不丢溢出 |
-| putaway | 一个有效源槽，目标自动选主包／快捷栏兼容或空槽；足够空间才开始，拒绝自动获取合成／交易结果 |
-| transfer | deposit/withdraw、当前窗口源槽、可选 count=1..64（默认整堆）；仅储物窗口，严格源区域；不搜索名称或跨源混堆 |
+| slotclick | 单个inventory:9/window:0引用及可选left/right/shift-left（默认left）；裸槽号拒绝。玩家编号不变，window不接受玩家区域别名；shift-left要求空光标 |
+| moveslot | 两端各一个inventory:9/window:0引用，可选count=1..64。省略整堆／交换，指定数量只到空或同组件堆；容量不足拒绝，不丢溢出 |
+| putaway | 单个源槽引用；目标自动选主包兼容／空槽，足够空间才开始；拒绝自动获取合成／交易结果 |
+| transfer | deposit/withdraw、源槽，可选count=1..64（默认整堆）；方向分别确定inventory/window来源，仅储物窗口 |
 | wait | 严格 1 个数字串形式的正安全整数 physics ticks；不新增最大等待时长，仍受动作时限约束 |
 | craft | 1..4；物品注册名、整数执行次数 1..64、auto/hand/table、正安全整数目录编号；编号不接受 0／前导 0 |
 | equip | equip item 物品名 或 equip slot 槽号，可选 hand/head/torso/legs/feet/off-hand（默认 hand）；兼容直接物品名。槽号严格为关闭窗口后的玩家背包 9..44，不是快捷栏 0..8。不同属性返回 EQUIP_SELECTION_REQUIRED，不装备；候选含精简组件及选择槽位 |
@@ -40,7 +43,7 @@ Agent 在入队、停止 Brain、清控制键之前校验；包括 `stop`、`dig
 | unequip | 0..1；目的地同 equip，默认 hand；空间不足拒绝，不自动扔物品 |
 | right down | 0..1；hand/off-hand，默认 hand；右键持续使用手持物，仅确认请求，不保证进食、格挡或发射效果 |
 | right up | 严格 0 个参数；松开当前使用，不区分主副手；仅确认请求 |
-| drop | 1..2；精确注册名、可选正安全整数数量；省略为首个匹配堆叠数量，指定数量也不混用不同组件 |
+| drop | 精确注册名 [count]，或slot <9..44> [count]；正安全整数数量。按名省略为首堆，显式数量也不混组件；按槽只操作所选堆，不跨槽补足 |
 
 使用状态与运动分开：move/jump/look/goto/follow、wait 和查询保留使用；切换物品与互斥交互动作仍释放，stop／超时／取消保持完整安全停止。right up 按动作队列执行，不新增抢占。保持使用不代表格挡效果已确认，须结合方向及后续状态；覆盖摘要见 [背包与持续使用](api-validation/inventory-use-coverage.md)。
 
@@ -48,13 +51,19 @@ Agent 在入队、停止 Brain、清控制键之前校验；包括 `stop`、`dig
 
 ## 统一失败格式
 
+槽号固定不随开箱改变：inventory 0..45，其中主包9..35／快捷栏36..44；window只指容器／工作站自己的槽。slotinfo／slotclick／moveslot／putaway用单个引用 `inventory:9`、`window:0`；moveslot两端各一引用。transfer的deposit／withdraw已确定inventory／window来源，只收源槽号及可选数量。旧分离作用域语法和裸编号不作为上述四个命令的别名。装备／副手／2×2合成在容器打开时不能点击，明确拒绝而非自动关窗。furnace/enchant/anvil材料槽仍为固定玩家9..44；station搬运统一moveslot，take/crafter只指工作站槽；选择／报价索引不是槽号。详见 [固定槽号验收](api-validation/slot-scope-validation.md)。
+
 动作反馈以 `status`、`confirmed`、`evidence` 为准：`requested` 仅发送请求，`completed` 表示该接口定义的效果被观测到，不等于整个任务完成。公开 right／interactentity 不再重复输出 requested／confirmation 别名。窗口动作先后读取服务端库存快照，只输出发生变化的槽位及光标；失败／取消仍保留已观测变化，最终快照未知时 changes=null，不能当成零变化。窗口搬运不会为了恢复光标而偷偷丢物；取消或中途错误后须先查询 window。
 
 attack 返回 `hit:true|false|null`：true 为等待窗内目标实体的服务端 damage_event 且 sourceCauseId 指向自身；false 为检查拒绝、未发出攻击；null 为已发送但无可归因证据。不能仅凭 entityHurt 动画、挥手、目标消失或超时判定命中／未命中；不读取生物隐藏血量。多人并发、此前自己的其他伤害来源等仍可能共享归因，协议不提供本次攻击的独立事务号，不声称严格逐击因果确认。取消后若已有归因证据仍保留 hit=true，但动作整体可为失败。
 
 装备选择：`equip item diamond_pickaxe`（也可省略 item）按精确名称匹配。属性相同则装备首槽，数量差异不构成歧义；附魔／耐久／NBT／组件不同则返回 `EQUIP_SELECTION_REQUIRED`、精简 `candidates`、`slotSpace:player-inventory` 和选择提示，不改变装备。LLM 使用例如 `equip slot 12 off-hand` 明确选槽；槽号只允许主包／快捷栏 9..44，装备及副手槽不作为来源，开窗或光标持物时拒绝。槽位在执行时读取，不是锁定候选快照，不自动回退到其他物品；完全相同的属性仍可直接装备，不进行最优装备选择。
 
-所有进入这些接口的失败结果均有 `ok:false`、`errorCode`、`error`、`output`。error 和 output 带 `[错误码]` 前缀，LLM 读取文本也能识别原因；output 保留原有详细反馈。参数错误额外返回规范 usage，已知时返回 argument 字段，不回显整段用户参数。
+失败结果有 `ok:false`、`errorCode`、`error`、`output`，保留参数usage及已观察的部分效果。Brain历史统一保存JSON结果，包括confirmed/status/hit/changes/candidates/nextQuery等，不只取output；完全重复的查询JSON不重复发送，非重复文本放message，不截断结果。不会每轮自动查询状态。见 [反馈与同步验收](api-validation/window-feedback-validation.md)。
+
+库存快照默认等待上限2000ms，支持取消、断线／窗口切换／重生检测，清理自有监听；启动时也替换上游craft/book使用的快照入口。最终核对使用独立有界等待，即使动作已取消也保留可观察的部分变化；无法核对为changes:null，不伪造空数组。此修复不代表所有原生工作站的经验／选项等待都能立即取消，执行器仍不提前释放未结束的原生操作。
+
+`drop slot <slot> [count]`只接受固定玩家9..44，默认所选整堆，超量拒绝、不跨其他堆补足；按名drop保留原行为。两者仅确认库存减少，不保证世界掉落安全。
 
 ```json
 {

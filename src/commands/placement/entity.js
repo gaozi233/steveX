@@ -18,7 +18,7 @@ module.exports = {
     const reject = (errorCode, error) => ({ ok: false, errorCode, error, output: error, changes: [] })
     if (args.length) return reject('INVALID_ARGUMENTS', 'Usage: placeentity (no arguments)')
     if (bot.currentWindow) return reject('WINDOW_OPEN', 'Close the current inventory window before placing an entity')
-    try { await syncInventory(bot) } catch (error) { return reject('INVENTORY_SYNC_FAILED', `Inventory not synchronized; no interaction sent: ${error.message}`) }
+    try { await syncInventory(bot,{signal}) } catch (error) { return reject('INVENTORY_SYNC_FAILED', `Inventory not synchronized; no interaction sent: ${error.message}`) }
     const item = usedItem(bot,hand), expected = entityType(bot, item)
     if (!expected) return reject('UNSUPPORTED_ITEM', 'Hold a supported boat/raft, spawn egg, armor stand or end crystal; paintings are not supported')
     const target = aimedTarget || bot.blockAtCursor(4.5)

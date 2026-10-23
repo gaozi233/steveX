@@ -1,6 +1,8 @@
 const {isDeepStrictEqual} = require('node:util')
 const {withContract,exceptionFailure} = require('./command_contract')
 const {compactItemView} = require('../agent/interaction_memory')
+const {resolveScope,logicalSlot,parseSlotRef}=require('./slot_scope')
+const {syncWindow}=require('./inventory_sync')
 const fail = (code,message) => { const e=new Error(message);e.code=code;throw e }
 const same = (a,b) => !!a && !!b && a.type===b.type && a.metadata===b.metadata &&
   isDeepStrictEqual(a.nbt,b.nbt) && isDeepStrictEqual(a.components||[],b.components||[]) &&
@@ -15,43 +17,45 @@ function itemAt(w,slot) {
   if(!Number.isInteger(slot)||slot<0||slot>=w.slots.length)fail('INVALID_SLOT','Slot outside current window')
   return w.slots[slot]
 }
-const snapshot = w => ({slots:w.slots.map(i=>i?structuredClone(compactItemView(i)):null),cursor:w.selectedItem?structuredClone(compactItemView(w.selectedItem)):null})
-function changes(before,after) {
+const snapshot = w => {const view=i=>{if(!i)return null;const {slot,...data}=compactItemView(i);return structuredClone(data)};return {slots:w.slots.map(view),cursor:view(w.selectedItem)}}
+function changes(before,after,w,isPlayerWindow) {
   const result=[]
   for(let i=0;i<Math.max(before.slots.length,after.slots.length);i++)if(!isDeepStrictEqual(before.slots[i],after.slots[i]))
-    result.push({slot:i,before:before.slots[i]??null,after:after.slots[i]??null})
+    result.push({...logicalSlot(w,i,isPlayerWindow),before:before.slots[i]??null,after:after.slots[i]??null})
   if(!isDeepStrictEqual(before.cursor,after.cursor))result.push({kind:'cursor',before:before.cursor,after:after.cursor})
   return result
 }
-function action(name,execute) {
-  return withContract(name,async(bot,args,agent,{signal}={})=>{
-    let w,before,data,error,delta=null,verified=false
+function action(name,execute,{resolve,state}={}) {
+  return withContract(name,async(bot,args=[],agent,{signal}={})=>{
+    let w,before,data,error,delta=null,verified=false,beforeState,stateChanges=[]
     try {
-      w=windowOf(bot)
-      if(!bot._syncWindow)fail('INVENTORY_SYNC_UNAVAILABLE','Server inventory synchronization unavailable; no operation started')
-      await bot._syncWindow(w)
+      w=resolve?resolve(bot,args):resolveScope(bot,name==='transfer'?(args[0]==='deposit'?'inventory':'window'):parseSlotRef(args[0]).slotSpace,{write:true})
+      await syncWindow(bot,w,{signal})
       if(windowOf(bot)!==w)fail('WINDOW_CHANGED','Window changed before operation')
       before=snapshot(w)
+      beforeState=state?.(bot,w)
       signal?.throwIfAborted()
       data=await execute(bot,w,args,signal)
+      signal?.throwIfAborted()
     } catch(e) {error=e}
     if(before)try {
       if(windowOf(bot)!==w)fail('WINDOW_CHANGED','Window changed during operation')
-      await bot._syncWindow(w)
+      await syncWindow(bot,w)
       if(windowOf(bot)!==w)fail('WINDOW_CHANGED','Window changed during confirmation')
-      delta=changes(before,snapshot(w));verified=true
+      delta=changes(before,snapshot(w),w,w===bot.inventory);verified=true
+      if(state){const after=state(bot,w);for(const key of new Set([...Object.keys(beforeState||{}),...Object.keys(after||{})]))if(!isDeepStrictEqual(beforeState?.[key],after?.[key]))stateChanges.push({property:key,before:beforeState?.[key]??null,after:after?.[key]??null})}
     }catch(e){error=error||e}
     const evidence=verified?['server-inventory-snapshot']:[]
     if(error) {
       const failure=exceptionFailure(name,error,signal)
       return {...failure,error:error.message,...(!signal?.aborted&&typeof error.code==='string'?{errorCode:error.code}:{}),action:name,status:signal?.aborted?'cancelled':'failed',confirmed:false,changes:delta,evidence,
-        output:`${error.message}; observed slot changes: ${delta===null?'unknown':JSON.stringify(delta)}; inspect slots/cursor before retrying`}
+        stateChanges,output:'Please inspect observed changes and cursor before retrying; an interrupted operation may have partially applied'}
     }
-    const {verify,...details}=data||{}
-    const confirmed=verified&&delta.length>0&&(!verify||verify())
+    const {verify,allowUnchanged,output,window,ok,...details}=data||{}
+    const confirmed=!!(verified&&(delta.length>0||stateChanges.length>0||allowUnchanged)&&(!verify||verify()))
     return {ok:confirmed,action:name,status:confirmed?'completed':'failed',confirmed,...details,changes:delta,evidence,
       ...(!confirmed?{errorCode:'SLOT_CHANGE_NOT_CONFIRMED',error:'No server-confirmed slot change'}:{}),
-      output:`${name}: ${confirmed?'slot changes observed':'no change confirmed'}; ${JSON.stringify(delta)}`}
+      stateChanges,output:`${name}: ${confirmed?'server-confirmed effect':'no effect confirmed'}`}
   })
 }
 function emptyCursor(w) {if(w.selectedItem)fail('CURSOR_NOT_EMPTY','Empty the cursor first')}

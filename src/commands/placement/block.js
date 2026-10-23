@@ -12,7 +12,7 @@ module.exports = {
   description: 'Place held block at the aimed hit point; confirms state and item consumption, both halves for doors/beds; returns actual positions and block properties',
   usage: 'place',
   handler: operation('place', async (bot, args, agent, { signal, hand = 'hand', target: aimedTarget } = {}) => {
-    await syncInventory(bot)
+    await syncInventory(bot,{signal})
     const target = aimedTarget || bot.blockAtCursor(4.5)
     if (!target) return { ok: false, errorCode: 'NO_TARGET', error: 'No block in sight to place against' }
     const item=usedItem(bot,hand)

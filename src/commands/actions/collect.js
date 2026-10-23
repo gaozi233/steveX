@@ -16,7 +16,7 @@ module.exports = {
     const drop = Object.values(bot.entities).filter(e => e.name === 'item' && e.position && (args[0] === undefined || e.id === Number(args[0])))
       .sort((a, b) => a.position.distanceTo(bot.entity.position) - b.position.distanceTo(bot.entity.position) || a.id - b.id)[0]
     if (!drop) return { ok: false, errorCode: 'NO_DROPPED_ITEMS', error: 'No dropped items nearby' }
-    await syncInventory(bot)
+    await syncInventory(bot,{signal})
     const before = counts(bot), item = drop.getDroppedItem?.()
     const target = { entityId: drop.id, position: position(drop.position), ...(item ? { item: item.name, count: item.count } : {}) }
 
@@ -27,7 +27,7 @@ module.exports = {
       await protectedApproach(bot, agent.movements, new pathfinderGoals.GoalNear(drop.position.x, drop.position.y, drop.position.z, 0), signal)
       for (let i = 0; i < 20 && !collected; i++) await sleep(100, signal)
       if (!collected) return { ok: false, errorCode: 'PICKUP_NOT_CONFIRMED', error: 'Reached drop area but pickup was not confirmed (inventory full, item moved or unavailable)', target }
-      await syncInventory(bot)
+      await syncInventory(bot,{signal})
       const changes = inventoryChanges(before, counts(bot))
       if (!changes.some(c => c.delta > 0)) return { ok: false, errorCode: 'PICKUP_NOT_CONFIRMED', error: 'Pickup event received but inventory gain not confirmed', target, changes, evidence: ['server-collect-event'] }
       return { ok: true, confirmed: true, target, changes, evidence: ['server-collect-event','server-inventory-snapshot'], output: `Picked up: ${changes.filter(c => c.delta > 0).map(c => `${c.item} x${c.delta}`).join(', ')}`, entityId: drop.id }
