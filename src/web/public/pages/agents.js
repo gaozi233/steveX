@@ -281,7 +281,7 @@ export function overviewCardHtml(agent) {
 export function renderAgentDetail(container, agent) {
   const card = container.querySelector('.agent-card')
   if (!card || card.dataset.agentName !== agent.name) {
-    container.innerHTML = `<a class="agent-back" data-agent-link href="/agents">Back to Agents</a>${agentCardHtml(agent)}`
+    container.innerHTML = agentCardHtml(agent)
     hydrateIcons(container)
   }
   updateDynamicFields(container.querySelector('.agent-card'), agent)

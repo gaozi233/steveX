@@ -32,7 +32,7 @@ Object.assign(contracts, {
   findplayer: { usage:'findplayer <name>', min:1, fields:[field('name',()=>true,'one player-name fragment')] },
   findblock: { usage:'findblock <blockName|#tag> [radius] [count] | findblock tags [filter] | findblock tag <#tag>', min:1, fields:[field('blockName',v=>registryName(v)||/^#(?:[a-z0-9_.-]+:)?[a-z0-9_./-]+$/i.test(v),'exact block name or #namespace:tag'),field('radius',integer(1,128),'integer 1..128'),field('count',integer(1,16),'integer result limit 1..16 (default 1)')] },
   recipes: { usage:'recipes <itemName>', min:1, fields:[field('itemName',registryName,'exact registry name, optional minecraft: prefix')] },
-  look: { usage:'look angle <yaw> <pitch> | look at <x> <y> <z>', min:3, fields:[enumField('mode',['angle','at']),...['a','b','c'].map(name=>field(name,()=>true,'decimal or ~ relative value'))] },
+  look: { usage:'look angle <yaw> <pitch> | look at <x> <y> <z> | look block <x> <y> <z>', min:3, fields:[enumField('mode',['angle','at','block']),...['a','b','c'].map(name=>field(name,()=>true,'decimal or ~ relative value'))] },
   goto: { usage:'goto <x> <y> <z>', min:3, fields:['x','y','z'].map(name=>field(name,relativeCoordinate,'finite decimal or ~ relative coordinate within safe numeric range')) },
   move: { usage:'move <forward|back|left|right|sprint|stop> [durationMs]', min:1, fields:[enumField('control',['forward','back','left','right','sprint','stop']),field('durationMs',integer(1,30000),'integer milliseconds 1..30000')] },
   swing: { usage:'swing [hand|off-hand]', min:0, fields:[enumField('hand',['hand','off-hand'])] },

@@ -70,7 +70,7 @@ async function prepare() {
   await fs.writeFile(path.join(directory,'server/server.properties'),[
     'server-ip=127.0.0.1','server-port=25566','online-mode=false','level-name=trial-world',
     'level-type=minecraft:flat','generate-structures=false','view-distance=2','simulation-distance=2',
-    'max-players=2','difficulty=peaceful','gamemode=creative','enable-rcon=false','enable-query=false',
+    'max-players=2','difficulty=peaceful','gamemode=creative','spawn-protection=0','enable-rcon=false','enable-query=false',
     'sync-chunk-writes=true','pause-when-empty-seconds=-1','motd=SteveX isolated BlueMap trial',
   ].join('\n')+'\n')
   const java25 = await mapJava()

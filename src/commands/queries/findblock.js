@@ -15,7 +15,7 @@ const args = {
 
 const skill = {
   name: 'findblock',
-  description: 'Search loaded blocks by exact name/#tag, all states; radius default 32 (1..128), count default 1 (1..16). Return nearest-first candidates with actual name/coordinates/properties; count limits results, not total world matches. Bed halves remain separate, no purpose/safety or sight decisions. Discover tags with tags [filter] (up to 50), inspect tag <#tag> (up to 128 members); directory modes take no radius/count and do not search the world',
+  description: 'Search loaded blocks by exact name/#tag, all states; radius default 32 (1..128), count default 1 (1..16). Return nearest-first candidates with actual name/grid coordinates/properties; use look block for grid coordinates, look at for exact points. count limits results, not total world matches. Bed halves remain separate, no purpose/safety or sight decisions. Discover tags with tags [filter] (up to 50), inspect tag <#tag> (up to 128 members); directory modes take no radius/count and do not search the world',
   args,
   async handler(_b, args, agent) {
     if (args.length < 1) return { ok: false, error: 'Usage: findblock <blockName> [radius]' }

@@ -1,5 +1,19 @@
 const test=require('node:test'),assert=require('node:assert/strict'),{once}=require('node:events')
 const express=require('express'),{registerWorldMapRoutes}=require('../src/web/server/world_map')
+
+test('World human block actions bind managed UUID, map and dimension, then use normal commands',async t=>{
+  const uuid='00000000-0000-0000-0000-000000000001',calls=[]
+  const agent={bot:{entity:{uuid},game:{dimension:'overworld'}},isOnline:()=>true}
+  const manager={config:{worldMap:{enabled:true,mapId:'manual'}},agents:new Map([['Map-C',agent]]),sendCommand:async(...args)=>{calls.push(args);return {ok:true}}}
+  const app=express();app.use(express.json());registerWorldMapRoutes(app,manager)
+  const server=app.listen(0,'127.0.0.1');await once(server,'listening');t.after(()=>{server.closeAllConnections();server.close()})
+  const post=body=>fetch('http://127.0.0.1:'+server.address().port+'/api/world-map/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+  const body={uuid,mapId:'manual',position:{x:-2,y:72,z:102},action:'goto'}
+  assert.equal((await post(body)).status,200);assert.deepEqual(calls.pop(),['Map-C','goto -2 73 102'])
+  assert.equal((await post({...body,action:'dig'})).status,200);assert.deepEqual(calls.pop(),['Map-C','dig -2 72 102'])
+  for(const change of [{action:'say'},{mapId:'nether'},{position:{x:1.2,y:72,z:102}}])assert.equal((await post({...body,...change})).status,400)
+  agent.bot.game.dimension='the_nether';assert.equal((await post(body)).status,409);assert.equal(calls.length,0)
+})
 test('World player status maps UUID to agent name and exposes only small display fields',async t=>{
   const uuid='00000000-0000-0000-0000-000000000001'
   let online=true

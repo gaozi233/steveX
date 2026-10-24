@@ -10,6 +10,22 @@ function worldMapSettings(config) {
 }
 
 function registerWorldMapRoutes(app, manager) {
+  app.post('/api/world-map/command', async (req,res) => {
+    const {uuid,action,position:p,mapId}=req.body||{},config=manager.config?.worldMap
+    if(!config?.enabled)return res.status(404).json({ok:false,error:'World map disabled'})
+    if(typeof uuid!=='string'||!['goto','dig'].includes(action)||!p||!['x','y','z'].every(k=>Number.isSafeInteger(p[k])&&Math.abs(p[k])<=30000000)||p.y < -2048||p.y>2047)
+      return res.status(400).json({ok:false,error:'Invalid map action or block coordinates'})
+    if(mapId!==(config.mapId||'natural'))return res.status(400).json({ok:false,error:'Map identity mismatch'})
+    const entry=[...manager.agents.entries()].find(([,a])=>(a.bot?.entity?.uuid||a.bot?.player?.uuid)?.toLowerCase()===uuid.toLowerCase())
+    if(!entry||!entry[1].isOnline())return res.status(404).json({ok:false,error:'Managed player is offline or unknown'})
+    const dimension=value=>String(value||'').replace(/^minecraft:/,'')
+    if(dimension(entry[1].bot.game?.dimension)!==dimension(config.dimension||'minecraft:overworld'))return res.status(409).json({ok:false,error:'Agent is in a different dimension'})
+    try {
+      const command=action==='goto'?`goto ${p.x} ${p.y+1} ${p.z}`:`dig ${p.x} ${p.y} ${p.z}`
+      const result=await manager.sendCommand(entry[0],command)
+      res.status(result.ok?200:400).json(result)
+    }catch(error){res.status(500).json({ok:false,error:error.message})}
+  })
   app.get('/api/world-map/players/:uuid', (req, res) => {
     res.set('Cache-Control', 'no-store')
     const uuid=req.params.uuid

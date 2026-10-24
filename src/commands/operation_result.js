@@ -55,7 +55,22 @@ async function digConfirmed(bot, block, signal) {
     await bot.dig(block)
     const acknowledged = await waitFor(() => observed.stateId !== null && observed.stateId !== block.stateId, signal)
     const after = bot.blockAt(block.position), target = { block: block.name, position: position(block.position) }
-    if (!acknowledged || !after || after.type === block.type) return { ok: false, errorCode: 'DIG_NOT_CONFIRMED', error: 'No server-confirmed block removal; inspect before retrying', target }
+    if (!acknowledged || !after || after.type === block.type) {
+      const unchanged = observed.stateId === block.stateId
+      let clientStateRestored = false
+      // A rejection can arrive before Mineflayer's later local air prediction.
+      // Replay only an actually observed unchanged server state, never our old guess.
+      if (unchanged && after && after.stateId !== observed.stateId && typeof bot._updateBlockState === 'function') {
+        try {
+          await bot._updateBlockState(block.position, observed.stateId)
+          clientStateRestored = bot.blockAt(block.position)?.stateId === observed.stateId
+        } catch { /* Cache repair must not hide the original unconfirmed operation. */ }
+      }
+      return { ok:false,errorCode:'DIG_NOT_CONFIRMED',target,
+        error:unchanged?'Server reported the target unchanged; check protection/permissions and state before retrying':'No server-confirmed block removal; inspect before retrying',
+        ...(unchanged?{serverObservation:{block:block.name,stateId:observed.stateId,source:'server-block-update',unchanged:true},
+          clientStateRestored,evidence:['server-block-update-unchanged']}: {}) }
+    }
     return { ok: true, confirmed: true, target, changes: [{ kind: 'block', position: position(block.position), before: block.name, after: after.name }], evidence: ['server-block-update'], output: `Removed ${block.name} at ${block.position.x} ${block.position.y} ${block.position.z}; drops not guaranteed collected` }
   } finally { observed.close() }
 }

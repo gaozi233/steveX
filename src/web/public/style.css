@@ -1160,6 +1160,8 @@ select {
 .command-panel[data-action="message"] .planner-options input { width: 80px; height: 36px; padding: 4px 8px; }
 .planner-task-meta { display: block; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; margin-top: 8px; }
 
+.world-control { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.world-control [data-control-status] { overflow-wrap: anywhere; max-width: 48ch; }
 /* Compact agent workbench; control spacing follows available width, not display resolution. */
 .agents-list { gap: 18px; margin-top: 20px; }
 .agent-card { padding: clamp(12px, 1.2vw, 22px); border-radius: 8px; box-shadow: none; }

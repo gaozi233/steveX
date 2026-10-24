@@ -39,7 +39,7 @@ async function prepare(){
   await fs.writeFile(path.join(directory,'server/server.properties'),[
     'server-ip=127.0.0.1','server-port=25568','online-mode=false','level-name=natural-world','level-type=minecraft:normal',
     'level-seed=20261024','generate-structures=true','view-distance=8','simulation-distance=4','max-players=8',
-    'difficulty=peaceful','gamemode=creative','enable-rcon=false','enable-query=false','pause-when-empty-seconds=-1',
+    'difficulty=peaceful','gamemode=creative','spawn-protection=0','enable-rcon=false','enable-query=false','pause-when-empty-seconds=-1',
     'motd=SteveX natural map / three players / renderer',
   ].join('\n')+'\n')
   const write=(file,text)=>fs.writeFile(path.join(directory,'config',file),text)

@@ -37,7 +37,7 @@ function enter(page) {
   document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.textContent.trim() === (page === 'Agent detail' ? 'Agents' : page)))
 }
 function showAgentsPage() {
-  enter('Agents'); setHeader('Agents', '智能体总览')
+  enter('Agents'); setHeader('Agents', '')
   renderAgents(agentsList); disposePage = initAgents(agentsList)
 }
 function showConfigsPage() {

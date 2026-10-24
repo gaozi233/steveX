@@ -3,7 +3,8 @@ import { hydrateIcons } from '../lib/icons.js'
 
 export function mountWorld(container) {
   const controller = new AbortController()
-  let disposed = false, frame, reload, address, mapOrigin, popup, playerRequest, playerTimer, selectedUuid
+  let disposed = false, frame, reload, address, mapOrigin, popup, playerRequest, playerTimer, selectedUuid, controlledUuid, controlRequest
+  let controlGeneration=0,controlSequence=0
   const documentEvents = typeof document !== 'undefined' ? document : null
   const windowEvents = typeof window !== 'undefined' ? window : null
   const timer = setTimeout(() => controller.abort(), 5000)
@@ -30,15 +31,19 @@ export function mountWorld(container) {
     reload = container.querySelector('[data-map-reload]')
     reload.addEventListener('click', reloadMap)
     hydrateIcons(container)
+    const status=documentEvents?.createElement('div')
+    if(status){status.className='world-control';status.innerHTML='<span data-control-status role="status">No agent selected</span> <button type="button" class="btn ghost" data-control-clear hidden>Deselect</button>';container.querySelector('.world-toolbar').appendChild(status);status.querySelector('button').addEventListener('click',clearControl)}
   }).catch(error => {
     if (!disposed) container.innerHTML = `<p role="status">${escapeHtml(error.name === 'AbortError' ? 'Map request timed out' : error.message)}</p>`
   }).finally(() => clearTimeout(timer))
-  function reloadMap() { if (!disposed && frame) frame.src = frame.src }
+  function reloadMap() { if (!disposed && frame) {clearControl();frame.src = frame.src} }
   function camera(event) {
     if (disposed || event.origin !== mapOrigin || event.source !== frame?.contentWindow) return
     if (event.data?.type === 'stevex-map-camera' && typeof event.data.hash === 'string'
       && event.data.hash.startsWith('#') && event.data.hash.length < 1024) address = mapOrigin + '/' + event.data.hash
     if (event.data?.type === 'stevex-player-close') closePlayer()
+    if(event.data?.type==='stevex-control-select')selectControl(event.data.uuid)
+    if(event.data?.type==='stevex-map-block')executeBlock(event.data)
     if (event.data?.type === 'stevex-player-select') {
       const data=event.data
       if (!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(data.uuid || '')
@@ -55,6 +60,44 @@ export function mountWorld(container) {
       popup.style.top=Math.max(8,Math.min(top+8,windowEvents.innerHeight-260))+'px'
       refreshPlayer()
     }
+  }
+  function controlStatus(text) {const status=container.querySelector('[data-control-status]');if(status)status.textContent=text}
+  function clearControl() {
+    ++controlGeneration;controlledUuid=null;controlRequest?.abort()
+    frame?.contentWindow?.postMessage?.({type:'stevex-control-player',uuid:null},mapOrigin)
+    const button=container.querySelector('[data-control-clear]');if(button)button.hidden=true
+    controlStatus('No agent selected')
+  }
+  async function selectControl(uuid) {
+    if(!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(uuid||''))return
+    clearControl();const generation=controlGeneration
+    controlRequest=new AbortController()
+    try {
+      const response=await fetch('/api/world-map/players/'+encodeURIComponent(uuid),{signal:AbortSignal.any([controlRequest.signal,AbortSignal.timeout(5000)]),cache:'no-store'})
+      const data=await response.json()
+      if(disposed||generation!==controlGeneration)return
+      if(!response.ok||!data.player?.online)throw Error('Managed agent is not online')
+      controlledUuid=uuid;frame.contentWindow.postMessage({type:'stevex-control-player',uuid},mapOrigin)
+      container.querySelector('[data-control-clear]').hidden=false
+      controlStatus('Selected: '+data.player.name)
+    }catch(error){if(!disposed&&generation===controlGeneration&&error.name!=='AbortError')controlStatus(error.message)}
+  }
+  async function executeBlock(data) {
+    if(!controlledUuid||data.uuid!==controlledUuid||!['dig','goto'].includes(data.action))return
+    const p=data.position;if(!p||!['x','y','z'].every(k=>Number.isSafeInteger(p[k])))return
+    const generation=controlGeneration
+    const requestId=++controlSequence
+    const visual={type:'stevex-control-target',uuid:controlledUuid,position:p,mapId:data.mapId,requestId}
+    frame.contentWindow.postMessage({...visual,active:true},mapOrigin)
+    controlRequest?.abort();controlRequest=new AbortController()
+    controlStatus(data.action+' '+[p.x,p.y,p.z].join(' ')+' …')
+    try {
+      const response=await fetch('/api/world-map/command',{method:'POST',signal:controlRequest.signal,headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({uuid:controlledUuid,action:data.action,position:p,mapId:data.mapId})})
+      const result=await response.json()
+      if(!disposed&&generation===controlGeneration&&requestId===controlSequence)controlStatus(result.output||result.error||JSON.stringify(result))
+    }catch(error){if(!disposed&&generation===controlGeneration&&requestId===controlSequence&&error.name!=='AbortError')controlStatus(error.message)}
+    finally{if(!disposed&&generation===controlGeneration&&requestId===controlSequence)frame.contentWindow.postMessage({...visual,active:false},mapOrigin)}
   }
   async function refreshPlayer() {
     const uuid=selectedUuid, target=popup
@@ -99,10 +142,12 @@ export function mountWorld(container) {
   function outside(event) {if(popup && !popup.contains(event.target))closePlayer()}
   function visibility() {
     closePlayer()
+    clearControl()
     if (!disposed && frame) frame.src = documentEvents.hidden ? 'about:blank' : address
   }
   return () => {
     disposed = true
+    clearControl()
     closePlayer()
     clearTimeout(timer); controller.abort()
     reload?.removeEventListener('click', reloadMap)

@@ -89,6 +89,7 @@ async function install(webroot,clientJar) {
   await fs.writeFile(path.join(target,'items-registry.json'),JSON.stringify(registry))
   await run('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'install-map-player-textures.ps1'),'-ClientJar',clientJar,'-Destination',target],{windowsHide:true})
   const settingsFile=path.join(webroot,'settings.json'),settings=JSON.parse(await fs.readFile(settingsFile))
+  settings.resolutionDefault=0.5
   settings.scripts=[...(settings.scripts||[]).filter(s=>!s.includes('bluemap-player-models/')),
     'assets/bluemap-player-models/player-models.js','assets/bluemap-player-models/player-labels.js']
   await fs.writeFile(settingsFile,JSON.stringify(settings))

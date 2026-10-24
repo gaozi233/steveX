@@ -4,6 +4,9 @@
 
 | 记录 | 类型与范围 |
 | --- | --- |
+| [Book gift and repeated inventory queries](book-gift-context-validation-2026-10-25.md) | Real DeepSeek two-page save and drop; server evidence and human screenshot; steps 24–26 audited against actual context, repetition distinguished from missing feedback and manual Continue |
+| [Look feedback and World controls](look-and-world-controls.md) | Three look modes, shape-source limitations, real chest/button/slab/obstruction validation, human-only map controls |
+| [Dig server protection and cache recovery](dig-server-protection.md) | Vanilla 1.21.11 protection/OP comparison, two real rejected digs with cache recovery, final non-OP success; 532 automated tests passed |
 | [新任务循环复杂合成](task-crafting-validation-2026-10-24.md) | Minecraft＋DeepSeek八场景181次请求，严格5/8；区分物品达成与结束声明，保留预算耗尽与重复查询问题 |
 | [Compact agent workbench](web-compact-layout.md) | 紧凑布局、字体、Configs切换与过期加载修复；Edge桌面预览核对，4K／手机截图待测 |
 | [有界任务循环与调度](task-runtime-validation.md) | 全库481项自动回归、3项HTTP模拟、Edge任务生命周期核对；无付费模型／Minecraft实测 |

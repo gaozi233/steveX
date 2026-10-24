@@ -1,10 +1,10 @@
 # API 分类清单与人工验收台账
 
-更新：2026-10-23。按当前源码目录整理：**60 个命令（15 query、39 action、6 creative）**，另列 **21 个 HTTP 路由模板**（Brain 操作展开为两行）。分类来源为 `src/commands/catalog.js`，实际用法以运行版本的 `GET /api/commands` 为准。
+更新：2026-10-25。按当前源码目录整理：**60 个命令（15 query、39 action、6 creative）**，另列 **22 个 HTTP 路由模板**（Brain 操作展开为两行）。分类来源为 `src/commands/catalog.js`，实际用法以运行版本的 `GET /api/commands` 为准。
 
 本文仅保留当前接口、最新验收状态与待测项，不保留失效入口和逐轮调试流水。
 
-分类与 LLM／网页共享目录一致：collect 属于移动控制；dig、right、attack、interactentity、swing、fish 属于世界交互与物品使用（swing 仅动画）；craft 属于背包、装备与合成；book 属于窗口与界面，say 单列通信，客户端管理单列且默认隐藏。look 现统一为 angle／at，新格式的旧实测结论不直接继承。
+分类与 LLM／网页共享目录一致：collect 属于移动控制；dig、right、attack、interactentity、swing、fish 属于世界交互与物品使用（swing 仅动画）；craft 属于背包、装备与合成；book 属于窗口与界面，say 单列通信，客户端管理单列且默认隐藏。look 为 angle／at／block，均返回当前交互射线反馈。
 
 ## 1. 状态与证据
 
@@ -115,7 +115,7 @@ Invoke-RestMethod "$base/api/agents/$agent/command" -Method Post -ContentType 'a
 
 | 调用 | 参数与行为 | 最新测试状态 | 待测／边界 |
 | --- | --- | --- | --- |
-| `look angle <yaw> <pitch>` / `look at <x> <y> <z>` | 原版度数：yaw 0 南、90 西、-90 东；pitch 正低头。~ 在出队时相对当前角度／脚部坐标计算，俯仰相对结果限幅；不支持 ^、旧弧度或 lookat | 新格式自动测试；旧格式实测不直接算新入口通过 | 原版画面对照、低 TPS 与移动中瞄准实测待补 |
+| `look angle <yaw> <pitch>` / `look at <x> <y> <z>` / `look block <x> <y> <z>` | angle 用原版度数；at 是精确空间点，不自动加半格；block 是整数网格，按首个支持形状框中心瞄准，~ 相对向下取整的脚部网格。按钮用状态相关选取框，其他用社区碰撞框，shapeSource 明示来源，无形状报错。三个模式均返回 4.5m 内首个方块／实体的 crosshair（命中点、距离、方块面），无命中 null；block 另有 targetMatched。ok 只代表转头，不移动／点击／寻找可见面 | 2026-10-25 同一真实存档：箱子开窗、按钮 powered 服务端确认、上下半砖及 at／angle 射线、石墙遮挡且右键不穿墙通过；自动覆盖实体遮挡、缺形状、超距及参数 | 更多无碰撞选取框／复杂形状、低 TPS 与移动中瞄准；不声称已具备完整原版 outline 数据库 |
 | `move <forward\|back\|left\|right\|sprint\|stop> [durationMs]` | 默认1000ms，整数1..30000；sprint 同时按 forward+sprint，结束／取消释放双键，实际速度受游戏条件限制。stop 无时长、排队停步并保留潜行／持物使用；载具仍拒绝 sprint | 实测：900ms 步行约4.08格、疾跑约5.03格；取消释放双键且后续命令可执行；原潜行摘要保留 | 低饥饿／碰撞／水中疾跑、载具实际方向、低 TPS；不自动防跌落 |
 | `sneak <on\|off\|tap>` | on 持续、off 松开、tap 短按 150ms；已保持时 tap 不松开 | 实测：12 组含服务端潜行、转向／移动保持、工作台放置、船矿车上下车 | 已保持时须 off 再 tap 才产生新边沿；长途路径、其他载具 |
 | `jump [durationMs]` | 默认 200ms，整数 1..30000；保持空格直到到时／取消松开，不等落地。仅首次按下尝试展翅，不自动使用烟花 | 时长校验、保持中落地不重发展翅、取消松键自动覆盖；真实 3/3：上浮 Y=100→105.2、落地后重复起跳、主动取消松键；见 [持续空格验收](api-validation/jump-duration-validation.md) | 低 TPS、复杂流体、鞘翅实机仍待补；持续保持可能落地后再次起跳 |
@@ -129,7 +129,7 @@ Invoke-RestMethod "$base/api/agents/$agent/command" -Method Post -ContentType 'a
 
 | 调用 | 参数与行为 | 最新测试状态 | 待测／边界 |
 | --- | --- | --- | --- |
-| `dig` / `dig <x> <y> <z>` / `dig stop` | 无参只挖准星、不移动；坐标为安全整数，超距时受保护接近，不挖路／搭建，再瞄准校验遮挡与目标；stop 即时取消挖掘及接近，不取消无关移动 | 实测 6/6：近距离不移动、准星破坏、远处接近、遮挡／无路拒绝、接近途中停止；对照服务端 Pos 与方块；参数、目标变化和设置恢复另有自动测试 | 服务端保护拒绝、动态变化、更多工具／材质、低 TPS；依据客户端已同步方块，不自动选工具或保证拾取 |
+| `dig` / `dig <x> <y> <z>` / `dig stop` | 无参只挖准星、不移动；坐标为安全整数，超距时受保护接近，不挖路／搭建，再瞄准校验遮挡与目标；stop 即时取消挖掘及接近，不取消无关移动 | 既有实测 6/6 保留；2026-10-25 新增出生点保护／OP 对照、两次拒绝后按真实服务端更新恢复缓存、关闭测试服保护后非 OP 同坐标挖掘成功；服务端方块核对通过，全库自动测试 532/532 | 其他保护插件、动态变化、更多工具／材质、低 TPS；不把本地空气预测当作成功，无服务端更新不猜测修复；不自动选工具或保证拾取 |
 | `right <click\|down> [hand\|off-hand]` / `right up` | click 单次准星交互／放置；down 持续使用持物，非世界连点；up 无手参数，报告 hadActiveUse、released、实际 hand，未知为 null；本地松开不等于服务端效果确认 | 当前入口实测：木板放置与消耗、7种原生开窗、主副手书本、副手盾down／up及无活动重复up | 低TPS、其他物品及动态放置边界待补；盾牌本轮未重测减伤 |
 | `attack <entityName\|id>` | 必须指定目标；精确同名优先，再片段取最近；3 格、遮挡及转向后目标复核，无寻路／敌我判断。hit=true 仅服务端 damage_event 目标及来源均匹配自己；未发包拒绝为 false，发出后 1000ms 无归因证据为 null（未知，不是未命中），不读取目标隐藏血量 | 新目标、归因、取消及未知反馈有自动回归；专项记录见 [接口优化验收](api-validation/api-refinement-validation.md) | 多人同时攻击、低 TPS、特殊实体待补；时间窗不能证明本次独占因果关系 |
 | `interactentity <entityName\|id> [normal\|at] [hand\|off-hand]` | 辅助转向，默认 normal／hand；4.5 格及遮挡检查，无寻路重试；副手正确发包并保留潜行。主手 normal 村民／容器矿车原生开窗，副手该路径拒绝 | 实测：副手小麦 2→1、服务端牛 InLove>0；原主手上下车／喂食有摘要 | 移动目标、at 盔甲架、剪毛／交易实机待补；非开窗请求不等于效果完成 |
@@ -226,6 +226,7 @@ Invoke-RestMethod "$base/api/agents/$agent/command" -Method Post -ContentType 'a
 | `POST /api/agents/:name/connect` | 按配置连接；ok 不代表已 spawn | 摘要通过：重载后重连；重复连接及未知角色待测 |
 | `POST /api/agents/:name/disconnect` | 断开指定角色 | 摘要通过；运行中取消／写盘排空待测 |
 | `POST /api/agents/:name/command` | `{"command":"pos"}`；失败通常 HTTP 400 | 实测：右键 19 组及潜行 12 组经正式 HTTP 入口 |
+| `POST /api/world-map/command` | 仅人工 World；`{uuid,mapId,action:"goto"或"dig",position:{x,y,z}}`；校验在线受管 UUID、地图、维度、整数范围；goto 到方块上方 y+1，复用常规命令执行层；不向 LLM 暴露 | 自动覆盖路由绑定／参数／跨维度拒绝；地图可能过时，不能绕过执行检查 |
 | `GET /api/agents/:name/state` | 精确坐标、属性、控制、背包等客户端状态 | 实测：右键／潜行夹具读取；不是实时服务端全知状态 |
 | `GET /api/agents/:name/inventory-preview` | 只读：固定玩家背包／快捷栏、装备副手、光标与当前容器；开窗装备标注 last-known；不自动开窗或读取后台真值 | 双真实 agent 9项实机及浮层刷新专项通过；多agent／重连／只读隔离已核对 |
 | `GET /api/agents/:name/debug` | 默认全部；`section=vision` 不含LLM记录，`section=llm` 不含视角元数据，`section=all` 两者；ETag；不自动触发采集或模型 | 范围隔离、按需加载、离页取消自动测试及Edge模拟验证；历史真实DeepSeek证据另列，不算本轮复测 |
@@ -241,6 +242,10 @@ Invoke-RestMethod "$base/api/agents/$agent/command" -Method Post -ContentType 'a
 WebSocket 同端口默认仅推送轻量状态；发送 `{"type":"subscribe","agent":"角色名"}` 才接收该角色命令事件，agent=null取消；不再广播完整LLM文本，日志展开时走HTTP。角色订阅／取消及无原文广播已自动验证；长期断线恢复待测。不提供另一套命令执行接口，也不是权限鉴权机制。
 
 ## 14. 下一步待测顺序
+
+2026-10-25 写书赠书专项：`book write` 两页草稿、`book done` 精确页内容服务端确认、走近玩家后 `drop writable_book` 库存 -1 通过；人工截图核对第一页与两页结构。不据此宣称指定玩家拾取、签名成书或自主任务结束通过。`inventory` 第 24／25／26 步为三次独立模型选择，结果相同，后两次输入已含前次结果且未截断，保存确认与目标仍在；记录为冗余核验，不归因为 API 丢反馈、Continue 要求重查或上下文容量不足。未改 Brain／提示词，完整记录见 [写书、丢书与上下文验收](api-validation/book-gift-context-validation-2026-10-25.md)。
+
+World 人工控制：左键姓名标签保留状态弹层；右键姓名标签选择在线受管 Agent；选中后右键高精度地图方块发送 goto 到其上方一格，左键发送 dig。拖动不触发；Deselect 退出。地图可能滞后，实际执行仍由 API 校验；不会自动调用 LLM。Low 是 BlueMap 原有 Resolution 默认值，没有另建渲染。离页／后台会取消选择与浏览器请求，不等同取消已提交的游戏动作。2026-10-25 Edge 实际点击移动／挖掘及桌面／手机截图通过，用户人工验收确认通过；本轮专项 34/34，完整回归另有并行修改相关失败，见 [验收记录](api-validation/look-and-world-controls.md)。
 
 - 容器基础：slotclick → moveslot → putaway → transfer，逐项对照服务端库存和光标，覆盖满箱／满包／特殊组件。
 - 持续交互：right down/right up 的未覆盖消耗品、fish、床右键入睡与 wake。

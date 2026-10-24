@@ -27,7 +27,7 @@ export function mountAgentDetail(container, name) {
       if (!agent) {
         missing = true; subscribeAgent(null)
         release?.(); release = null
-        container.innerHTML = `<a class="agent-back" data-agent-link href="/agents">Back to Agents</a><p role="status">Agent not found: ${escapeHtml(name)}</p>`
+        container.innerHTML = `<p role="status">Agent not found: ${escapeHtml(name)}</p>`
         return
       }
       if (agent.online) {lastAgent=agent;checkedAt=Date.now()}
