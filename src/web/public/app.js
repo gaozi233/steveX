@@ -4,6 +4,7 @@ import { fetchStatus, reloadConfig } from './lib/api.js'
 import { hydrateIcons } from './lib/icons.js'
 import { renderAgents, initAgents } from './pages/agents.js'
 import { mountAgentDetail } from './pages/agent-detail.js'
+import { mountWorld } from './pages/world.js'
 import { renderConfigs } from './pages/configs.js'
 
 const agentsList = document.getElementById('agents-list')
@@ -32,7 +33,7 @@ function enter(page) {
   agentsList.replaceChildren()
   currentPage = page
   setAgentControlsVisible(page === 'Agents')
-  reloadButton.hidden = page === 'Agent detail'
+  reloadButton.hidden = page === 'Agent detail' || page === 'World'
   document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.textContent.trim() === (page === 'Agent detail' ? 'Agents' : page)))
 }
 function showAgentsPage() {
@@ -43,6 +44,7 @@ function showConfigsPage() {
   enter('Configs'); setHeader('Configs', '配置管理'); renderConfigs(agentsList)
 }
 export function routePath(pathname) {
+  if (pathname === '/world' || pathname === '/world/') return { page: 'world' }
   if (pathname === '/configs') return { page: 'configs' }
   const match = pathname.match(/^\/agents\/([^/]+)\/?$/)
   if (match) { try { return { page: 'detail', name: decodeURIComponent(match[1]) } } catch { return { page: 'missing' } } }
@@ -52,6 +54,7 @@ function renderRoute() {
   const route = routePath(location.pathname)
   if (route.page === 'agents') return showAgentsPage()
   if (route.page === 'configs') return showConfigsPage()
+  if (route.page === 'world') { enter('World'); setHeader('World', ''); disposePage = mountWorld(agentsList); return }
   enter('Agent detail')
   if (route.page === 'missing') { setHeader('Not found', ''); agentsList.textContent = 'Page not found'; return }
   setHeader(route.name, 'Agent debug')
@@ -61,8 +64,8 @@ function navigate(url) { history.pushState(null, '', url); renderRoute() }
 
 document.querySelectorAll('.nav-item').forEach(item => {
   const label = item.textContent.trim()
-  if (label === 'Agents' || label === 'Configs') {
-    item.href = label === 'Agents' ? '/agents' : '/configs'
+  if (label === 'Agents' || label === 'Configs' || label === 'World') {
+    item.href = label === 'Agents' ? '/agents' : label === 'World' ? '/world' : '/configs'
     item.dataset.agentLink = ''
   } else item.addEventListener('click', event => { event.preventDefault(); alert('Coming soon') })
 })

@@ -13,6 +13,7 @@ const ENV_CONFIG_RELATIVE_PATH = path.relative(process.cwd(), ENV_CONFIG_PATH)
 function registerRoutes(app, manager) {
   require('./inventory').registerInventoryRoutes(app, manager)
   require('./agent_debug').registerDebugRoutes(app, manager)
+  require('./world_map').registerWorldMapRoutes(app, manager)
 
   // ---- Status ----
   app.get('/api/status', (req, res) => {
@@ -104,7 +105,9 @@ function registerRoutes(app, manager) {
   app.post('/api/agents/:name/observe', async (req, res) => {
     const agent = manager.agents.get(req.params.name)
     try {
-      const result = await manager.captureObservation(req.params.name)
+      const perspective = req.body?.perspective ?? 'first-person'
+      if (!['first-person', 'third-person-back', 'third-person-front'].includes(perspective)) return res.status(400).json({ ok: false, error: 'Invalid perspective' })
+      const result = await manager.captureObservation(req.params.name, { perspective })
       const preview = await require('./agent_debug').getDebugStore(manager).rememberObservation(req.params.name, result, agent)
       res.status(result.ok ? 200 : 400).json({ ...result, preview: preview.observation })
     } catch (error) { res.status(400).json({ ok: false, error: require('./agent_debug').getDebugStore(manager).clean(error.message) }) }

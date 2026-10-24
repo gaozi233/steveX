@@ -144,9 +144,9 @@ class AgentManager {
     return result
   }
 
-  async captureObservation(name) {
+  async captureObservation(name, options = {}) {
     const agent = this.agents.get(name)
-    return agent ? agent.captureObservation({ source: 'observation' }) : { ok: false, error: 'Agent not found or not started' }
+    return agent ? agent.captureObservation({ ...options, source: 'observation' }) : { ok: false, error: 'Agent not found or not started' }
   }
 
   close() {

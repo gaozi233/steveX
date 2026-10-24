@@ -119,7 +119,7 @@ class AgentDebugStore {
     const directory = path.resolve(config.outputDir || 'runs/observations', config.memoryNamespace, frame.agentId)
     const publicView = { frameId: frame.frameId, sessionId: agent.sessionId, revision: observation.revision,
       observedAt: observation.observedAt, width: frame.width, height: frame.height,
-      dimension: frame.dimension, camera: frame.camera,
+        dimension: frame.dimension, camera: frame.camera, perspective: frame.perspective || 'first-person', previewOnly: !!frame.previewOnly,
       rgbUrl: `/api/agents/${encodeURIComponent(name)}/observation/${frame.frameId}/rgb` }
     this.context(name).observation = { directory, file: frame.rgb.file, public: publicView }
     this.revision++

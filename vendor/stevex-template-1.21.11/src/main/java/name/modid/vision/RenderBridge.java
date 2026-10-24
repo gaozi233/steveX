@@ -20,6 +20,8 @@ public final class RenderBridge {
     private static boolean previousHideGui;
     private static boolean previousPause;
     private static CameraType previousCameraType;
+    private static CameraType selectedCameraType = CameraType.FIRST_PERSON;
+    private static String perspective = "first-person";
 
     private RenderBridge() {}
 
@@ -42,11 +44,20 @@ public final class RenderBridge {
     public static void onFrame(Camera camera) {
         RenderDemand.INSTANCE.onWorldFrame();
         if (target == null) return;
-        if (camera.entity() != null && target.equals(camera.entity().getUUID()) && !camera.isDetached()) matchingFrames++;
+        if (camera.entity() != null && target.equals(camera.entity().getUUID())
+                && camera.isDetached() == (selectedCameraType != CameraType.FIRST_PERSON)) matchingFrames++;
         else matchingFrames = 0;
     }
 
     private static Map<String, Object> bind(Map<String, Object> params) {
+        String requestedPerspective = String.valueOf(params.getOrDefault("perspective", "first-person"));
+        CameraType requestedType = switch (requestedPerspective) {
+            case "first-person" -> CameraType.FIRST_PERSON;
+            case "third-person-back" -> CameraType.THIRD_PERSON_BACK;
+            case "third-person-front" -> CameraType.THIRD_PERSON_FRONT;
+            default -> null;
+        };
+        if (requestedType == null) return Map.of("ok", false, "error", "invalid perspective");
         UUID uuid = UUID.fromString(String.valueOf(params.get("targetUuid")));
         String name = MemoryPaths.identifier((String) params.get("agentId"));
         String namespace = MemoryPaths.identifier((String) params.get("memoryNamespace"));
@@ -87,7 +98,9 @@ public final class RenderBridge {
                 matchingFrames = 0;
                 mc.options.hideGui = true;
                 mc.options.pauseOnLostFocus = false;
-                mc.options.setCameraType(CameraType.FIRST_PERSON);
+                perspective = requestedPerspective;
+                selectedCameraType = requestedType;
+                mc.options.setCameraType(selectedCameraType);
                 if (RenderDemand.INSTANCE.enabled() && mc.screen instanceof PauseScreen) mc.screen.onClose();
                 mc.player.connection.sendCommand("spectate " + uuid);
                 ref.value = Map.of("ok", true, "binding", true, "targetUuid", uuid.toString(), "agentId", name);
@@ -103,11 +116,13 @@ public final class RenderBridge {
             Entity camera = mc.getCameraEntity();
             boolean ready = target != null && mc.player != null && mc.level != null
                     && mc.player.isSpectator() && camera != null && target.equals(camera.getUUID())
-                    && mc.options.getCameraType().isFirstPerson() && mc.screen == null
+                    && mc.options.getCameraType() == selectedCameraType && mc.screen == null
                     && mc.level.hasChunkAt(camera.blockPosition()) && matchingFrames >= 20;
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("ok", true);
             data.put("ready", ready);
+            data.put("perspective", perspective);
+            data.put("dimension", mc.level == null ? "unknown" : mc.level.dimension().identifier().toString());
             data.put("targetUuid", target == null ? null : target.toString());
             data.put("agentId", agentId);
             data.put("memoryNamespace", memoryNamespace);
@@ -132,7 +147,8 @@ public final class RenderBridge {
     private static Map<String, Object> capture(Map<String, Object> params) {
         synchronized (VisionApi.CAPTURE_LOCK) {
             if (target == null || !target.toString().equals(params.get("targetUuid"))
-                    || !agentId.equals(params.get("agentId")) || !memoryNamespace.equals(params.get("memoryNamespace"))) {
+                    || !agentId.equals(params.get("agentId")) || !memoryNamespace.equals(params.get("memoryNamespace"))
+                    || !perspective.equals(params.getOrDefault("perspective", "first-person"))) {
                 return Map.of("ok", false, "error", "capture identity differs from the selected camera/memory context");
             }
             try (var demand = RenderDemand.INSTANCE.acquire()) {
@@ -170,12 +186,16 @@ public final class RenderBridge {
                     }
                     state = status();
                 }
-                Map<String, Object> frame = VisionApi.capture(true);
+                boolean previewOnly = selectedCameraType != CameraType.FIRST_PERSON;
+                Map<String, Object> frame = VisionApi.capture(true, previewOnly);
                 if (!Boolean.TRUE.equals(frame.get("ok"))) return frame;
                 if (!target.toString().equals(frame.get("cameraUuid"))) {
                     return Map.of("ok", false, "error", "camera changed during capture; discard frame");
                 }
                 frame.put("frameId", UUID.randomUUID().toString());
+                frame.put("perspective", perspective);
+                frame.put("previewOnly", previewOnly);
+                frame.put("dimension", state.get("dimension"));
                 frame.put("agentId", agentId);
                 frame.put("memoryNamespace", memoryNamespace);
                 frame.put("memoryDirectory", MemoryPaths.directory().toString());

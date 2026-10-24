@@ -8,6 +8,7 @@ import { hydrateIcons } from '../lib/icons.js'
 import { initInventoryPreview } from '../lib/inventory-preview.js'
 import { inspectorHtml, initAgentInspector } from '../lib/agent-inspector.js'
 import { updatePlannerTask, syncPlannerLimits } from '../lib/planner-controls.js'
+import { initInputHistory } from '../lib/input-history.js'
 
 const PLACEHOLDER = {
   health: 20,
@@ -502,6 +503,7 @@ export function initAgents(container) {
 
 export function initAgentDetail(container) {
   const controller = new AbortController()
+  const releaseHistory = initInputHistory(container)
   const releaseInventory = initInventoryPreview(container)
   const releaseInspector = initAgentInspector(container)
   const click = event => handleClick(event, { signal: controller.signal })
@@ -513,7 +515,7 @@ export function initAgentDetail(container) {
   container.addEventListener('submit', submit)
   container.addEventListener('change', change)
   return () => {
-    controller.abort(); releaseInventory(); releaseInspector(); closeAgentLog()
+    controller.abort(); releaseHistory(); releaseInventory(); releaseInspector(); closeAgentLog()
     container.removeEventListener('click', click)
     container.removeEventListener('submit', submit)
     container.removeEventListener('change', change)

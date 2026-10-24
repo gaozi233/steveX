@@ -19,6 +19,7 @@
     }
   ],
   "renderer": { "enabled": false },
+  "worldMap": { "enabled": false, "url": "http://127.0.0.1:8100/" },
   "web": {
     "host": "localhost",
     "port": 8090

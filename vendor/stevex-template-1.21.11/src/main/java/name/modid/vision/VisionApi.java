@@ -60,14 +60,18 @@ public class VisionApi {
     }
 
     public static Map<String, Object> capture(boolean rgb) {
+        return capture(rgb, false);
+    }
+
+    public static Map<String, Object> capture(boolean rgb, boolean previewOnly) {
         synchronized (CAPTURE_LOCK) {
             try (var demand = RenderDemand.INSTANCE.acquire()) {
-                return captureLocked(rgb);
+                return captureLocked(rgb, previewOnly);
             }
         }
     }
 
-    private static Map<String, Object> captureLocked(boolean rgb) {
+    private static Map<String, Object> captureLocked(boolean rgb, boolean previewOnly) {
         DepthCapture.requestCapture(rgb);
         final DepthCapture.DepthSnapshot snap;
         try {
@@ -80,6 +84,16 @@ public class VisionApi {
             String err = DepthCapture.lastError();
             return Map.of("ok", false, "error",
                     err != null ? err : "depth capture timeout (no frame rendered within 15s)");
+        }
+
+        // Debug third-person frames must not extend the agent's first-person memory.
+        if (previewOnly) {
+            Map<String, Object> resp = new LinkedHashMap<>();
+            resp.put("ok", true);
+            resp.put("width", snap.width());
+            resp.put("height", snap.height());
+            resp.put("timestamp", snap.timestamp());
+            return attachRgb(resp, snap);
         }
 
         // ---- API 线程：纯数据，无竞态（§8）----
@@ -225,7 +239,10 @@ public class VisionApi {
         // v2.31：生物群系 cell 统计（union 总数 + 本帧新增；新增>0 意味着 biomes.nbt 有更新）
         storeStats.put("biomes", result.value.biomeStats());
         resp.put("storeStats", storeStats);
-        if (rgb) {
+        return rgb ? attachRgb(resp, snap) : resp;
+    }
+
+    private static Map<String, Object> attachRgb(Map<String, Object> resp, DepthCapture.DepthSnapshot snap) {
             try {
                 resp.put("rgb", Map.of("mimeType", "image/png", "base64",
                         Base64.getEncoder().encodeToString(Files.readAllBytes(Path.of(snap.rgbPath())))));
@@ -246,7 +263,6 @@ public class VisionApi {
                     "projectionMatrix", snap.projectionMatrix().get(new float[16]),
                     "modelViewMatrix", snap.modelViewMatrix().get(new float[16]),
                     "dayTime", snap.dayTime()));
-        }
         return resp;
     }
 

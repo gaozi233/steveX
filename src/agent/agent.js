@@ -235,11 +235,11 @@ class SteveXAgent {
         if (!this.isOnline()) throw new Error('Agent is offline')
         this.stopPhysicalActions({ preserveItemUse: true, preserveSneak:true })
         this.currentAction = 'capture'
-        try { return await this.renderService.capture(this, signal) }
+        try { return await this.renderService.capture(this, signal, options.perspective) }
         finally { this.currentAction = this.connected ? 'Idle' : 'Offline' }
       }, { ...options, timeoutMs: this.renderService.timeoutMs || 60000 })
       return { ok: true, observation: { agentId: frame.agentId, agentName: this.name, sessionId: this.sessionId, revision: ++this.observationRevision,
-        observedAt: new Date(frame.timestamp).toISOString(), sources: ['rgb', 'depth', 'client-nbt'], frame } }
+        observedAt: new Date(frame.timestamp).toISOString(), sources: frame.previewOnly ? ['rgb', 'depth'] : ['rgb', 'depth', 'client-nbt'], frame } }
     } catch (error) { return { ok: false, cancelled: error.name === 'AbortError', error: error.message } }
   }
 

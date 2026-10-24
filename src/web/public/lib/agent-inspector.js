@@ -3,7 +3,7 @@ import { updatePlannerTask } from './planner-controls.js'
 
 export function inspectorHtml() {
   return `<details class="agent-inspector inspector-vision"><summary>View</summary>
-    <div class="vision-toolbar"><button class="btn ghost" type="button" data-inspect-capture title="Capture current view"><span data-icon="refresh"></span>Capture</button><span data-vision-status role="status">Loading renderer status...</span></div>
+    <div class="vision-toolbar"><label>Perspective <select data-vision-perspective aria-label="Camera perspective" disabled><option value="first-person">First person</option><option value="third-person-back">Third person (back)</option><option value="third-person-front">Third person (front)</option></select></label><button class="btn ghost" type="button" data-inspect-capture title="Capture current view" disabled><span data-icon="refresh"></span>Capture</button><span data-vision-status role="status">Loading renderer status...</span></div>
     <figure class="agent-vision"><img data-vision-image hidden alt=""><figcaption data-vision-meta>No snapshot</figcaption></figure>
   </details>
   <details class="agent-inspector inspector-llm"><summary>LLM Input / Output</summary><div class="llm-trace-content" aria-live="polite">No model requests yet.</div></details>`
@@ -54,6 +54,8 @@ export function initAgentInspector(container) {
     const capture = captures.has(card)
     const button = card.querySelector('[data-inspect-capture]')
     button.disabled = capture || !data.online || !data.renderer.enabled || !data.renderer.connected
+    const select = card.querySelector('[data-vision-perspective]')
+    if (select) select.disabled = button.disabled
     const status = card.querySelector('[data-vision-status]')
     status.textContent = state.captureError || (capture ? 'Capturing...' : !data.online ? 'Agent offline' : !data.renderer.enabled
       ? 'Shared renderer disabled' : !data.renderer.connected ? 'Fabric renderer disconnected' : 'Ready')
@@ -72,7 +74,7 @@ export function initAgentInspector(container) {
         loadImage(card, state, image, url)
       }
       const camera = observation.camera
-      meta.textContent = `${observation.observedAt} | ${observation.width} x ${observation.height} | ${observation.dimension || '-'}${camera ? ` | yaw ${camera.yawDegrees}, pitch ${camera.pitchDegrees}` : ''}${state.captureError ? ' | Previous snapshot' : ''}`
+      meta.textContent = `${observation.observedAt} | ${observation.perspective || 'first-person'}${observation.previewOnly ? ' (debug preview; no memory update)' : ''} | ${observation.width} x ${observation.height} | ${observation.dimension || '-'}${camera ? ` | yaw ${camera.yawDegrees}, pitch ${camera.pitchDegrees}` : ''}${state.captureError ? ' | Previous snapshot' : ''}`
     }
     }
     if (!card.querySelector('.inspector-llm').open || !Array.isArray(data.turns)) return
@@ -173,7 +175,8 @@ export function initAgentInspector(container) {
     state.captureError = null
     render(card, state)
     try {
-      const response = await fetch(`${endpoint(state.name)}/observe`, { method: 'POST', signal: controller.signal })
+      const perspective = card.querySelector('[data-vision-perspective]')?.value || 'first-person'
+      const response = await fetch(`${endpoint(state.name)}/observe`, { method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ perspective }) })
       const result = await response.json()
       if (disposed || controller.signal.aborted || states.get(card) !== state || !card.isConnected) return
       if (!response.ok || !result.ok) throw new Error(result.error || 'Capture failed')
@@ -193,8 +196,28 @@ export function initAgentInspector(container) {
     event.target.hidden = true
     event.target.closest('figure').querySelector('figcaption').textContent = 'Snapshot unavailable; capture again'
   }
+  function changePerspective(event) {
+    if (!event.target.matches('[data-vision-perspective]')) return
+    const card = event.target.closest('.agent-card')
+    const button = card.querySelector('[data-inspect-capture]')
+    if (!button.disabled) button.click()
+  }
+  function keydown(event) {
+    if (event.key !== 'F5' || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey
+        || event.target.closest('input, textarea, [contenteditable="true"]')) return
+    const card = container.querySelector('.agent-card')
+    if (!card?.querySelector('.inspector-vision')?.open) return
+    const button = card.querySelector('[data-inspect-capture]')
+    const select = card.querySelector('[data-vision-perspective]')
+    event.preventDefault()
+    if (event.repeat || button.disabled || !select) return
+    select.selectedIndex = (select.selectedIndex + 1) % 3
+    changePerspective({ target: select })
+  }
   container.addEventListener('toggle', toggle, true)
   container.addEventListener('click', click)
+  container.addEventListener('change', changePerspective)
+  window.addEventListener('keydown', keydown)
   container.addEventListener('error', imageError, true)
   const observer = new MutationObserver(() => {
     for (const card of states.keys()) if (!card.isConnected) stop(card)
@@ -209,6 +232,8 @@ export function initAgentInspector(container) {
     captures.clear()
     container.removeEventListener('toggle', toggle, true)
     container.removeEventListener('click', click)
+    container.removeEventListener('change', changePerspective)
+    window.removeEventListener('keydown', keydown)
     container.removeEventListener('error', imageError, true)
   }
 }

@@ -30,6 +30,18 @@ test('observation rejects wrong identity, dimension, angle and malformed depth',
   assert.throws(() => checkFrame({ ...frame, depth: { ...frame.depth, base64: '' } }, pose, pose, 'a', 'world'), /dimensions/)
 })
 
+test('third-person validation checks requested perspective, native front angles and camera distance', () => {
+  const bot = { entity: { uuid:'target', position:{x:0,y:64,z:0}, yaw:Math.PI,pitch:0 }, game:{dimension:'overworld'} }
+  const pose = poseOf(bot), frame = fixture({agentId:'a',memoryNamespace:'world',targetUuid:'target'},bot)
+  assert.throws(()=>checkFrame(frame,pose,pose,'a','world','third-person-back'),/perspective/)
+  const back = {...frame,perspective:'third-person-back',camera:{...frame.camera,position:[0,65.62,-4]}}
+  assert.ok(checkFrame(back,pose,pose,'a','world','third-person-back'))
+  assert.throws(()=>checkFrame({...back,camera:{...back.camera,position:[0,65.62,-20]}},pose,pose,'a','world','third-person-back'),/synchronize/)
+  const front = {...back,perspective:'third-person-front',camera:{...back.camera,position:[0,65.62,4],yawDegrees:180}}
+  assert.ok(checkFrame(front,pose,pose,'a','world','third-person-front'))
+  assert.throws(()=>checkFrame(front,pose,pose,'a','world'),/perspective/)
+})
+
 test('shared renderer uses existing main agents, serializes switches and isolates artifacts', async t => {
   const out = await fs.mkdtemp(path.join(os.tmpdir(), 'stevex-main-render-'))
   t.after(() => fs.rm(out, { recursive: true, force: true }))
@@ -54,12 +66,15 @@ test('shared renderer uses existing main agents, serializes switches and isolate
     agent.bot = { entity: { uuid: `00000000-0000-0000-0000-00000000000${i}`, position: { x: i * 256, y: 64, z: 0 }, yaw: Math.PI, pitch: 0 }, game: { dimension: 'overworld' } }
     players.set(cfg.name, agent)
   }
-  const [a, b, again] = await Promise.all([players.get('a').captureObservation(), players.get('b').captureObservation(), players.get('a').captureObservation()])
+  const [a, b, again] = await Promise.all([players.get('a').captureObservation({perspective:'third-person-back'}), players.get('b').captureObservation(), players.get('a').captureObservation()])
   assert.ok(a.ok && b.ok && again.ok)
   assert.equal(peak, 1)
   assert.equal(a.observation.revision, 1)
   assert.equal(again.observation.revision, 2)
   assert.equal(b.observation.frame.camera.position[0], 256)
+  assert.equal(a.observation.frame.perspective,'third-person-back')
+  assert.equal(b.observation.frame.perspective,'first-person')
+  assert.equal(again.observation.frame.perspective,'first-person')
   assert.equal((await fs.readdir(path.join(out, 'test-world', 'a'))).length, 6)
   assert.equal((await fs.readdir(path.join(out, 'test-world', 'b'))).length, 3)
 })

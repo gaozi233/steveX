@@ -12,10 +12,13 @@ function startWebServer(manager) {
   const port = webConfig.port
 
   const app = createApp(manager)
+  const mapPlayers = require('./server/world_map_players').startWorldMapPlayers(manager)
   const server = http.createServer(app)
+  server.once('close', () => { mapPlayers.close() })
 
   const wss = setupWebSocket(server, manager)
   server.closeResources = () => {
+    mapPlayers.close()
     for (const client of wss.clients) client.terminate()
     wss.close()
   }

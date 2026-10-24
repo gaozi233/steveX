@@ -6,7 +6,9 @@ const flush = () => new Promise(resolve => setImmediate(resolve))
 class Observer { observe() {} disconnect() {} }
 function pendingFetch() {
   const calls = []
-  return { calls, fetch: (url, options) => new Promise(resolve => calls.push({ url, options, resolve })) }
+  const keys = {}
+  return { calls, keys, window: { addEventListener:(name, fn)=>{keys[name]=fn}, removeEventListener:name=>{delete keys[name]} },
+    fetch: (url, options) => new Promise(resolve => calls.push({ url, options, resolve })) }
 }
 
 test('detail route decodes names without turning encoded separators into navigation', () => {
@@ -70,6 +72,34 @@ test('inventory panel is lazy and disposal aborts fetch and removes tooltip/glob
   requests.calls[0].resolve({ok:true,json:async()=>({ok:true,agentName:'b',online:false})})
   await flush(); assert.equal(content.textContent,'Loading...'); assert.equal(removed,true)
   assert.equal(globalListeners.size,0); assert.deepEqual(Object.keys(listeners),[])
+})
+
+test('F5 cycles three perspectives only in the open View and unregisters on disposal', () => {
+  const requests = pendingFetch(), listeners = {}, vision = { open:true }
+  const values = ['first-person', 'third-person-back', 'third-person-front']
+  const select = { selectedIndex:0, get value() { return values[this.selectedIndex] }, matches:()=>true, closest:()=>card }
+  let captures = 0
+  const button = { disabled:false, click:()=>{captures++} }
+  const card = { querySelector:s=>s === '.inspector-vision' ? vision : s === '[data-vision-perspective]' ? select : button }
+  const container = { querySelector:()=>card, addEventListener:(n,f)=>{listeners[n]=f}, removeEventListener:n=>{delete listeners[n]} }
+  const context = vm.createContext({ ...requests, AbortController, MutationObserver:Observer, setTimeout, clearTimeout, URL })
+  vm.runInContext(source('lib/agent-inspector.js'), context)
+  assert.match(context.inspectorHtml(),/data-vision-perspective[^>]*disabled/)
+  assert.match(context.inspectorHtml(),/data-inspect-capture[^>]*disabled/)
+  const release = context.initAgentInspector(container)
+  let prevented = 0
+  const event = { key:'F5', target:{closest:()=>null}, preventDefault:()=>{prevented++} }
+  for (const index of [1,2,0]) { requests.keys.keydown(event); assert.equal(select.selectedIndex,index) }
+  assert.equal(captures,3); assert.equal(prevented,3)
+  button.disabled = true; requests.keys.keydown(event)
+  assert.equal(captures,3); assert.equal(prevented,4)
+  button.disabled = false; requests.keys.keydown({...event,ctrlKey:true})
+  requests.keys.keydown({...event,shiftKey:true})
+  requests.keys.keydown({...event,target:{closest:()=>({})}})
+  vision.open = false; requests.keys.keydown(event)
+  assert.equal(captures,3); assert.equal(prevented,4)
+  release(); assert.deepEqual(Object.keys(requests.keys),[])
+  assert.deepEqual(Object.keys(listeners),[])
 })
 
 test('detail control requests carry cancellation signals outside JSON payloads', async () => {

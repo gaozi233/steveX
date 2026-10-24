@@ -33,7 +33,7 @@ class SharedRenderService {
 
   connect() { this.renderer.connect() }
 
-  capture(agent, signal) {
+  capture(agent, signal, perspective = 'first-person') {
     if (this.closed) return Promise.reject(new Error('Renderer service is closed'))
     let bridge = this.bridges.get(agent)
     if (!bridge) {
@@ -44,7 +44,7 @@ class SharedRenderService {
         isOnline: () => agent.isOnline() })
       this.bridges.set(agent, bridge)
     }
-    return this.queue.run(() => bridge.captureFrame({ signal }))
+    return this.queue.run(() => bridge.captureFrame({ signal, perspective }))
   }
 
   async status() {

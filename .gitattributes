@@ -1,0 +1,4 @@
+# Preserve the pinned upstream bytes used by the installer SHA-256 checks on Windows.
+vendor/bluemap-player-models/player-models.js -text
+vendor/bluemap-player-models/items-registry.json -text
+vendor/bluemap-player-models/LICENSE -text
