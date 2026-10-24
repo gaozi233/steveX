@@ -20,6 +20,7 @@ class SteveXAgent {
   constructor(config, name = 'steveX', commands = {}, options = {}) {
     this.config = config
     this.name = name
+    this.eventBus = options.eventBus || null
     this.bot = null
     this.movements = null
     this.commands = commands
@@ -117,11 +118,25 @@ class SteveXAgent {
    */
   async executeCommand(input, options = {}) {
     const startedAt = performance.now()
-    let measured
+    const parts=typeof input==='string'?input.trim().split(/\s+/):[]
+    const trace={name:this.name,sessionId:this.sessionId,callId:require('node:crypto').randomUUID(),
+      apiName:parts[0]?.toLowerCase() || '',arguments:{raw:typeof input==='string'?input:'[non-string input]',positional:parts.slice(1)},
+      source:options.source || 'manual',llmRequestId:options.llmRequestId || null,contextId:options.contextId || null,
+      taskId:options.taskId || null,nodeId:options.nodeId || null,parentCallId:options.parentCallId || null}
+    const emit=(phase,fields={})=>{try{this.eventBus?.emit('agent:api:'+phase,{...trace,...fields,timestamp:Date.now()})}catch{}}
+    let measured,result,error,running=false,operationStarted
+    emit('start')
     try {
-      return await this._executeCommand(input, { ...options, onTiming: timing => { measured = timing } })
+      result=await this._executeCommand(input, { ...options, onTiming: timing => { measured = timing },
+        onCallStarted:()=>{if(!running){running=true;operationStarted=performance.now();emit('running')}} })
+      return result
+    } catch(cause) {
+      error=cause
+      throw cause
     } finally {
       const commandMs = performance.now() - startedAt
+      emit('done',{result,error:error?.message,cancelled:error?.name==='AbortError' || !!result?.cancelled,
+        timings:{queueMs:measured?.queueMs ?? 0,executionMs:measured?.executionMs ?? (running?performance.now()-operationStarted:0),commandMs}})
       try { options.onTiming?.({ queueMs: measured?.queueMs ?? 0, executionMs: measured?.executionMs ?? commandMs, commandMs }) } catch {}
     }
   }
@@ -167,18 +182,24 @@ class SteveXAgent {
     let operationOutcome
     try {
       options.signal?.throwIfAborted()
-      if (this.queryNames.has(command)) return normalizeFailure(command, await handler.call(this, this.bot, args, this, options))
+      if (this.queryNames.has(command)) {
+        options.onCallStarted?.()
+        return normalizeFailure(command, await handler.call(this, this.bot, args, this, options))
+      }
       if (options.source !== 'brain') this.brainLoop?.stop()
       if (command === 'dig' && args[0]?.toLowerCase() === 'stop') {
+        options.onCallStarted?.()
         return normalizeFailure(command, await handler.call(this, this.bot, args, this, options))
       }
       if (command === 'stop') {
+        options.onCallStarted?.()
         this.brainLoop?.stop()
         this.executor.cancelAll('Stop requested')
         this.stopPhysicalActions()
         return { ok: true, output: 'Actions and autonomous brain stopped' }
       }
       return await this.executor.run(command, async signal => {
+        options.onCallStarted?.()
         if (!this.connected) throw new Error('Agent is offline')
         if (command !== 'swing') this.stopPhysicalActions({ preserveItemUse: itemUseCompatibleActions.has(command), preserveSneak:true })
         this.currentAction = command

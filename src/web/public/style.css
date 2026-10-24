@@ -1228,6 +1228,17 @@ input, textarea, [contenteditable=""], [contenteditable="true"], [contenteditabl
 .page h1, .brand, .agent-id h2, .config-page h2 { letter-spacing: 0; }
 .command-row input, .config-editor, pre, code, .log-entry, .llm-turn pre, .planner-result, .inventory-item-tooltip { font-family: var(--font-code); }
 .world-view { min-width: 0; }
+.data-freshness { color: var(--muted); font-size: 12px; font-weight: 400; overflow-wrap: anywhere; margin: 6px 0; }
+.api-call, .context-record { border-bottom: 1px solid var(--line); padding: 10px 0; }
+.api-call > summary, .context-record > summary { display: flex; flex-wrap: wrap; gap: 8px 16px; cursor: pointer; font-size: 13px; overflow-wrap: anywhere; }
+.api-call pre, .context-record pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 480px; overflow: auto; font-size: 12px; }
+.trace-identities { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 8px; font-size: 12px; }
+.trace-identities dt, .trace-unrecorded { color: var(--muted); }
+.trace-identities dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.trace-reference { padding: 0; border: 0; background: none; color: var(--accent); text-align: left; text-decoration: underline; cursor: pointer; font-family: var(--font-code); font-size: 12px; overflow-wrap: anywhere; max-width: 100%; }
+.trace-navigation-status { font-size: 12px; color: #9b3e1d; overflow-wrap: anywhere; }
+.data-freshness[data-freshness="error"], .data-freshness[data-freshness="offline"], .data-freshness[data-freshness="disconnected"] { color: #9b3e1d; }
+.agent-id .data-freshness { flex-basis: 100%; }
 .world-player-popup { position: fixed; z-index: 1000; width: min(296px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); overflow: auto; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--text); box-shadow: 0 4px 20px #0002; font-size: 13px; }
 .world-player-popup header { display: flex; align-items: center; gap: 10px; }
 .world-player-popup header strong { flex: 1; overflow-wrap: anywhere; min-width: 0; }

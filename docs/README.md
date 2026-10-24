@@ -10,6 +10,7 @@
 
 - [Agent overview and debug pages](web-agent-pages.md): lightweight overview, per-agent routes, lazy panels and subscription disposal.
 - [Human World map](world-map.md): BlueMap 5.29 / Minecraft 1.21.11 trial, latency/memory measurements, model review and local preview.
+- [Agent context and API tracing](agent-debug-tracing.md): read-only context snapshots, generic API lifecycle records and explicit ID links.
 
 - [Fabric 同学交接](fabric-handover.md)、[迁移核查](research-migration-parity.md)、[集成运行与共享渲染](integration-runtime-render.md)。
 - [NBT 记忆调试](nbt-memory-debug.md)、[旁观模式兼容](spectator-compatibility.md)、[分支整合](branch-consolidation.md)。

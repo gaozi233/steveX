@@ -55,3 +55,21 @@ test('WebSocket defaults to summaries, commands require role subscription and st
   socket.close(); await once(socket,'close')
   assert.equal(manager.eventBus.listenerCount('agent:command:done'), baseline)
 })
+
+test('paused WebSocket clients receive no updates and resume with a fresh snapshot',async t=>{
+  const {manager,origin}=await fixture(t),original=manager.getStatus
+  let calls=0
+  manager.getStatus=options=>{calls++;return original(options)}
+  const socket=new WebSocket(origin.replace('http:','ws:')),messages=[]
+  socket.on('message',raw=>messages.push(JSON.parse(raw)))
+  await once(socket,'open');await new Promise(r=>setTimeout(r,20))
+  socket.send(JSON.stringify({type:'subscribe',agent:null,paused:true}));await once(socket,'message')
+  const baseline=calls,count=messages.length
+  manager.eventBus.emit('agent:command:done',{name:'a',command:'hp',ok:true,output:'20'})
+  await new Promise(r=>setTimeout(r,1100))
+  assert.equal(calls,baseline);assert.equal(messages.length,count)
+  socket.send(JSON.stringify({type:'subscribe',agent:'a',paused:false}));await once(socket,'message')
+  await new Promise(r=>setTimeout(r,30))
+  assert.equal(messages.at(-1).type,'snapshot');assert.ok(calls>baseline)
+  socket.close();await once(socket,'close')
+})

@@ -1,4 +1,5 @@
 import { escapeHtml } from './utils.js'
+import { setFreshness } from './freshness.js'
 
 export function itemTooltipText(entry) {
   const item = entry.item
@@ -108,17 +109,37 @@ export function initInventoryPreview(container) {
   const panels = new Map()
   const tooltip = createInventoryTooltip(container)
   let disposed = false
+  const page = typeof document === 'undefined' ? null : document
+  const mark = (panel,state,mode) => setFreshness(panel.querySelector('[data-inventory-freshness]'),{checkedAt:state.checkedAt,mode})
   const update = async (panel, state) => {
-    if (disposed || !panel.isConnected || !panel.open || panels.get(panel) !== state) return
+    if (disposed || page?.hidden || !panel.isConnected || !panel.open || panels.get(panel) !== state) return
+    const revision = state.revision = (state.revision || 0) + 1
+    const current = () => !disposed && !page?.hidden && panel.open && panel.isConnected && panels.get(panel) === state && state.revision === revision
     const controller = new AbortController()
     state.controller = controller
     const timeout = setTimeout(() => controller.abort(), 5000)
     try {
-      const response = await fetch(`/api/agents/${encodeURIComponent(state.name)}/inventory-preview`, { signal: controller.signal, cache: 'no-store' })
+      const response = await fetch(`/api/agents/${encodeURIComponent(state.name)}/inventory-preview`, { signal: controller.signal, cache: 'no-store', headers: state.etag ? {'If-None-Match':state.etag} : {} })
+      if (response.status === 304) {
+        if(current()) {
+          if(state.online)state.checkedAt=Date.now()
+          mark(panel,state,state.online?'checked':'offline')
+        }
+        return
+      }
       const data = await response.json()
-      if (disposed || !panel.open || !panel.isConnected || panels.get(panel) !== state) return
+      if (!current()) return
       if (!response.ok || !data.ok) throw new Error(data.error || 'Inventory unavailable')
       if (data.agentName !== state.name) throw new Error('Agent identity mismatch')
+      state.etag = response.headers?.get('etag') || null
+      if(!data.online && state.sessionId!==data.sessionId)state.checkedAt=undefined
+      state.online=data.online
+      if(data.online)state.checkedAt=Date.now()
+      mark(panel,state,data.online?'checked':'offline')
+      // Keep same-session cached slots on disconnect, explicitly marked last known.
+      if(!data.online && state.hasData && state.sessionId===data.sessionId)return
+      state.sessionId=data.sessionId
+      state.hasData=!!data.online
       const signature = JSON.stringify(data)
       if (signature !== state.signature) {
         state.signature = signature
@@ -131,14 +152,15 @@ export function initInventoryPreview(container) {
         tooltip.refresh()
       }
     } catch (error) {
-      if (!disposed && panel.open && panel.isConnected && panels.get(panel) === state) {
-        panel.querySelector('.inventory-preview-content').textContent = error.name === 'AbortError' ? 'Inventory request timed out' : error.message
-        state.signature = null
+      if (current()) {
+        mark(panel,state,'error')
+        if(!state.hasData)panel.querySelector('.inventory-preview-content').textContent = error.name === 'AbortError' ? 'Inventory request timed out' : error.message
+        state.etag = null
         tooltip.refresh()
       }
     } finally {
       clearTimeout(timeout)
-      if (!disposed && panel.open && panel.isConnected && panels.get(panel) === state) state.timer = setTimeout(() => update(panel, state), 1000)
+      if (current()) state.timer = setTimeout(() => update(panel, state), 1000)
     }
   }
   const release = panel => {
@@ -157,10 +179,20 @@ export function initInventoryPreview(container) {
       const state = { name: panel.closest('[data-agent-name]').dataset.agentName }
       panels.set(panel, state)
       panel.querySelector('.inventory-preview-content').textContent = 'Loading...'
+      mark(panel,state,'checked')
       update(panel, state)
     }
   }
   container.addEventListener('toggle', toggle, true)
+  function visibility() {
+    for (const [panel,state] of panels) {
+      state.revision = (state.revision || 0) + 1
+      clearTimeout(state.timer); state.controller?.abort()
+      mark(panel,state,'paused')
+      if (!page.hidden) update(panel,state)
+    }
+  }
+  page?.addEventListener?.('visibilitychange',visibility)
   const observer = new MutationObserver(() => {
     for (const panel of panels.keys()) if (!panel.isConnected) release(panel)
     tooltip.refresh()
@@ -171,6 +203,7 @@ export function initInventoryPreview(container) {
     tooltip.destroy()
     observer.disconnect()
     container.removeEventListener('toggle', toggle, true)
+    page?.removeEventListener?.('visibilitychange',visibility)
     for (const panel of panels.keys()) release(panel)
   }
 }

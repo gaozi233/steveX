@@ -3,6 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
+const freshnessSource = fs.readFileSync(path.join(__dirname,'../src/web/public/lib/freshness.js'),'utf8').replace(/^export /gm,'')
 
 test('overview is lightweight while a single-agent template retains lazy debug panels', () => {
   const source = fs.readFileSync(path.join(__dirname, '../src/web/public/pages/agents.js'), 'utf8').replace(/^import .*$/gm, '').replace(/^export /gm, '')
@@ -14,7 +15,7 @@ test('overview is lightweight while a single-agent template retains lazy debug p
     initAgentInspector:()=>{}, inspectorHtml:()=>'<details class="agent-inspector"></details>',
     escapeHtml: value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   })
-  vm.runInContext(source, context)
+  vm.runInContext(freshnessSource+'\n'+source, context)
   context.initAgents({ addEventListener: (event, handler) => { listeners[event] = handler } })
   assert.equal(previews, 0)
   assert.equal(typeof listeners.click, 'function')
@@ -48,7 +49,7 @@ test('overview is lightweight while a single-agent template retains lazy debug p
 test('agent status refresh switches connection controls and updates planner model safely', () => {
   const source = fs.readFileSync(path.join(__dirname, '../src/web/public/pages/agents.js'), 'utf8').replace(/^import .*$/gm, '').replace(/^export /gm, '')
   const context = vm.createContext({ updatePlannerTask() {} })
-  vm.runInContext(source, context)
+  vm.runInContext(freshnessSource+'\n'+source, context)
   const nodes = { '[data-action="connect"]': {}, '[data-action="disconnect"]': {}, '[data-planner-model]': {}, '.agent-id .state-label': { dataset: {} } }
   const card = { querySelector: selector => nodes[selector], querySelectorAll: () => [] }
   context.updateDynamicFields(card, { online: false, model: '<new-model>' })

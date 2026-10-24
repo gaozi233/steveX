@@ -81,7 +81,7 @@ class AgentManager {
 
     if (existing) existing.shutdown()
     const agent = new SteveXAgent(cfg, name, this.sharedCommands, { queryNames: this.queryNames, renderService: this.renderService,
-      memoryNamespace: this.config.renderer?.memoryNamespace })
+      memoryNamespace: this.config.renderer?.memoryNamespace,eventBus:this.eventBus })
     agent.start()
     if (cfg?.brain?.enabled) agent.startBrain(cfg.brain, this.eventBus)
     this.agents.set(name, agent)
@@ -202,13 +202,13 @@ class AgentManager {
 
   // ── Queries ──
 
-  getStatus() {
-    return [...this.agentConfigs.values()].map(cfg => {
+  getStatus({ summary = false, name } = {}) {
+    return [...this.agentConfigs.values()].filter(cfg => name === undefined || cfg.name === name).map(cfg => {
       const agent = this.agents.get(cfg.name)
       const online = agent?.isOnline() ?? false
       const { health, maxHealth } = this.getAgentHealth(agent)
 
-      return {
+      const display = {
         name: cfg.name,
         username: agent?.getUsername() ?? cfg.minecraft?.username ?? cfg.name,
         online,
@@ -219,6 +219,12 @@ class AgentManager {
         gameMode: this.getAgentGameMode(agent),
         position: this.getAgentPosition(agent),
         currentAction: this.getAgentAction(agent),
+      }
+      if (summary) {
+        const loop=agent?.brainLoop,task=loop?.task
+        return {...display,brain:loop?{running:loop.running,task:task?{id:task.id,status:task.status}:null}:null}
+      }
+      return { ...display,
         execution: agent?.executor.getStatus() || null,
         brain: agent?.brainLoop ? { running: agent.brainLoop.running, lastError: agent.brainLoop.lastError,
           task: agent.brainLoop.getTaskStatus?.() ?? null } : null,

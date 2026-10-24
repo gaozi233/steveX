@@ -117,6 +117,7 @@ class Brain {
         { role: 'user', content: state },
       ]
       trace = { name: this.agent.name, sessionId: this.agent.sessionId, requestId: require('node:crypto').randomUUID(), model: this.llm.model,
+        contextId:require('node:crypto').randomUUID(),
         taskId: task?.id ?? null, step: task ? task.calls + 1 : null }
       pending = true
       this.bus.emit('agent:llm:input', { ...trace, input: state, prompt: state, messages, timestamp: Date.now() })
@@ -149,7 +150,9 @@ class Brain {
       const commandStarted = performance.now()
       let measured = false, res
       try {
-        res = await this.agent.executeCommand(cmd, { source: 'brain', signal, onTiming: values => { Object.assign(timing, values); measured = true } })
+        res = await this.agent.executeCommand(cmd, { source: 'brain', signal,
+          llmRequestId:trace.requestId,contextId:trace.contextId,taskId:trace.taskId,
+          onTiming: values => { Object.assign(timing, values); measured = true } })
         result = res
       } finally {
         timing.commandMs = performance.now() - commandStarted

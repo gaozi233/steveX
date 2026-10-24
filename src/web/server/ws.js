@@ -7,33 +7,41 @@ function setupWebSocket(server, manager) {
   const listeners = []
   let snapshotDirty = true
   const send = (client, data) => { if (client.readyState === 1) client.send(JSON.stringify(data)) }
-  const snapshot = () => ({ type: 'snapshot', agents: manager.getStatus().map(agentSummary), uptimeSec: Math.floor(process.uptime()) })
+  const snapshot = () => ({ type: 'snapshot', agents: manager.getStatus({summary:true}).map(agentSummary), uptimeSec: Math.floor(process.uptime()) })
   const on = (event, handler) => { manager.eventBus?.on(event, handler); listeners.push([event, handler]) }
   wss.on('connection', client => {
     client.agentSubscription = null
+    client.paused = false
     send(client, snapshot())
     client.on('message', raw => {
       try {
         const message = JSON.parse(raw.toString())
         if (message.type !== 'subscribe') return
-        const agent = typeof message.agent === 'string' && manager.getStatus().some(a => a.name === message.agent) ? message.agent : null
+        const agent = typeof message.agent === 'string' && (manager.agents.has(message.agent) || manager.agentConfigs?.has(message.agent)) ? message.agent : null
+        const wasPaused=client.paused
+        client.paused=message.paused===true
         client.agentSubscription = agent
         send(client, { type: 'subscription', agent })
+        if(wasPaused && !client.paused)send(client,snapshot())
       } catch { send(client, { type: 'subscription', agent: client.agentSubscription }) }
     })
   })
   for (const event of ['agent:task:update', 'agent:connect', 'agent:disconnect', 'agent:update']) on(event, () => { snapshotDirty = true })
   for (const event of ['agent:command:start', 'agent:command:done']) on(event, data => {
     snapshotDirty = true
-    const payload = { type: event, name: data.name, command: debugStore.clean(data.command),
-      ...(event.endsWith(':done') ? { ok: data.ok, output: debugStore.clean(data.output || data.error || '') } : {}), timestamp: data.timestamp }
-    for (const client of wss.clients) if (client.agentSubscription === data.name) send(client, payload)
+    const clients=[...wss.clients].filter(client=>!client.paused && client.readyState===1 && client.agentSubscription===data.name)
+    if(!clients.length)return
+    const payload = JSON.stringify({ type: event, name: data.name, command: debugStore.clean(data.command),
+      ...(event.endsWith(':done') ? { ok: data.ok, output: debugStore.clean(data.output || data.error || '') } : {}), timestamp: data.timestamp })
+    for (const client of clients) client.send(payload)
   })
   // Full prompts/results are fetched only by an explicitly opened per-agent inspector.
   const interval = setInterval(() => {
     if (!snapshotDirty) return
-    const data = snapshot()
-    for (const client of wss.clients) send(client, data)
+    const clients=[...wss.clients].filter(client=>!client.paused && client.readyState===1)
+    if(!clients.length)return
+    const data = JSON.stringify(snapshot())
+    for (const client of clients) client.send(data)
     snapshotDirty = false
   }, 1000)
   wss.once('close', () => {

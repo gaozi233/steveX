@@ -1,7 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs'), vm = require('node:vm'), path = require('node:path')
-const source = name => fs.readFileSync(path.join(__dirname, '../src/web/public', name), 'utf8').replace(/^import .*$/gm, '').replace(/^export /gm, '')
+const source = name => ['lib/freshness.js','lib/runtime-trace.js',name].map(file=>fs.readFileSync(path.join(__dirname,'../src/web/public',file),'utf8').replace(/^import .*$/gm,'').replace(/^export /gm,'')).join('\n')
 const flush = () => new Promise(resolve => setImmediate(resolve))
 class Observer { observe() {} disconnect() {} }
 function pendingFetch() {

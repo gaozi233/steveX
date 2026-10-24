@@ -1,11 +1,12 @@
 // ── steveX HTTP API client ──
 
-import { setState } from './state.js'
+import { setState, getState } from './state.js'
+import { receivedAgents } from './freshness.js'
 
 export async function fetchStatus() {
   const res = await fetch('/api/status?view=summary')
   const data = await res.json()
-  setState({ agents: data.agents, uptimeSec: data.uptimeSec })
+  setState({ agents: receivedAgents(data.agents,getState().agents), uptimeSec: data.uptimeSec })
   return data
 }
 

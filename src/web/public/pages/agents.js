@@ -9,14 +9,15 @@ import { initInventoryPreview } from '../lib/inventory-preview.js'
 import { inspectorHtml, initAgentInspector } from '../lib/agent-inspector.js'
 import { updatePlannerTask, syncPlannerLimits } from '../lib/planner-controls.js'
 import { initInputHistory } from '../lib/input-history.js'
+import { setFreshness } from '../lib/freshness.js'
 
 const PLACEHOLDER = {
-  health: 20,
-  maxHealth: 20,
-  mode: 'Survival',
+  health: '\u2014',
+  maxHealth: '\u2014',
+  mode: '\u2014',
   model: 'Not configured',
   position: { x: null, y: null, z: null },
-  action: 'Idle'
+  action: '\u2014'
 }
 
 // Backend getStatus() already returns canonical field names.
@@ -43,7 +44,7 @@ function formatPosition(position) {
 }
 
 function getHealthPercent(health, maxHealth) {
-  if (!maxHealth || maxHealth <= 0) return 0
+  if (!Number.isFinite(health) || !Number.isFinite(maxHealth) || maxHealth <= 0) return 0
   return Math.max(0, Math.min(100, Math.round((health / maxHealth) * 100)))
 }
 
@@ -97,6 +98,7 @@ export function agentCardHtml(agent) {
           <span class="dot ${statusClass}" aria-hidden="true"></span>
           <span class="state-label" data-status="${agent.online ? 'online' : 'offline'}">${statusText}</span>
           <span class="pill username-pill" style="margin-left:8px;color:var(--muted);font-size:14px">${escapeHtml(username)}</span>
+          <small class="data-freshness" data-agent-freshness>Not checked yet</small>
         </div>
 
         <div class="agent-actions">
@@ -162,6 +164,7 @@ export function agentCardHtml(agent) {
       </div>
       <details class="inventory-preview">
         <summary>Inventory <span class="inventory-readonly">Read only</span></summary>
+        <p class="data-freshness" data-inventory-freshness>Not checked yet</p>
         <div class="inventory-preview-content" aria-live="polite"></div>
       </details>
       ${inspectorHtml()}
@@ -271,7 +274,7 @@ export function overviewCardHtml(agent) {
   return `<article class="agent-card agent-overview" data-agent-name="${name}">
     <div class="agent-header"><div class="agent-id"><h2>${name}</h2><span class="dot ${agent.online ? 'online' : 'offline'}" aria-hidden="true"></span><span class="state-label" data-status="${agent.online ? 'online' : 'offline'}">${agent.online ? 'online' : 'offline'}</span><span class="username-pill">${escapeHtml(agent.username || '')}</span></div>
     <div class="agent-actions"><button class="btn soft-success" data-action="connect" data-agent="${name}" ${agent.online ? 'hidden' : ''}><span data-icon="link"></span>Connect</button><button class="btn soft-danger" data-action="disconnect" data-agent="${name}" ${agent.online ? '' : 'hidden'}><span data-icon="unlink"></span>Disconnect</button><button class="btn" data-action="agent-stop" data-agent="${name}" ${agent.online ? '' : 'disabled'}>Stop</button><a class="btn" data-agent-link href="/agents/${encodeURIComponent(agent.name)}"><span data-icon="configs"></span>Debug</a></div></div>
-    <div class="overview-summary"><span>Task <strong data-overview-task>${escapeHtml(agent.brain?.task?.status || 'None')}</strong></span><span>Action <strong data-overview-action>${escapeHtml(agent.currentAction || 'Idle')}</strong></span></div><p class="overview-error" role="status"></p>
+    <div class="overview-summary"><span>Task <strong data-overview-task>${escapeHtml(agent.brain?.task?.status || 'None')}</strong></span><span>Action <strong data-overview-action>${escapeHtml(agent.currentAction || 'Idle')}</strong></span><small class="data-freshness" data-agent-freshness>Not checked yet</small></div><p class="overview-error" role="status"></p>
   </article>`
 }
 
@@ -328,6 +331,10 @@ export function renderAgents(container) {
 }
 
 function updateDynamicFields(card, agent) {
+  const overview=card.matches?.('.agent-overview')
+  setFreshness(card.querySelector('[data-agent-freshness]'),{
+    ...agent.freshness,mode:overview && !getState().wsConnected ? 'disconnected' : agent.freshness?.mode || (agent.online?'checked':'offline')
+  })
   updatePlannerTask(card, agent.brain?.task ?? null)
   const statusClass = agent.online ? 'online' : 'offline'
   const statusText = agent.online ? 'online' : 'offline'

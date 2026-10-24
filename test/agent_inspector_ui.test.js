@@ -8,7 +8,8 @@ test('inspector preserves long context and raw output as escaped text with expli
   const source = fs.readFileSync(path.join(__dirname, '../src/web/public/lib/agent-inspector.js'), 'utf8')
     .replace(/^import .*$/gm, '').replace(/^export /gm, '')
   const context = vm.createContext({ escapeHtml: value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;') })
-  vm.runInContext(source, context)
+  const helpers=fs.readFileSync(path.join(__dirname,'../src/web/public/lib/runtime-trace.js'),'utf8').replace(/^import .*$/gm,'').replace(/^export /gm,'')
+  vm.runInContext(helpers+'\n'+source, context)
   const html = context.traceHtml([{ requestId: 'request', model: 'fixture', startedAt: 1, status: 'responded', response: '<script>bad</script>',
     messages: [{ role: 'system', content: 'system '.repeat(1000) }, { role: 'user', content: 'user context' }], inputTruncated: true }])
   assert.match(html, /system system system/)

@@ -41,6 +41,90 @@ Aborting a browser request is not a rollback of server-side work already accepte
 
 ## Verification
 
+### Context and API Inspection (2026-10-25)
+
+Single-agent pages now have independent collapsed **Context** and **API Calls** panels.
+They show actual recorded context/messages and API arguments/results with explicit
+request/context/call ID links; no proximity-based association or inferred hidden reasoning.
+Only opened sections are fetched, including combinations such as `section=context,api`.
+Missing/evicted records are explicit, and records are bounded/redacted per session.
+See [Agent Context and API Tracing](agent-debug-tracing.md) for the generic event contract,
+independent behavior-node example, retention limits and synthetic acceptance procedure.
+
+### Freshness Labels (2026-10-25)
+
+Agent overview labels show when a summary was **received**; selected-agent state,
+inventory and inspector labels show the most recent successful **check**. These are
+browser transport/validation times, not the last Minecraft tick/change or a guarantee
+of live server truth. They use the browser's local clock; hover shows the full timestamp
+and this distinction. No per-label timers or additional polling were added.
+
+An unchanged 304 advances the check label without altering inventory or screenshot
+timestamps. Failure, disconnection, an offline agent or paused updates explicitly mark
+last-known data. Missing values display a dash, not invented full health/survival defaults.
+Cached inventory survives a same-session disconnect; replacement sessions clear it.
+Initial failures show an unavailable state rather than creating fake observations.
+
+Screenshot captions start with **Snapshot / Captured** and use the capture's own
+timestamp. Polling does not restamp them. Captions follow the displayed image: while a
+new image downloads (or fails), a retained older image keeps its older capture timestamp.
+Inspector failures preserve already loaded images/log text with last-known markers.
+Replaced sessions release old screenshot resources. Receipt/check times do not decide
+whether older information is still useful or whether an agent's memory is valid.
+
+Tests: **524/524** passed. `node scripts/web-freshness-smoke.js` uses production Web routes
+with synthetic players and a fixed intercepted PNG/capture timestamp: 304 checks advance,
+inventory/status/image contents survive query failures, recovery clears warnings, and
+capture time remains unchanged. Desktop/mobile layout has no horizontal overflow and
+there were no browser errors. Unit tests also check a pending/failed newer screenshot
+does not relabel displayed older pixels. No Minecraft/Fabric or paid models are involved.
+Local evidence: ignored `runs/web-freshness/results.json`, `last-known-desktop.png`,
+`last-known-mobile.png` and `runs/web-freshness-tests.log`.
+
+### Data Update Efficiency (2026-10-25)
+
+- Hidden tabs suspend detail status, inventory and inspector polls, abort owned read
+  requests, and pause WebSocket summaries/command subscriptions. Returning refreshes
+  open sections without collapsing panels or changing drafts. Generation checks reject
+  responses from before a visibility transition. World retains its existing unload policy.
+- Inventory responses carry a content-derived ETag covering appearance, window contents,
+  selected slot, connection/session identity and freshness fields. Unchanged polls return
+  304 without a body or DOM replacement. Actual changes/session replacement return 200.
+  Snapshot construction/hashing still occurs server-side: this saves transfer/DOM work,
+  not every inventory serialization. Foreground polls remain non-overlapping and one second.
+- WebSocket reconnects in place with delays of 1, 2, 4, 8, 16, then at most 30 seconds
+  after consecutive failed connection attempts. It restores the current agent subscription;
+  hidden tabs defer reconnects, and disposal cancels retry/listeners. No page reload is used.
+- Production summaries are built directly from display fields, without constructing full
+  task/executor/model payloads. Single-agent status filters before doing detailed work.
+  Idle/paused WebSocket audiences do not cause periodic summary construction. A broadcast
+  serializes once for all matching clients; resuming gets a current snapshot.
+- Full event-driven inventory deltas and a single shared detailed-status transport are
+  intentionally deferred. This changes neither Brain scheduling nor model prompts.
+
+Regression: **521/521** passed. Unit/HTTP tests include late responses across pause/resume,
+conditional inventory/session changes, reconnection/backoff/subscription restoration,
+paused server clients, and summary paths that must not call full-task/executor methods.
+
+Real Edge transport/UI acceptance: `node scripts/web-update-smoke.js`. It starts a
+temporary local production Web server with three **synthetic** players, no Minecraft,
+Fabric or paid model calls. An unchanged inventory returned 200 with a 1,395-byte body,
+followed by three 304 responses without a body. During a 2.2-second hidden observation
+window there were zero new API requests; resume produced six requests in 1.4 seconds
+across the three open readers. Changing the stack count updated the display. Terminating
+the WebSocket caused a new connection with zero page navigations, retaining the unsent
+draft, expanded inventory and selected-agent subscription. No browser errors were recorded.
+
+This is functional/short-window evidence, not a 30-minute memory soak or a Minecraft
+FPS/CPU benchmark. Visibility was exercised with deterministic browser visibility events,
+not a physical desktop focus measurement. Raw results/screenshots stay in ignored
+`runs/web-update-performance/`. The initial browser checks were corrected to target the
+actual stack label (not a slot number) and await a new socket event explicitly.
+
+For manual UI inspection only, `node scripts/web-update-smoke.js --serve` leaves the
+synthetic preview at `http://127.0.0.1:8093/agents/Preview-A`; Ctrl+C stops it. Its player
+data is simulated; do not use that preview as real Minecraft acceptance evidence.
+
 Command and task inputs support ArrowUp/ArrowDown submission history, separately
 scoped by agent and input kind. Each keeps the last 50 entries in this browser's
 local storage (consecutive duplicates omitted); nothing is added to LLM context.

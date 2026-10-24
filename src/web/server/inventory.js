@@ -1,4 +1,5 @@
 const path = require('node:path')
+const { createHash } = require('node:crypto')
 const { details } = require('../../commands/item_details')
 const { playerSlots } = require('../../commands/slot_scope')
 
@@ -42,7 +43,14 @@ function registerInventoryRoutes(app, manager) {
     res.set('Cache-Control', 'no-store')
     const agent = manager.agents.get(req.params.name)
     if (!agent) return res.status(404).json({ ok: false, error: 'Agent not started' })
-    try { res.json({ ok: true, ...inventorySnapshot(agent) }) }
+    try {
+      const body=JSON.stringify({ok:true,...inventorySnapshot(agent)})
+      const etag='"'+createHash('sha256').update(body).digest('hex')+'"'
+      res.set('ETag',etag)
+      const matches=String(req.get('If-None-Match') || '').split(',').map(value=>value.trim().replace(/^W\//,''))
+      if(matches.includes(etag)) return res.status(304).end()
+      res.type('json').send(body)
+    }
     catch (error) { res.status(503).json({ ok: false, error: 'Inventory temporarily unavailable' }) }
   })
   app.get('/api/item-textures/:version/:name', (req, res) => {
