@@ -57,7 +57,7 @@ test('aimed cow interaction is request only, without item/placement fallback',as
 })
 test('projectile rightclick at cow uses item rather than silently doing entity interaction',async()=>{
  const f=fixture('snowball');f.bot.entities[2]={id:2,name:'cow',width:0.9,height:1.4,position:new Vec3(0.5,1,-0.2)}
- const r=await handler(f.bot,[],{});assert.equal(r.route,'item-use');assert.deepEqual(f.packets.map(p=>p.name),['use_item','release'])
+ const r=await handler(f.bot,[],{});assert.equal(r.route,'item-use');assert.deepEqual(f.packets.map(p=>p.name),['use_item']);assert.equal(f.bot.usingHeldItem,false)
 })
 test('air click releases once and never repeats consumption; empty/no target rejects',async()=>{
  const f=fixture('bread');f.bot.blockAtCursor=()=>null

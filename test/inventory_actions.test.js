@@ -10,6 +10,7 @@ const use=require('../src/commands/mouse/rightdown').handler,rightup=require('..
 function fixture(){
   const bot=new EventEmitter(),slots=Array(46).fill(null)
   bot.registry={itemsByName:{stone:{id:1},arrow:{id:2},spectral_arrow:{id:3},iron_helmet:{id:4},bread:{id:5},shield:{id:6},crossbow:{id:7},potion:{id:8},glass_bottle:{id:9},milk_bucket:{id:10},bucket:{id:11}}}
+  bot.registry.foodsByName={bread:{id:5}}
   bot.inventory=Object.assign(new EventEmitter(),{slots,items:()=>slots.slice(9,45).filter(Boolean),selectedItem:null})
   bot.quickBarSlot=0;Object.defineProperty(bot,'heldItem',{get:()=>slots[36+bot.quickBarSlot]})
   bot._syncWindow=async()=>{}
@@ -195,9 +196,10 @@ for(const hand of ['hand','off-hand'])test(`${hand} crossbow loading and firing 
   update([{type:'charged_projectiles',data:{projectiles:[{itemId:2,itemCount:1}]}}])
   assert.equal(releases,1)
   assert.equal(f.bot.usingHeldItem,false);assert.equal((await rightup(f.bot,[])).requested,false)
-  assert.equal((await use(f.bot,[hand])).ok,true)
+  const fired=await use(f.bot,[hand]);assert.equal(fired.ok,true);assert.equal(fired.holdTracked,false)
   update([{type:'charged_projectiles',data:{projectiles:[]}}])
-  assert.equal(releases,2)
+  // Firing a loaded crossbow is instantaneous, not another held-use lifecycle.
+  assert.equal(releases,1)
   assert.equal(f.bot.usingHeldItem,false);assert.equal((await rightup(f.bot,[])).requested,false)
   assert.equal((await use(f.bot,[hand])).ok,true);await rightup(f.bot,[])
   assert.equal(f.bot.inventory.listenerCount('updateSlot'),0)
