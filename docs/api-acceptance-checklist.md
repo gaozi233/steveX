@@ -9,6 +9,8 @@
 ## 1. 状态与证据
 
 - 有界任务循环后最新全库自动回归 **481/481**；下方458项为此前批次。本轮无真实模型／游戏复测，当前语义见[任务运行](task-runtime.md)，记录见[调度验收](api-validation/task-runtime-validation.md)。
+- 2026-10-24更新：后续全库回归486/486；真实Minecraft 1.21.11＋DeepSeek完成单步／继续、暂停后与运行中追加、暂停、取消、调用／时长预算及角色隔离补测。首次模型重复inventory，补测成功报告背包；不作为稳定成功率。详见上述调度验收新增实测段。
+- 同日复杂合成实测：8场景181次模型请求，严格完成5/8；7个可行场景中6个物品达成，缺料场景正确拒绝；两个多目标场景物品齐全但未报告DONE，一个红石场景未全达成。无craft执行故障；详见[新任务循环复杂合成](api-validation/task-crafting-validation-2026-10-24.md)。
 
 - **实测**：当前入口有真实游戏记录，仅覆盖行内列明场景，不代表所有变体通过。
 - **摘要通过**：沿用最近一次真实验收结论；原始过程日志已清理或归档，不代表本轮重新测试。
@@ -66,6 +68,10 @@
 - 隐藏目录不是安全鉴权；HTTP 访问控制与 Minecraft 权限是独立边界，不应因默认隐藏就将管理服务直接暴露到公网。
 
 网页默认 `http://127.0.0.1:8090/`，实际地址与 agent 名以启动配置为准。网页输入框与 HTTP 使用同一条命令字符串：
+
+2026-10-24：`/agents` 为轻量总览，`/agents/:name` 为单角色调试；背包、视角与LLM记录展开后才加载，离开后取消请求及角色订阅。离开页面不自动取消Agent任务。详见[Web页面与数据边界](web-agent-pages.md)。
+
+本轮页面与订阅改造全库自动回归499/499；Edge模拟验证按需加载、角色切换与离页停止轮询，无新增真实Minecraft／付费模型调用。
 
 ```powershell
 $base = 'http://127.0.0.1:8090'
@@ -211,7 +217,7 @@ Invoke-RestMethod "$base/api/agents/$agent/command" -Method Post -ContentType 'a
 | --- | --- | --- |
 | `POST /api/agents/:name/planner/message` | 仅人工Web／后台，不向LLM暴露；message至4000字符，mode=once／continuous；operation=new清历史或append保留目标／历史／累计预算，可传taskId防过期操作；默认32次／300秒 | HTTP与Edge模拟通过；本轮无真实模型／游戏验收；见[任务运行](task-runtime.md) |
 | `POST /api/agents/:name/planner/control` | 仅人工Web／后台，不向LLM暴露；operation=continue／pause／cancel／complete／block／wait；可传mode与taskId，继续不重置预算；完成是人工声明 | 自动生命周期、取消、预算及隔离覆盖；Edge核对继续／人工完成／预算耗尽，真实任务待测 |
-| `GET /api/status` | 无 body，角色状态及 uptimeSec | 摘要通过：轮询；断线／多角色刷新待扩展 |
+| `GET /api/status` | 默认完整角色状态；`view=summary` 为轻量摘要，`agent=<name>` 限定单角色；无 body | 摘要／角色过滤自动测试，Edge页面路由与按需请求通过；真实掉线恢复待扩展 |
 | `GET /api/commands` | 当前 name/kind/category/description/usage 目录 | 目录自动校验；当前 60 入口的运行服务核对待重载；不是完整参数 schema |
 | `GET /api/skills` | 局部 skillRegistry | 专项待测；不代替完整命令目录 |
 | `GET /api/config/environment` | 读取环境配置文件，不是完整合并配置 | 待测；可能含密钥，禁止记录完整响应 |
@@ -222,7 +228,7 @@ Invoke-RestMethod "$base/api/agents/$agent/command" -Method Post -ContentType 'a
 | `POST /api/agents/:name/command` | `{"command":"pos"}`；失败通常 HTTP 400 | 实测：右键 19 组及潜行 12 组经正式 HTTP 入口 |
 | `GET /api/agents/:name/state` | 精确坐标、属性、控制、背包等客户端状态 | 实测：右键／潜行夹具读取；不是实时服务端全知状态 |
 | `GET /api/agents/:name/inventory-preview` | 只读：固定玩家背包／快捷栏、装备副手、光标与当前容器；开窗装备标注 last-known；不自动开窗或读取后台真值 | 双真实 agent 9项实机及浮层刷新专项通过；多agent／重连／只读隔离已核对 |
-| `GET /api/agents/:name/debug` | 当前会话近期LLM记录／视角元数据，ETag；仅人工后台，不自动触发采集或模型 | 自动／浏览器fixture、本地模拟provider及1次真实DeepSeek输入输出链路通过；复杂任务能力不在本次范围 |
+| `GET /api/agents/:name/debug` | 默认全部；`section=vision` 不含LLM记录，`section=llm` 不含视角元数据，`section=all` 两者；ETag；不自动触发采集或模型 | 范围隔离、按需加载、离页取消自动测试及Edge模拟验证；历史真实DeepSeek证据另列，不算本轮复测 |
 | `GET /api/agents/:name/observation/:frameId/rgb` | 仅该角色当前session最新RGB，不接受任意文件路径 | 真实Fabric A→B→A成功、错误角色URL拒绝；详情见[调试验收](api-validation/web-inspector-validation.md) |
 | `GET /api/item-textures/:version/:name` | 本地导入材质，只允许受限版本／物品名；无图404，网页回退文字 | 1.21.11 本地图标与缺图回退已测；附魔闪光／药水染色／特殊模型未还原 |
 | `GET /api/agents/:name/memory/containers` | actor/session 隔离的历史开窗记录，含来源和观测时间 | 摘要通过：开箱和落盘；历史不是当前库存，旧数据无损转换仍待完善 |
@@ -232,7 +238,7 @@ Invoke-RestMethod "$base/api/agents/$agent/command" -Method Post -ContentType 'a
 | `POST /api/agents/:name/observe` | 无必填 body；指定角色视角进入共享采集队列 | 摘要通过：alpha→beta→alpha、并发隔离；长期切换和跨维度待测 |
 | `POST /api/agents/:name/nbt/query` | `{path,fields,filters?,limit?}`；path 为 entities/containers/block_entities/biomes/terrain；fields 必填非空数组，limit 默认 64、1..512 | 自动夹具／隔离／错误覆盖；各源真实查询待测；数据来自采集落盘，不是服务端透视 |
 
-WebSocket 使用同服务端口推送状态／命令事件，不提供另一套命令执行接口；连接、事件顺序及断线恢复仍需专项验收。
+WebSocket 同端口默认仅推送轻量状态；发送 `{"type":"subscribe","agent":"角色名"}` 才接收该角色命令事件，agent=null取消；不再广播完整LLM文本，日志展开时走HTTP。角色订阅／取消及无原文广播已自动验证；长期断线恢复待测。不提供另一套命令执行接口，也不是权限鉴权机制。
 
 ## 14. 下一步待测顺序
 

@@ -94,7 +94,7 @@ class AgentDebugStore {
     this.revision++
   }
 
-  snapshot(name) {
+  snapshot(name, section = 'all') {
     const agent = this.manager.agents.get(name)
     const context = this.context(name)
     const current = agent?.isOnline() ? context : null
@@ -103,7 +103,8 @@ class AgentDebugStore {
       online: !!agent?.isOnline(), revision: this.revision,
       task: agent?.brainLoop?.getTaskStatus ? JSON.parse(this.clean(JSON.stringify(agent.brainLoop.getTaskStatus()))) : null,
       renderer: { enabled: !!this.manager.renderService, connected: !!this.manager.renderService?.renderer?.isConnected?.() },
-      turns: current?.turns || [], observation: frame?.public ?? null }
+      ...(section !== 'vision' ? { turns: current?.turns || [] } : {}),
+      ...(section !== 'llm' ? { observation: frame?.public ?? null } : {}) }
   }
 
   async rememberObservation(name, result, expectedAgent) {
@@ -137,8 +138,10 @@ function registerDebugRoutes(app, manager) {
   const store = getDebugStore(manager)
   app.get('/api/agents/:name/debug', (req, res) => {
     if (!manager.agents.has(req.params.name) && !manager.agentConfigs?.has(req.params.name)) return res.status(404).json({ ok: false, error: 'Agent not found' })
-    const data = store.snapshot(req.params.name)
-    const tag = `"${data.sessionId || 'offline'}-${data.online}-${data.revision}"`
+    const section = req.query.section || 'all'
+    if (!['all', 'vision', 'llm'].includes(section)) return res.status(400).json({ ok: false, error: 'Unknown debug section' })
+    const data = store.snapshot(req.params.name, section)
+    const tag = `"${section}-${data.sessionId || 'offline'}-${data.online}-${data.revision}"`
     res.set('Cache-Control', 'private, no-cache').set('ETag', tag)
     if (req.get('If-None-Match') === tag) return res.status(304).end()
     res.json(data)

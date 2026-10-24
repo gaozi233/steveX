@@ -79,7 +79,7 @@ function filteredAgents() {
 
 // ── Agent card template ──
 
-function agentCardHtml(agent) {
+export function agentCardHtml(agent) {
   const statusClass = agent.online ? 'online' : 'offline'
   const statusText = agent.online ? 'online' : 'offline'
   const username = agent.username || '\u2014'
@@ -170,7 +170,9 @@ function agentCardHtml(agent) {
 
 // ── Log modal ──
 
+let closeAgentLog = () => {}
 function showLogModal(name) {
+  closeAgentLog()
   // Remove any existing modal
   const existing = document.getElementById('log-modal')
   if (existing) existing.remove()
@@ -204,7 +206,7 @@ function showLogModal(name) {
   // Close handlers
   modal.addEventListener('click', (e) => {
     if (e.target === modal || e.target.closest('.log-modal-close')) {
-      modal.remove()
+      closeAgentLog()
     }
   })
 
@@ -227,6 +229,7 @@ function showLogModal(name) {
 
     body.scrollTop = body.scrollHeight
   })
+  closeAgentLog = () => { unsub(); modal.remove(); closeAgentLog = () => {} }
 }
 
 function buildLogEntryEl(entry) {
@@ -262,6 +265,24 @@ function buildLogEntryEl(entry) {
 
 // ── Render the full agents list ──
 
+export function overviewCardHtml(agent) {
+  const name = escapeHtml(agent.name)
+  return `<article class="agent-card agent-overview" data-agent-name="${name}">
+    <div class="agent-header"><div class="agent-id"><h2>${name}</h2><span class="dot ${agent.online ? 'online' : 'offline'}" aria-hidden="true"></span><span class="state-label" data-status="${agent.online ? 'online' : 'offline'}">${agent.online ? 'online' : 'offline'}</span><span class="username-pill">${escapeHtml(agent.username || '')}</span></div>
+    <div class="agent-actions"><button class="btn soft-success" data-action="connect" data-agent="${name}" ${agent.online ? 'hidden' : ''}><span data-icon="link"></span>Connect</button><button class="btn soft-danger" data-action="disconnect" data-agent="${name}" ${agent.online ? '' : 'hidden'}><span data-icon="unlink"></span>Disconnect</button><button class="btn" data-action="agent-stop" data-agent="${name}" ${agent.online ? '' : 'disabled'}>Stop</button><a class="btn" data-agent-link href="/agents/${encodeURIComponent(agent.name)}"><span data-icon="configs"></span>Debug</a></div></div>
+    <div class="overview-summary"><span>Task <strong data-overview-task>${escapeHtml(agent.brain?.task?.status || 'None')}</strong></span><span>Action <strong data-overview-action>${escapeHtml(agent.currentAction || 'Idle')}</strong></span></div><p class="overview-error" role="status"></p>
+  </article>`
+}
+
+export function renderAgentDetail(container, agent) {
+  const card = container.querySelector('.agent-card')
+  if (!card || card.dataset.agentName !== agent.name) {
+    container.innerHTML = `<a class="agent-back" data-agent-link href="/agents">Back to Agents</a>${agentCardHtml(agent)}`
+    hydrateIcons(container)
+  }
+  updateDynamicFields(container.querySelector('.agent-card'), agent)
+}
+
 export function renderAgents(container) {
   const list = filteredAgents()
 
@@ -274,15 +295,16 @@ export function renderAgents(container) {
 
   // Smart diff: update existing cards, add new ones, remove gone ones
   const existingNames = new Set()
+  const existingCards = new Map([...container.querySelectorAll('.agent-card')].map(card => [card.dataset.agentName, card]))
 
-  list.forEach(agent => {
+  list.forEach((agent, index) => {
     existingNames.add(agent.name)
 
-    let card = container.querySelector(`.agent-card[data-agent-name="${escapeHtml(agent.name)}"]`)
+    let card = existingCards.get(agent.name)
 
     if (!card) {
       const temp = document.createElement('div')
-      temp.innerHTML = agentCardHtml(agent)
+      temp.innerHTML = overviewCardHtml(agent)
       card = temp.firstElementChild
       container.appendChild(card)
       hydrateIcons(card)
@@ -290,6 +312,10 @@ export function renderAgents(container) {
 
     // Update dynamic parts without full re-render
     updateDynamicFields(card, agent)
+    card.querySelector('[data-overview-task]').textContent = agent.brain?.task?.status || 'None'
+    card.querySelector('[data-overview-action]').textContent = agent.currentAction || 'Idle'
+    card.querySelector('[data-action="agent-stop"]').disabled = !agent.online
+    if (container.children[index] !== card) container.insertBefore(card, container.children[index] || null)
   })
 
   // Remove cards for agents that no longer exist
@@ -312,7 +338,8 @@ function updateDynamicFields(card, agent) {
   // Header dot + state label
   card.querySelector('[data-action="connect"]').hidden = !!agent.online
   card.querySelector('[data-action="disconnect"]').hidden = !agent.online
-  card.querySelector('[data-planner-model]').textContent = view.model
+  const model = card.querySelector('[data-planner-model]')
+  if (model) model.textContent = view.model
   const dot = card.querySelector('.agent-id .dot')
   if (dot) dot.className = `dot ${statusClass}`
 
@@ -375,39 +402,49 @@ function updateDynamicFields(card, agent) {
 
 // ── Event delegation ──
 
-function handleClick(e) {
+function handleClick(e, { signal } = {}) {
   const btn = e.target.closest('button[data-action]')
   if (!btn) return
 
   const name = btn.dataset.agent
   const action = btn.dataset.action
 
-  if (action === 'connect') {
-    connectAgent(name)
-  } else if (action === 'disconnect') {
-    disconnectAgent(name)
+  if (action === 'connect' || action === 'disconnect') {
+    const request = action === 'connect' ? connectAgent : disconnectAgent
+    request(name, { signal }).then(ok => { if (!ok) throw new Error('Connection request failed') }).catch(error => {
+      if (signal?.aborted || !btn.isConnected) return
+      const card = btn.closest('.agent-card')
+      let feedback = card.querySelector('.overview-error')
+      if (!feedback) { feedback = document.createElement('p'); feedback.className = 'overview-error'; feedback.setAttribute('role', 'status'); card.appendChild(feedback) }
+      feedback.textContent = error.message
+    })
   } else if (action === 'log') {
     showLogModal(name)
+  } else if (action === 'agent-stop') {
+    sendCommand(name, 'stop', { signal }).catch(error => {
+      if (!signal?.aborted && btn.isConnected) btn.closest('.agent-card').querySelector('.overview-error').textContent = error.message
+    })
   } else if (action === 'planner-stop') {
     const feedback = btn.closest('form').querySelector('.planner-feedback')
-    stopPlanner(name).then(() => { feedback.textContent = 'Task cancelled' }).catch(error => { feedback.textContent = error.message })
+    stopPlanner(name, { signal }).then(() => { if (!signal?.aborted) feedback.textContent = 'Task cancelled' }).catch(error => { if (!signal?.aborted) feedback.textContent = error.message })
   } else if (action === 'planner-control' || action === 'planner-finish') {
     const form = btn.closest('form')
     const operation = action === 'planner-finish' ? form.elements.finishState.value : btn.dataset.operation
     const feedback = form.querySelector('.planner-feedback')
     btn.disabled = true
-    controlPlanner(name, operation, form.elements.mode.value, form.dataset.taskId || undefined).then(result => {
+    controlPlanner(name, operation, form.elements.mode.value, form.dataset.taskId || undefined, { signal }).then(result => {
+      if (signal?.aborted || !form.isConnected) return
       btn.disabled = false
       feedback.textContent = result.status === 'started' ? 'Task start accepted' : result.command ? `Step returned: ${result.command}` : result.task?.status || 'Task updated'
       if (result.result) { const box = form.querySelector('.planner-result'); box.textContent = JSON.stringify(result.result, null, 2); box.hidden = false }
       updatePlannerTask(form.closest('[data-agent-name]'), result.task)
       const details = form.closest('[data-agent-name]')?.querySelector('.inspector-llm')
       if (details) details.open = true
-    }).catch(error => { feedback.textContent = error.message; btn.disabled = false })
+    }).catch(error => { if (!signal?.aborted) { feedback.textContent = error.message; btn.disabled = false } })
   }
 }
 
-async function handleSubmit(e) {
+async function handleSubmit(e, { signal } = {}) {
   const form = e.target.closest('form.command-panel')
   if (!form) return
 
@@ -420,7 +457,7 @@ async function handleSubmit(e) {
   if (!value) return
 
   if (action === 'command') {
-    await sendCommand(name, value)
+    try { await sendCommand(name, value, { signal }) } catch (error) { if (!signal?.aborted) input.setCustomValidity(error.message) }
   } else if (action === 'message') {
     const button = form.querySelector('button[type="submit"]')
     if (button.disabled) return
@@ -434,7 +471,8 @@ async function handleSubmit(e) {
       const options = { operation }
       if (operation === 'append' && form.dataset.taskId) options.taskId = form.dataset.taskId
       if (operation === 'new' || !form.dataset.taskId) options.limits = { maxCalls: Number(form.elements.maxCalls.value), maxDurationMs: Number(form.elements.maxSeconds.value) * 1000 }
-      const result = await sendPlannerMessage(name, value, form.elements.mode.value, options)
+      const result = await sendPlannerMessage(name, value, form.elements.mode.value, options, { signal })
+      if (signal?.aborted || !form.isConnected) return
       feedback.textContent = result.status === 'queued' ? 'Follow-up queued for next step' : result.status === 'started' ? 'Task start accepted' : `Step returned: ${result.command || 'no command'}`
       updatePlannerTask(form.closest('[data-agent-name]'), result.task)
       if (result.result) { resultBox.textContent = JSON.stringify({ command: result.command, result: result.result }, null, 2); resultBox.hidden = false }
@@ -442,6 +480,7 @@ async function handleSubmit(e) {
       const details = form.closest('[data-agent-name]')?.querySelector('.inspector-llm')
       if (details) details.open = true
     } catch (error) {
+      if (signal?.aborted || !form.isConnected) return
       feedback.textContent = error.message
       if (error.result?.result) { resultBox.textContent = JSON.stringify(error.result, null, 2); resultBox.hidden = false }
     }
@@ -455,11 +494,28 @@ async function handleSubmit(e) {
 // ── Init ──
 
 export function initAgents(container) {
-  initInventoryPreview(container)
-  initAgentInspector(container)
-  container.addEventListener('click', handleClick)
-  container.addEventListener('submit', handleSubmit)
-  container.addEventListener('change', event => {
+  const controller = new AbortController()
+  const click = event => handleClick(event, { signal: controller.signal })
+  container.addEventListener('click', click)
+  return () => { controller.abort(); container.removeEventListener('click', click) }
+}
+
+export function initAgentDetail(container) {
+  const controller = new AbortController()
+  const releaseInventory = initInventoryPreview(container)
+  const releaseInspector = initAgentInspector(container)
+  const click = event => handleClick(event, { signal: controller.signal })
+  const submit = event => handleSubmit(event, { signal: controller.signal })
+  const change = event => {
     if (event.target.matches('form[data-action="message"] select[name="operation"]')) syncPlannerLimits(event.target.closest('form'))
-  })
+  }
+  container.addEventListener('click', click)
+  container.addEventListener('submit', submit)
+  container.addEventListener('change', change)
+  return () => {
+    controller.abort(); releaseInventory(); releaseInspector(); closeAgentLog()
+    container.removeEventListener('click', click)
+    container.removeEventListener('submit', submit)
+    container.removeEventListener('change', change)
+  }
 }

@@ -3,7 +3,7 @@
 import { setState } from './state.js'
 
 export async function fetchStatus() {
-  const res = await fetch('/api/status')
+  const res = await fetch('/api/status?view=summary')
   const data = await res.json()
   setState({ agents: data.agents, uptimeSec: data.uptimeSec })
   return data
@@ -16,49 +16,49 @@ export async function reloadConfig() {
   await fetchStatus()
 }
 
-export async function connectAgent(name) {
+export async function connectAgent(name, { signal } = {}) {
   const res = await fetch(`/api/agents/${encodeURIComponent(name)}/connect`, {
-    method: 'POST'
+    method: 'POST', signal
   })
   return res.ok
 }
 
-export async function disconnectAgent(name) {
+export async function disconnectAgent(name, { signal } = {}) {
   const res = await fetch(`/api/agents/${encodeURIComponent(name)}/disconnect`, {
-    method: 'POST'
+    method: 'POST', signal
   })
   return res.ok
 }
 
-export async function sendCommand(name, command) {
+export async function sendCommand(name, command, { signal } = {}) {
   const res = await fetch(`/api/agents/${encodeURIComponent(name)}/command`, {
-    method: 'POST',
+    method: 'POST', signal,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ command })
   })
   const result = await res.json()
   return result
 }
-export async function sendPlannerMessage(name, message, mode, options = {}) {
+export async function sendPlannerMessage(name, message, mode, options = {}, { signal } = {}) {
   const res = await fetch(`/api/agents/${encodeURIComponent(name)}/planner/message`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, mode, ...options })
+    method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, mode, ...options })
   })
   const result = await res.json()
   if (!res.ok) throw Object.assign(new Error(result.error || result.result?.error || 'Planner request failed'), { result })
   return result
 }
 
-export async function controlPlanner(name, operation, mode, taskId) {
+export async function controlPlanner(name, operation, mode, taskId, { signal } = {}) {
   const res = await fetch(`/api/agents/${encodeURIComponent(name)}/planner/control`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation, mode, taskId })
+    method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation, mode, taskId })
   })
   const result = await res.json()
   if (!res.ok) throw Object.assign(new Error(result.error || result.result?.error || 'Task control failed'), { result })
   return result
 }
 
-export async function stopPlanner(name) {
-  const res = await fetch(`/api/agents/${encodeURIComponent(name)}/brain/stop`, { method: 'POST' })
+export async function stopPlanner(name, { signal } = {}) {
+  const res = await fetch(`/api/agents/${encodeURIComponent(name)}/brain/stop`, { method: 'POST', signal })
   if (!res.ok) throw new Error('Could not stop planner')
 }
 

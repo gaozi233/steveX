@@ -4,10 +4,11 @@ const fs = require('node:fs'), path = require('node:path'), vm = require('node:v
 const read = file => fs.readFileSync(path.join(__dirname, '../src/web/public', file), 'utf8').replace(/^import .*$/gm, '').replace(/^export /gm, '')
 
 test('returning from Configs clears its editor before rendering agents and restores toolbar', () => {
-  const list = { children: [], replaceChildren() { this.children = [] } }, controls = {}, elements = {}
+  const list = { children: [], replaceChildren() { this.children = [] } }, controls = {}, elements = {}, heading = { nextElementSibling: {} }
   const context = vm.createContext({
     document: { getElementById: id => id === 'agents-list' ? list : (elements[id] ||= { style: {} }),
-      querySelector: selector => selector === 'section.controls' ? controls : null, querySelectorAll: () => [] },
+      querySelector: selector => selector === 'section.controls' ? controls : selector === 'main h1' ? heading : null, querySelectorAll: () => [] },
+    subscribeAgent() {}, initAgents: () => () => {},
     renderConfigs: container => { container.children = ['config editor'] },
     renderAgents: container => { assert.deepEqual(container.children, []); container.children.push('agent') }
   })

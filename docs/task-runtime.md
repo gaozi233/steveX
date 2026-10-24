@@ -31,4 +31,4 @@ message 默认 operation=new、mode=once，兼容旧调用；append 不可修改
 
 页面显示任务状态、命令数、预算、模型／排队／执行／调度等待耗时、重复查询和供应商实际返回的 token usage。缺失usage标为不可用，不按字符估算、不等于零费用。重复查询只计数，不自动判断无进展。
 
-全库481/481；HTTP模拟3/3及Edge核对通过。本轮无真实Minecraft／付费模型验收，详见[调度验收](api-validation/task-runtime-validation.md)。Key、完整运行日志和截图留在本地忽略目录。
+初始实现全库481/481，后续网页与目录改进全库486/486；HTTP模拟3/3及Edge核对通过。2026-10-24另完成真实Minecraft 1.21.11＋DeepSeek的单步／继续、两种追加、暂停、取消、调用与时长预算及角色隔离补测；保留模型重复查询和取消计入失败指标的边界，详见[调度验收](api-validation/task-runtime-validation.md)。Key、完整运行日志和截图留在本地忽略目录。

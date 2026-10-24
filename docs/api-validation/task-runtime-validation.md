@@ -2,6 +2,26 @@
 
 2026-10-23。本轮为运行时基础，不实现 HBT、群体学习、自动规划或滚动摘要。
 
+## 2026-10-24 真实 Minecraft 与 DeepSeek 补测
+
+Minecraft Java 1.21.11，本机独立验收世界，两个真实 Mineflayer 玩家 Task-A／Task-B；供应商模型 deepseek-v4-flash，使用生产 Brain、HTTP 和网页，无模拟 provider。测试任务局限查询、聊天和等待，未启用 Fabric 渲染。本轮共发起16次模型请求（含一次发出后立即取消，供应商是否处理／计费未知）。
+
+| 场景 | 真实结果 |
+| --- | --- |
+| 单步与继续 | 同一任务 ID，调用1→2，历史保留，system逐字符相同；补测 inventory→say，服务端日志确认聊天报告 cobblestone x7 |
+| 暂停后追加 | 中文追加改为 hp，原目标／历史／截止时间／预算保留，messageCount=1 |
+| 执行中追加 | 当前 wait 200 正常结束；追加返回 queued，后续命令 hp、hp，三次调用后耗尽预算，无并发动作 |
+| 暂停与恢复 | 等待动作中暂停，1.2秒观察期无新增调用；Continue保留任务和预算，实际完成下一次 wait 200 |
+| 取消推理 | 已发出模型请求后立即取消；状态 cancelled，steps=0，未执行指定聊天命令，不推断供应商停止计费 |
+| 调用预算与隔离 | 连续两次 hp，calls=2、steps=2、reason=max_calls；再观察1秒无第三次调用，Task-B无任务 |
+| 时长预算 | 6秒墙钟预算中执行 wait 600，到时取消等待，reason=max_duration、calls=1，未继续调用 |
+
+首次模型在查询后重复了一次 inventory，未按任务立即聊天；这是本轮保留的模型行为问题，不把循环运行正常等同于任务规划可靠。首次隔离断言误将未启用 Brain 的 null 当对象，已修正本地验收脚本；以上两项均单独补测，原始失败记录未覆盖。无需修改 system 或加入任务专用提示。
+
+本轮供应商有返回 prompt_cache_hit_tokens，部分调用已记录真实缓存命中；取消调用没有usage，不能记作零消耗。暂停／时长耗尽造成的动作取消会计入failedCommands，目前该指标不区分预期取消与真正动作失败，分析时需结合任务reason。原始证据保留在忽略目录 runs/task-runtime：live-initial-results.json、live-results.json、live-append-results.json。服务保持启动供人工观察，后台无持续运行任务；未提交推送。
+
+以下为2026-10-23的历史模拟验收与边界，不能替代上述实测。
+
 ## 已验证
 
 - 全库自动回归 **481/481**。覆盖任务预算、单步继续、追加消息、取消、超时、连续失败、旧请求晚到、真实动作队列取消与松键、角色隔离、HTTP 控制及错误脱敏。

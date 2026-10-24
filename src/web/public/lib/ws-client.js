@@ -4,18 +4,27 @@ import { setState, patchAgent, addLog } from './state.js'
 
 const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
 let ws = null
+let selectedAgent = null
+
+export function subscribeAgent(name) {
+  selectedAgent = name
+  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'subscribe', agent: name }))
+}
 
 export function initWebSocket() {
+  let disposed = false, reconnectTimer
   ws = new WebSocket(`${protocol}//${location.host}`)
 
   ws.onopen = () => {
     setState({ wsConnected: true })
+    subscribeAgent(selectedAgent)
   }
 
   ws.onclose = () => {
+    if (disposed) return
     setState({ wsConnected: false })
     // Auto-reconnect after 2s
-    setTimeout(() => {
+    reconnectTimer = setTimeout(() => {
       if (!ws || ws.readyState === WebSocket.CLOSED) {
         window.location.reload()
       }
@@ -46,6 +55,7 @@ export function initWebSocket() {
         break
 
       case 'agent:command:start':
+        if (data.name !== selectedAgent) break
         addLog(data.name, 'cmd-start', {
           command: data.command,
           timestamp: data.timestamp
@@ -53,6 +63,7 @@ export function initWebSocket() {
         break
 
       case 'agent:command:done':
+        if (data.name !== selectedAgent) break
         addLog(data.name, data.ok ? 'cmd-done' : 'cmd-error', {
           command: data.command,
           output: data.output || data.error || '',
@@ -77,4 +88,5 @@ export function initWebSocket() {
         break
     }
   }
+  return () => { disposed = true; clearTimeout(reconnectTimer); selectedAgent = null; ws.onmessage = null; ws.close() }
 }

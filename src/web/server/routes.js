@@ -16,8 +16,12 @@ function registerRoutes(app, manager) {
 
   // ---- Status ----
   app.get('/api/status', (req, res) => {
+    if (req.query.agent !== undefined && typeof req.query.agent !== 'string') return res.status(400).json({ ok: false, error: 'agent must be a single name' })
+    let agents = manager.getStatus()
+    if (typeof req.query.agent === 'string') agents = agents.filter(agent => agent.name === req.query.agent)
+    if (req.query.view === 'summary') agents = agents.map(require('./agent_summary').agentSummary)
     res.json({
-      agents: manager.getStatus(),
+      agents,
       uptimeSec: Math.floor(process.uptime())
     })
   })

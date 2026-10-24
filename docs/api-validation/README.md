@@ -4,6 +4,7 @@
 
 | 记录 | 类型与范围 |
 | --- | --- |
+| [新任务循环复杂合成](task-crafting-validation-2026-10-24.md) | Minecraft＋DeepSeek八场景181次请求，严格5/8；区分物品达成与结束声明，保留预算耗尽与重复查询问题 |
 | [Compact agent workbench](web-compact-layout.md) | 紧凑布局、字体、Configs切换与过期加载修复；Edge桌面预览核对，4K／手机截图待测 |
 | [有界任务循环与调度](task-runtime-validation.md) | 全库481项自动回归、3项HTTP模拟、Edge任务生命周期核对；无付费模型／Minecraft实测 |
 | [交互、背包、窗口和工作站复测](interaction-crafting-recheck.md) | 当前22个命令入口的代表场景、独立DeepSeek复杂合成、SteveX身份及精确版本；保留未测边界 |

@@ -4,20 +4,25 @@ const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 
-test('agent page omits command catalog but keeps inventory preview and command controls', () => {
+test('overview is lightweight while a single-agent template retains lazy debug panels', () => {
   const source = fs.readFileSync(path.join(__dirname, '../src/web/public/pages/agents.js'), 'utf8').replace(/^import .*$/gm, '').replace(/^export /gm, '')
   const listeners = {}
   let previews = 0
   const context = vm.createContext({
+    AbortController,
     initInventoryPreview:()=>{previews++},
     initAgentInspector:()=>{}, inspectorHtml:()=>'<details class="agent-inspector"></details>',
     escapeHtml: value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   })
   vm.runInContext(source, context)
   context.initAgents({ addEventListener: (event, handler) => { listeners[event] = handler } })
-  assert.equal(previews, 1)
+  assert.equal(previews, 0)
   assert.equal(typeof listeners.click, 'function')
-  assert.equal(typeof listeners.submit, 'function')
+  assert.equal(listeners.submit, undefined)
+  const overview = vm.runInContext('overviewCardHtml({name:"a/b", online:true})', context)
+  assert.doesNotMatch(overview, /inventory-preview|agent-inspector|command-panel|LLM Planner/)
+  assert.match(overview, /href="\/agents\/a%2Fb"/)
+  assert.match(overview, /data-action="agent-stop"/)
   const html = vm.runInContext('agentCardHtml({name:"test", online:true})', context)
   assert.doesNotMatch(html, /Command Catalog|command-catalog/)
   assert.doesNotMatch(source, /\/api\/commands/)

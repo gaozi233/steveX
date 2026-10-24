@@ -1,133 +1,46 @@
 const { WebSocketServer } = require('ws')
+const { agentSummary } = require('./agent_summary')
 
-/**
- * Set up WebSocket server on top of the existing HTTP server.
- * Bridges AgentManager eventBus → real-time browser push.
- *
- * @param {import('http').Server} server
- * @param {import('../../agent/agent_manager').AgentManager} manager
- */
 function setupWebSocket(server, manager) {
-  const wss = new WebSocketServer({ server })
+  const wss = new WebSocketServer({ server, maxPayload: 4096 })
   const debugStore = require('./agent_debug').getDebugStore(manager)
-  wss.once('close', () => debugStore.close())
-
-  function broadcastSnapshot() {
-    broadcast(wss, {
-      type: 'snapshot',
-      agents: manager.getStatus(),
-      uptimeSec: Math.floor(process.uptime())
-    })
-  }
-
-  // Throttle snapshot broadcasts: mark dirty on events, flush on 1s tick.
-  // This prevents a single command from triggering 3+ redundant snapshots
-  // (agent:command:start → snapshot, agent:command:done → snapshot, agent:update → snapshot).
+  const listeners = []
   let snapshotDirty = true
-
-  wss.on('connection', (ws) => {
-    console.log('[info][ws] Web client connected')
-
-    ws.on('close', () => {
-      console.log('[info][ws] Web client disconnected')
+  const send = (client, data) => { if (client.readyState === 1) client.send(JSON.stringify(data)) }
+  const snapshot = () => ({ type: 'snapshot', agents: manager.getStatus().map(agentSummary), uptimeSec: Math.floor(process.uptime()) })
+  const on = (event, handler) => { manager.eventBus?.on(event, handler); listeners.push([event, handler]) }
+  wss.on('connection', client => {
+    client.agentSubscription = null
+    send(client, snapshot())
+    client.on('message', raw => {
+      try {
+        const message = JSON.parse(raw.toString())
+        if (message.type !== 'subscribe') return
+        const agent = typeof message.agent === 'string' && manager.getStatus().some(a => a.name === message.agent) ? message.agent : null
+        client.agentSubscription = agent
+        send(client, { type: 'subscription', agent })
+      } catch { send(client, { type: 'subscription', agent: client.agentSubscription }) }
     })
-
-    // Send current status snapshot immediately after connect
-    ws.send(JSON.stringify({
-      type: 'snapshot',
-      agents: manager.getStatus(),
-      uptimeSec: Math.floor(process.uptime())
-    }))
   })
-
-  const statusInterval = setInterval(() => {
-    if (snapshotDirty) {
-      broadcastSnapshot()
-      snapshotDirty = false
-    }
+  for (const event of ['agent:task:update', 'agent:connect', 'agent:disconnect', 'agent:update']) on(event, () => { snapshotDirty = true })
+  for (const event of ['agent:command:start', 'agent:command:done']) on(event, data => {
+    snapshotDirty = true
+    const payload = { type: event, name: data.name, command: debugStore.clean(data.command),
+      ...(event.endsWith(':done') ? { ok: data.ok, output: debugStore.clean(data.output || data.error || '') } : {}), timestamp: data.timestamp }
+    for (const client of wss.clients) if (client.agentSubscription === data.name) send(client, payload)
+  })
+  // Full prompts/results are fetched only by an explicitly opened per-agent inspector.
+  const interval = setInterval(() => {
+    if (!snapshotDirty) return
+    const data = snapshot()
+    for (const client of wss.clients) send(client, data)
+    snapshotDirty = false
   }, 1000)
-
-  // Clean up interval when server closes
-  wss.on('close', () => clearInterval(statusInterval))
-
-  // ── AgentManager eventBus → WebSocket broadcast ──
-
-  const eventBus = manager.eventBus
-  if (!eventBus) return wss
-  eventBus.on('agent:task:update', () => { snapshotDirty = true })
-
-  eventBus.on('agent:connect', (data) => {
-    broadcast(wss, { type: 'agent:connect', name: data.name })
-    snapshotDirty = true
-  })
-
-  eventBus.on('agent:disconnect', (data) => {
-    broadcast(wss, { type: 'agent:disconnect', name: data.name })
-    snapshotDirty = true
-  })
-
-  eventBus.on('agent:update', (data) => {
-    broadcast(wss, {
-      type: 'agent:update',
-      name: data.name,
-      timestamp: data.timestamp || Date.now()
-    })
-    snapshotDirty = true
-  })
-
-  eventBus.on('agent:command:start', (data) => {
-    broadcast(wss, {
-      type: 'agent:command:start',
-      name: data.name,
-      command: data.command,
-      timestamp: data.timestamp
-    })
-    snapshotDirty = true
-  })
-
-  eventBus.on('agent:command:done', (data) => {
-    broadcast(wss, {
-      type: 'agent:command:done',
-      name: data.name,
-      command: data.command,
-      ok: data.ok,
-      output: data.output || null,
-      error: data.error || null,
-      timestamp: data.timestamp
-    })
-    snapshotDirty = true
-  })
-
-  eventBus.on('agent:llm:input', (data) => {
-    broadcast(wss, {
-      type: 'agent:llm:input',
-      name: data.name,
-      model: data.model,
-      prompt: debugStore.clean(data.prompt),
-      timestamp: data.timestamp
-    })
-  })
-
-  eventBus.on('agent:llm:output', (data) => {
-    broadcast(wss, {
-      type: 'agent:llm:output',
-      name: data.name,
-      model: data.model,
-      response: debugStore.clean(data.response),
-      timestamp: data.timestamp
-    })
+  wss.once('close', () => {
+    clearInterval(interval)
+    for (const [event, handler] of listeners) manager.eventBus?.removeListener(event, handler)
+    debugStore.close()
   })
   return wss
 }
-
-function broadcast(wss, data) {
-  const message = JSON.stringify(data)
-
-  for (const client of wss.clients) {
-    if (client.readyState === 1) {
-      client.send(message)
-    }
-  }
-}
-
 module.exports = { setupWebSocket }

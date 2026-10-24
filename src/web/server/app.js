@@ -20,7 +20,11 @@ function createApp(manager) {
     lastModified: false
   }))
 
-  // API routes
+  app.get('/agents/:name', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')))
+  app.get('/agents', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')))
+  app.get('/configs', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')))
+
+  // API routes include the final 404 handler.
   registerRoutes(app, manager)
 
   return app

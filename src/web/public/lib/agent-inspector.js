@@ -28,10 +28,29 @@ export function initAgentInspector(container) {
   const captures = new Map()
   let disposed = false
   const endpoint = name => `/api/agents/${encodeURIComponent(name)}`
+  async function loadImage(card, state, image, url) {
+    state.imageController?.abort()
+    const controller = new AbortController()
+    state.imageController = controller
+    state.imageUrl = url
+    const timer = setTimeout(() => controller.abort(), 10000)
+    try {
+      const response = await fetch(url, { signal: controller.signal, cache: 'no-store' })
+      if (!response.ok) throw new Error('Snapshot unavailable')
+      const blob = await response.blob()
+      if (disposed || controller.signal.aborted || states.get(card) !== state || state.imageUrl !== url || !card.querySelector('.inspector-vision').open) return
+      if (state.objectUrl) URL.revokeObjectURL(state.objectUrl)
+      state.objectUrl = URL.createObjectURL(blob)
+      image.src = state.objectUrl; image.hidden = false
+    } catch (error) {
+      if (!disposed && !controller.signal.aborted && states.get(card) === state) { image.hidden = true; state.imageUrl = null; card.querySelector('[data-vision-meta]').textContent = error.message }
+    } finally { clearTimeout(timer) }
+  }
   function render(card, state) {
     const data = state.data
     if (!data) return
     updatePlannerTask(card, data.task)
+    if (card.querySelector('.inspector-vision').open) {
     const capture = captures.has(card)
     const button = card.querySelector('[data-inspect-capture]')
     button.disabled = capture || !data.online || !data.renderer.enabled || !data.renderer.connected
@@ -42,19 +61,21 @@ export function initAgentInspector(container) {
     const image = card.querySelector('[data-vision-image]')
     const meta = card.querySelector('[data-vision-meta]')
     if (!observation) {
+      state.imageController?.abort(); state.imageUrl = null
       image.hidden = true
       image.removeAttribute('src')
       meta.textContent = 'No snapshot'
     } else {
       const url = `${endpoint(data.agentName)}/observation/${encodeURIComponent(observation.frameId)}/rgb`
-      if (image.getAttribute('src') !== url) {
-        image.hidden = false
+      if (state.imageUrl !== url) {
         image.alt = `${data.agentName} view at ${observation.observedAt}`
-        image.src = url
+        loadImage(card, state, image, url)
       }
       const camera = observation.camera
       meta.textContent = `${observation.observedAt} | ${observation.width} x ${observation.height} | ${observation.dimension || '-'}${camera ? ` | yaw ${camera.yawDegrees}, pitch ${camera.pitchDegrees}` : ''}${state.captureError ? ' | Previous snapshot' : ''}`
     }
+    }
+    if (!card.querySelector('.inspector-llm').open || !Array.isArray(data.turns)) return
     const content = card.querySelector('.llm-trace-content')
     const signature = JSON.stringify(data.turns)
     if (state.traceSignature !== signature) {
@@ -79,22 +100,25 @@ export function initAgentInspector(container) {
   }
   async function poll(card, state) {
     if (disposed || !card.isConnected || states.get(card) !== state) return
+    const generation = state.generation = (state.generation || 0) + 1
+    const current = () => !disposed && states.get(card) === state && state.generation === generation && card.isConnected
     const controller = new AbortController()
     state.controller = controller
     const timeout = setTimeout(() => controller.abort(), 5000)
     try {
-      const response = await fetch(`${endpoint(state.name)}/debug`, { signal: controller.signal, cache: 'no-store', headers: state.etag ? { 'If-None-Match': state.etag } : {} })
+      const response = await fetch(`${endpoint(state.name)}/debug?section=${state.section}`, { signal: controller.signal, cache: 'no-store', headers: state.etag ? { 'If-None-Match': state.etag } : {} })
       if (response.status === 304) return
       const data = await response.json()
       if (!response.ok || !data.ok) throw new Error(data.error || 'Inspector unavailable')
       if (data.agentName !== state.name) throw new Error('Agent identity mismatch')
-      if (disposed || states.get(card) !== state || !card.isConnected) return
+      if (!current()) return
       if (state.data?.sessionId !== data.sessionId) { state.captureError = null; state.traceSignature = undefined }
       state.data = data
       state.etag = response.headers.get('etag')
       render(card, state)
     } catch (error) {
-      if (!disposed && states.get(card) === state && card.isConnected) {
+      if (current()) {
+        state.imageController?.abort(); state.imageUrl = null
         card.querySelector('[data-vision-status]').textContent = error.name === 'AbortError' ? 'Inspector timed out' : error.message
         card.querySelector('[data-inspect-capture]').disabled = true
         card.querySelector('[data-vision-image]').hidden = true
@@ -104,20 +128,37 @@ export function initAgentInspector(container) {
       }
     } finally {
       clearTimeout(timeout)
-      if (!disposed && states.get(card) === state && card.isConnected) state.timer = setTimeout(() => poll(card, state), 1000)
+      if (current()) state.timer = setTimeout(() => poll(card, state), 1000)
     }
+  }
+  function releaseVision(card, state) {
+    if (state) {
+      state.imageController?.abort(); state.imageUrl = null; state.captureError = null
+      if (state.objectUrl) URL.revokeObjectURL(state.objectUrl)
+      state.objectUrl = null
+    }
+    captures.get(card)?.abort(); captures.delete(card)
+    const image = card.querySelector('[data-vision-image]')
+    image?.removeAttribute('src')
+    if (image) image.hidden = true
   }
   function stop(card) {
     const state = states.get(card)
     states.delete(card)
     if (state) { clearTimeout(state.timer); state.controller?.abort() }
+    releaseVision(card, state)
   }
   function toggle(event) {
     if (!event.target.matches('.agent-inspector')) return
     const card = event.target.closest('.agent-card')
-    if (!card.querySelector('.agent-inspector[open]')) return stop(card)
-    if (states.has(card)) return
-    const state = { name: card.dataset.agentName }
+    const vision = card.querySelector('.inspector-vision').open, llm = card.querySelector('.inspector-llm').open
+    if (!vision && !llm) return stop(card)
+    const state = states.get(card) || { name: card.dataset.agentName }
+    state.generation = (state.generation || 0) + 1
+    clearTimeout(state.timer); state.controller?.abort()
+    if (!vision) releaseVision(card, state)
+    state.section = vision && llm ? 'all' : vision ? 'vision' : 'llm'
+    state.etag = null
     states.set(card, state)
     poll(card, state)
   }
@@ -134,15 +175,16 @@ export function initAgentInspector(container) {
     try {
       const response = await fetch(`${endpoint(state.name)}/observe`, { method: 'POST', signal: controller.signal })
       const result = await response.json()
+      if (disposed || controller.signal.aborted || states.get(card) !== state || !card.isConnected) return
       if (!response.ok || !result.ok) throw new Error(result.error || 'Capture failed')
       if (!result.preview || result.preview.sessionId !== sessionId) throw new Error('Capture belongs to a replaced session')
       if (state.data.sessionId === sessionId) state.data.observation = result.preview
       state.etag = null
     } catch (error) {
-      state.captureError = error.name === 'AbortError' ? 'Capture timed out; snapshot not confirmed' : error.message
+      if (!disposed && states.get(card) === state && card.querySelector('.inspector-vision').open) state.captureError = error.name === 'AbortError' ? 'Capture timed out; snapshot not confirmed' : error.message
     } finally {
       clearTimeout(timeout)
-      captures.delete(card)
+      if (captures.get(card) === controller) captures.delete(card)
       if (!disposed && states.get(card) === state && card.isConnected) render(card, state)
     }
   }
