@@ -81,6 +81,7 @@ class SteveXAgent {
       const mcData = mcDataLoader(this.bot.version)
       this.movements = new Movements(this.bot, mcData)
       this.bot.pathfinder.setMovements(this.movements)
+      this.eventBus?.emit('agent:update',{name:this.name,sessionId:this.sessionId,timestamp:Date.now()})
     })
 
     // 统一断连处理：end/kicked 都标记为离线
@@ -92,6 +93,7 @@ class SteveXAgent {
       this.connecting = false
       this.connected = false
       this.currentAction = 'Offline'
+      this.eventBus?.emit('agent:update',{name:this.name,sessionId:this.sessionId,timestamp:Date.now()})
 
       if (reason) {
         console.error(`[error](${this.name}) Bot disconnected`, reason)

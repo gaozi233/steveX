@@ -15,6 +15,7 @@ function setupWebSocket(server, manager) {
   const debugStore = require('./agent_debug').getDebugStore(manager)
   const listeners = []
   let snapshotDirty = true
+  let lastAgents=''
   const send = (client, data) => sendPayload(client,JSON.stringify(data))
   const snapshot = () => ({ type: 'snapshot', agents: manager.getStatus({summary:true}).map(agentSummary), uptimeSec: Math.floor(process.uptime()) })
   const on = (event, handler) => { manager.eventBus?.on(event, handler); listeners.push([event, handler]) }
@@ -47,10 +48,13 @@ function setupWebSocket(server, manager) {
   })
   // Full prompts/results are fetched only by an explicitly opened per-agent inspector.
   const interval = setInterval(() => {
-    if (!snapshotDirty) return
     const clients=[...wss.clients].filter(client=>!client.paused && client.readyState===1)
     if(!clients.length)return
-    const data = JSON.stringify(snapshot())
+    // One bounded comparison per second also catches passive movement/health.
+    const current=snapshot(),agents=JSON.stringify(current.agents)
+    if(!snapshotDirty&&agents===lastAgents)return
+    const data = JSON.stringify(current)
+    lastAgents=agents
     snapshotDirty = false
     for (const client of clients) if(!sendPayload(client,data,true))snapshotDirty=true
   }, 1000)

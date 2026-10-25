@@ -57,7 +57,7 @@ function livePlayers(manager, dimension = 'minecraft:overworld') {
 }
 
 // Optional, one-way human map output. Never feeds coordinates back into an agent.
-function startWorldMapPlayers(manager, warn = console.warn) {
+function createWorldMapPublisher(manager, warn) {
   const config = manager.config?.worldMap
   if (!config?.enabled || !config.playersFile) return { close:async()=>{} }
   const file=path.resolve(config.playersFile)
@@ -83,11 +83,29 @@ function startWorldMapPlayers(manager, warn = console.warn) {
   const tick=()=>{
     if(closed || pending)return
     pending=true
-    write(manager.config?.worldMap?.enabled ? livePlayers(manager,dimension) : {players:[]}).finally(()=>{pending=false})
+    return write(manager.config?.worldMap?.enabled ? livePlayers(manager,dimension) : {players:[]}).finally(()=>{pending=false})
   }
-  tick()
-  const timer=setInterval(tick,1000);timer.unref()
-  return {close:async()=>{if(closed)return;closed=true;clearInterval(timer);await write({players:[]})}}
+  return {tick,close:async()=>{if(closed)return;closed=true;await write({players:[]})}}
+}
+
+function startWorldMapPlayers(manager,warn=console.warn) {
+  let publisher,signature,closed=false,pending=false,work=Promise.resolve(),closeWork
+  const tick=()=>{
+    if(closed||pending)return
+    pending=true
+    work=(async()=>{
+      const nextSignature=JSON.stringify(manager.config?.worldMap||{})
+      if(signature!==nextSignature){
+        const next=createWorldMapPublisher(manager,warn)
+        await publisher?.close()
+        publisher=next;signature=nextSignature
+      }
+      if(!closed)await publisher?.tick?.()
+    })().catch(error=>warn('[web] World publisher configuration: '+error.message)).finally(()=>{pending=false})
+    return work
+  }
+  tick();const timer=setInterval(tick,1000);timer.unref()
+  return {close(){if(!closeWork){closed=true;clearInterval(timer);closeWork=work.then(()=>publisher?.close())}return closeWork}}
 }
 
 module.exports={livePlayers,startWorldMapPlayers,modelPlayers,defaultSkin}

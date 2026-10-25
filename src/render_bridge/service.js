@@ -67,12 +67,21 @@ class SharedRenderService {
   }
 
   async close() {
-    if (this.closed) return
+    if(this.closeWork)return this.closeWork
     this.closed = true
     this.queue.close()
-    await this.queue.tail
-    if (this.renderer.isConnected()) await this.renderer.call('render/unbind')
-    this.renderer.close()
+    // Draining captures keeps the physical-settlement barrier. Only the final
+    // best-effort unbind has a short budget, with transport cleanup in finally.
+    this.closeWork=(async()=>{
+      await this.queue.tail
+      let timer
+      try{
+        if(this.renderer.isConnected())await Promise.race([
+          this.renderer.call('render/unbind',{}, {timeoutMs:1000}),
+          new Promise(resolve=>{timer=setTimeout(resolve,1000)})])
+      }finally{clearTimeout(timer);this.renderer.close()}
+    })()
+    return this.closeWork
   }
 }
 

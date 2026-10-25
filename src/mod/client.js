@@ -91,7 +91,7 @@ class ModWSClient extends EventEmitter {
    * 调用 mod 方法。总是 resolve，不抛异常。
    * @returns {Promise<{ok:true, data:any} | {ok:false, error:string}>}
    */
-  async call(method, params = {}) {
+  async call(method, params = {}, {timeoutMs=this.requestTimeoutMs}={}) {
     if (!this.connected || !this.ws) {
       return { ok: false, error: 'not connected to mod' }
     }
@@ -103,7 +103,7 @@ class ModWSClient extends EventEmitter {
       const timer = setTimeout(() => {
         this._pending.delete(id)
         resolve({ ok: false, error: `timeout: ${method}` })
-      }, this.requestTimeoutMs)
+      }, timeoutMs)
 
       this._pending.set(id, { resolve, timer })
 

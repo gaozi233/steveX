@@ -20,7 +20,10 @@ async function shutdown() {
   console.log('[info][main] Shutting down')
   const deadline = setTimeout(() => { console.error('[main] Shutdown timed out while draining tasks'); process.exit(1) }, 10000)
   try { await manager.close() }
-  finally { server.closeResources(); server.close(); server.closeAllConnections(); clearTimeout(deadline) }
+  finally {
+    try {await server.closeResources()}
+    finally {server.close();server.closeAllConnections();clearTimeout(deadline)}
+  }
 }
 process.on('SIGINT', shutdown)
 process.on('SIGTERM', shutdown)

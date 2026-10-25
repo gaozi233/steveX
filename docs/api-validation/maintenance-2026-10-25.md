@@ -93,3 +93,34 @@ Tests use local isolated fixtures, not Minecraft, BlueMap or paid models. Final
 suite. `npm run docs:commands -- --check`, `npm ls --depth=0` and whitespace
 checks passed. No production services or paid models were started. Existing
 uncommitted maintenance work was retained and included in this validated set.
+
+## Lifecycle Follow-up
+
+- Agent spawn/disconnection emit state notifications. Active WebSocket viewers
+  compare lightweight summaries at most once per second, detecting passive health,
+  position and online changes without broadcasting unchanged summaries or polling
+  per game tick. Hidden/absent viewers do not trigger summary construction.
+- The map publisher detects changed World configuration on its existing one-second
+  cadence, waits for the previous feed to clear, then switches output paths/map/
+  dimension. Disabled-to-enabled transitions work without restarting the panel.
+  Close calls share a completion promise; main shutdown awaits feed cleanup.
+- Debug ETags include renderer existence/connection, even without API or task events.
+- Config saves capture page/request identity. Stale completions cannot overwrite
+  a newly mounted page or a newer save's status. A previously requested Save &
+  Reload still performs its backend operation; leaving the page is not rollback.
+- Render shutdown preserves queued physical-work settlement. Final unbind is
+  best-effort with a one-second budget and transport cleanup in finally. Captures
+  themselves are not abandoned early; the existing overall shutdown deadline
+  remains the final fallback for an uncooperative capture.
+- Removed obsolete browser handling of full LLM WebSocket messages, which the
+  current server does not broadcast. On-demand HTTP tracing remains unchanged.
+
+New tests cover passive state updates/no redundant broadcasts, map reconfiguration
+and dimension filtering, renderer-only ETag invalidation, unresponsive unbind,
+native-work drain and stale config save callbacks. No paid models or production
+Minecraft/BlueMap services are used.
+
+Lifecycle submission validation: official recursive suite **557/557 passed**;
+the strengthened map dimension/path tests also passed in a final 5/5 focused run.
+Generated command documentation check passed. No Agent cognition, prompt or API
+command semantics were changed.

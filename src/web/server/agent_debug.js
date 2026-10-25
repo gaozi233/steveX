@@ -222,7 +222,8 @@ function registerDebugRoutes(app, manager) {
     const section = req.query.section || 'all'
     if (typeof section!=='string' || section.length>60 || !(section==='all' || section.split(',').every(value=>['vision','llm','context','api'].includes(value)))) return res.status(400).json({ ok: false, error: 'Unknown debug section' })
     const agent=manager.agents.get(req.params.name),context=store.context(req.params.name)
-    const tag = `"${section}-${agent?.sessionId || 'offline'}-${!!agent?.isOnline()}-${context?.revision || 0}"`
+    const renderer=manager.renderService
+    const tag = `"${section}-${agent?.sessionId || 'offline'}-${!!agent?.isOnline()}-${context?.revision || 0}-${!!renderer}-${!!renderer?.renderer?.isConnected?.()}"`
     res.set('Cache-Control', 'private, no-cache').set('ETag', tag)
     if (req.get('If-None-Match') === tag) return res.status(304).end()
     res.json(store.snapshot(req.params.name, section))

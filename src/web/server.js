@@ -17,10 +17,13 @@ function startWebServer(manager) {
   server.once('close', () => { mapPlayers.close() })
 
   const wss = setupWebSocket(server, manager)
+  let closingResources
   server.closeResources = () => {
-    mapPlayers.close()
+    if(closingResources)return closingResources
+    closingResources=mapPlayers.close()
     for (const client of wss.clients) client.terminate()
     wss.close()
+    return closingResources
   }
 
   server.listen(port, host, () => {

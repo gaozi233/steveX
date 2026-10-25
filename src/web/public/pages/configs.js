@@ -6,6 +6,7 @@ import { fetchEnvConfig, saveEnvConfig, reloadConfig } from '../lib/api.js'
 let editorEl = null
 let statusEl = null
 let loadRevision = 0
+let saveRevision = 0
 
 function setStatus(message, type = 'info') {
   if (!statusEl) return
@@ -48,6 +49,8 @@ async function loadConfig() {
 
 async function saveConfig({ shouldReload = false } = {}) {
   if (!editorEl) return
+  const revision=++saveRevision,editor=editorEl
+  const isCurrent=()=>revision===saveRevision && editor===editorEl && editor.isConnected
 
   let parsedConfig
 
@@ -64,16 +67,16 @@ async function saveConfig({ shouldReload = false } = {}) {
     await saveEnvConfig(parsedConfig)
 
     if (shouldReload) {
-      setStatus('Reloading...', 'info')
+      if(isCurrent())setStatus('Reloading...', 'info')
       await reloadConfig()
-      setStatus('Saved and reloaded successfully.', 'success')
+      if(isCurrent())setStatus('Saved and reloaded successfully.', 'success')
       return
     }
 
-    setStatus('Saved successfully.', 'success')
+    if(isCurrent())setStatus('Saved successfully.', 'success')
   } catch (err) {
     console.error('[configs] Save failed:', err)
-    setStatus(`Save failed: ${err.message}`, 'error')
+    if(isCurrent())setStatus(`Save failed: ${err.message}`, 'error')
   }
 }
 
@@ -103,6 +106,7 @@ function copyConfig() {
 }
 
 export function renderConfigs(container) {
+  ++saveRevision
   container.innerHTML = `
     <section class="config-page">
       <div class="config-card">

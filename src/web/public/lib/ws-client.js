@@ -76,21 +76,6 @@ export function initWebSocket() {
         })
         break
 
-      case 'agent:llm:input':
-        addLog(data.name, 'llm-input', {
-          model: data.model,
-          prompt: data.prompt,
-          timestamp: data.timestamp
-        })
-        break
-
-      case 'agent:llm:output':
-        addLog(data.name, 'llm-output', {
-          model: data.model,
-          response: data.response,
-          timestamp: data.timestamp
-        })
-        break
     }
   }
   function scheduleReconnect() {
