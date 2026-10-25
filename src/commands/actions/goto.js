@@ -2,7 +2,6 @@
  * goto <x> <y> <z> — pathfind to coordinates
  */
 const { goals: pathfinderGoals } = require('mineflayer-pathfinder')
-const skillRegistry = require("../../runtime/skill_registry.ts");
 
 const args = {
   x: { required: true },

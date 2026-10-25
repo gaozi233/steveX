@@ -26,7 +26,10 @@ class AgentDebugStore {
     this.listen('agent:step:done', data => this.record('execution', data))
     for(const phase of ['start','running','done'])this.listen('agent:api:'+phase,data=>this.recordCall(phase,data))
     this.listen('agent:context:snapshot',data=>this.recordContext(data))
-    this.listen('agent:task:update', () => { this.revision++ })
+    this.listen('agent:task:update', data => {
+      const agent=this.manager.agents.get(data.name)
+      if(agent && data.sessionId===agent.sessionId)this.context(data.name).revision=++this.revision
+    })
     for (const event of ['agent:connect', 'agent:disconnect']) this.listen(event, ({ name }) => { this.agents.delete(name); this.revision++ })
   }
 
@@ -48,7 +51,7 @@ class AgentDebugStore {
     if (!agent) return null
     let context = this.agents.get(name)
     if (!context || context.sessionId !== agent.sessionId) {
-      context = { sessionId: agent.sessionId, turns: [], contexts:[],contextBytes:0,droppedContexts:0,
+      context = { sessionId: agent.sessionId, revision:++this.revision, turns: [], contexts:[],contextBytes:0,droppedContexts:0,
         calls:[],callSizes:new Map(),callBytes:0,droppedCalls:0,observation: null }
       this.agents.set(name, context)
     }
@@ -77,13 +80,14 @@ class AgentDebugStore {
         status: 'pending', messages, inputTruncated: truncated }
       context.turns.push(turn)
       if (context.turns.length > 10) context.turns.shift()
-      this.recordContext({...data,contextId:turn.contextId,source:'llm-input',messages:turn.messages,truncated})
+      this.recordContext({...data,contextId:turn.contextId,source:'llm-input',messages:turn.messages,truncated},true)
     } else if (kind === 'execution') {
       if (!turn) return
       turn.timings = data.timings
       turn.usage = data.usage
-      turn.execution = data.result ? this.clean(JSON.stringify(data.result)).slice(0, MAX_TEXT) : null
-      turn.executionTruncated = !!data.result && this.clean(JSON.stringify(data.result)).length > MAX_TEXT
+      const execution=data.result?this.clean(diagnosticJson(data.result)):null
+      turn.execution = execution?.slice(0, MAX_TEXT) ?? null
+      turn.executionTruncated = !!execution && execution.length > MAX_TEXT
       turn.executionError = data.error ? this.clean(data.error).slice(0, 8192) : null
       turn.executionStatus = data.cancelled ? 'cancelled' : data.superseded ? 'superseded' : data.result ? (data.result.ok === false ? 'failed' : 'returned') : 'not_executed'
     } else {
@@ -101,7 +105,7 @@ class AgentDebugStore {
         turn.error = this.clean(data.error).slice(0, 8192)
       }
     }
-    this.revision++
+    context.revision=++this.revision
   }
 
   recordCall(phase,data) {
@@ -135,17 +139,17 @@ class AgentDebugStore {
       const removed=context.calls.shift()
       context.callBytes-=context.callSizes.get(removed.callId) || 0;context.callSizes.delete(removed.callId);context.droppedCalls++
     }
-    this.revision++
+    context.revision=++this.revision
   }
 
-  recordContext(data) {
+  recordContext(data,alreadyClean=false) {
     const agent=this.manager.agents.get(data.name)
     if(!agent || data.sessionId!==agent.sessionId || typeof data.contextId!=='string' || !data.contextId || data.contextId.length>100)return
     const context=this.context(data.name),id=this.clean(data.contextId)
     if(context.contexts.some(record=>record.contextId===id))return
     let budget=MAX_TEXT,truncated=!!data.truncated
     const text=value=>{
-      const cleaned=this.clean(value),part=cleaned.slice(0,budget)
+      const cleaned=alreadyClean?value:this.clean(value),part=cleaned.slice(0,budget)
       budget-=part.length;truncated ||= cleaned.length>part.length
       return part
     }
@@ -162,7 +166,7 @@ class AgentDebugStore {
     while(context.contexts.length>10 || context.contextBytes>MAX_CALL_BYTES) {
       context.contextBytes-=Buffer.byteLength(JSON.stringify(context.contexts.shift()));context.droppedContexts++
     }
-    this.revision++
+    context.revision=++this.revision
   }
 
   snapshot(name, section = 'all') {
@@ -172,7 +176,7 @@ class AgentDebugStore {
     const frame = current?.observation
     const sections=new Set(section==='all'?['vision','llm','context','api']:section.split(','))
     return { ok: true, agentName: name, sessionId: agent?.sessionId ?? null,
-      online: !!agent?.isOnline(), revision: this.revision,
+      online: !!agent?.isOnline(), revision: context?.revision || 0,
       ...((sections.has('vision') || sections.has('llm'))?{task:agent?.brainLoop?.getTaskStatus ? JSON.parse(this.clean(JSON.stringify(agent.brainLoop.getTaskStatus()))) : null}:{}),
       renderer: { enabled: !!this.manager.renderService, connected: !!this.manager.renderService?.renderer?.isConnected?.() },
       ...(sections.has('llm') ? { turns: (current?.turns || []).map(turn=>({...turn,
@@ -199,7 +203,7 @@ class AgentDebugStore {
         dimension: frame.dimension, camera: frame.camera, perspective: frame.perspective || 'first-person', previewOnly: !!frame.previewOnly,
       rgbUrl: `/api/agents/${encodeURIComponent(name)}/observation/${frame.frameId}/rgb` }
     this.context(name).observation = { directory, file: frame.rgb.file, public: publicView }
-    this.revision++
+    this.context(name).revision=++this.revision
     return { ok: true, observation: publicView }
   }
 
@@ -217,11 +221,11 @@ function registerDebugRoutes(app, manager) {
     if (!manager.agents.has(req.params.name) && !manager.agentConfigs?.has(req.params.name)) return res.status(404).json({ ok: false, error: 'Agent not found' })
     const section = req.query.section || 'all'
     if (typeof section!=='string' || section.length>60 || !(section==='all' || section.split(',').every(value=>['vision','llm','context','api'].includes(value)))) return res.status(400).json({ ok: false, error: 'Unknown debug section' })
-    const data = store.snapshot(req.params.name, section)
-    const tag = `"${section}-${data.sessionId || 'offline'}-${data.online}-${data.revision}"`
+    const agent=manager.agents.get(req.params.name),context=store.context(req.params.name)
+    const tag = `"${section}-${agent?.sessionId || 'offline'}-${!!agent?.isOnline()}-${context?.revision || 0}"`
     res.set('Cache-Control', 'private, no-cache').set('ETag', tag)
     if (req.get('If-None-Match') === tag) return res.status(304).end()
-    res.json(data)
+    res.json(store.snapshot(req.params.name, section))
   })
   app.get('/api/agents/:name/observation/:frameId/rgb', async (req, res) => {
     res.set('Cache-Control', 'no-store')

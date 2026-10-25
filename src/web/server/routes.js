@@ -4,6 +4,7 @@ const { groupCommands } = require('../../commands/catalog')
 const skillRegistry = require('../../runtime/skill_registry.ts')
 
 const { getEnvironmentConfigPath } = require('../../utils/config')
+const { validateEnvironmentConfig, writeEnvironmentConfig, publicConfig, restoreCredentials } = require('../../utils/config_write')
 const ENV_CONFIG_PATH = getEnvironmentConfigPath()
 const ENV_CONFIG_RELATIVE_PATH = path.relative(process.cwd(), ENV_CONFIG_PATH)
 
@@ -34,6 +35,7 @@ function registerRoutes(app, manager) {
 
   // ---- Read environment config ----
   app.get('/api/config/environment', async (req, res) => {
+    res.set('Cache-Control','no-store')
     try {
       const raw = await fs.readFile(ENV_CONFIG_PATH, 'utf8')
       const config = JSON.parse(raw)
@@ -41,7 +43,7 @@ function registerRoutes(app, manager) {
       res.json({
         ok: true,
         path: ENV_CONFIG_RELATIVE_PATH,
-        config
+        config:publicConfig(config)
       })
     } catch (err) {
       console.error('[web] Failed to read environment config:', err)
@@ -55,6 +57,7 @@ function registerRoutes(app, manager) {
 
   // ---- Save environment config ----
   app.post('/api/config/environment', async (req, res) => {
+    res.set('Cache-Control','no-store')
     try {
       const config = req.body && req.body.config
 
@@ -65,7 +68,13 @@ function registerRoutes(app, manager) {
         })
       }
 
-      const nextRaw = `${JSON.stringify(config, null, 2)}\n`
+      const invalid=validateEnvironmentConfig(config)
+      if(invalid)return res.status(400).json({ok:false,error:invalid})
+
+      const previous=await fs.readFile(ENV_CONFIG_PATH,'utf8').then(JSON.parse).catch(error=>{if(error.code==='ENOENT')return {};throw error})
+      let restored
+      try{restored=restoreCredentials(config,previous)}catch{return res.status(400).json({ok:false,error:'Cannot retain a credential that does not exist'})}
+      const nextRaw = `${JSON.stringify(restored, null, 2)}\n`
 
       // Guard against oversized config blobs
       const MAX_SIZE = 512 * 1024 // 512 KB
@@ -76,7 +85,7 @@ function registerRoutes(app, manager) {
         })
       }
 
-      await fs.writeFile(ENV_CONFIG_PATH, nextRaw, 'utf8')
+      await writeEnvironmentConfig(ENV_CONFIG_PATH, nextRaw)
 
       res.json({
         ok: true,
@@ -179,21 +188,21 @@ function registerRoutes(app, manager) {
 
   // ---- Connect agent ----
   app.post('/api/agents/:name/connect', (req, res) => {
-    const name = decodeURIComponent(req.params.name)
+    const name = req.params.name
     const ok = manager.connectAgent(name)
     res.status(ok ? 200 : 404).json({ ok })
   })
 
   // ---- Disconnect agent ----
   app.post('/api/agents/:name/disconnect', (req, res) => {
-    const name = decodeURIComponent(req.params.name)
+    const name = req.params.name
     const ok = manager.disconnectAgent(name)
     res.status(ok ? 200 : 404).json({ ok })
   })
 
   // ---- Execute command ----
   app.post('/api/agents/:name/command', async (req, res) => {
-    const name = decodeURIComponent(req.params.name)
+    const name = req.params.name
     const command = typeof req.body?.command === 'string' ? req.body.command.trim() : ''
 
     if (!command) {

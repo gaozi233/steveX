@@ -15,6 +15,22 @@ function fixture() {
   return { agents, agentConfigs: new Map([...agents].map(([name, agent]) => [name, agent.config])), eventBus: new EventEmitter(), config: {} }
 }
 
+test('debug ETags are agent-local and cache hits skip snapshot construction',async t=>{
+  const manager=fixture(),server=createApp(manager).listen(0,'127.0.0.1')
+  await new Promise(resolve=>server.once('listening',resolve))
+  const store=getDebugStore(manager)
+  t.after(async()=>{store.close();server.closeAllConnections();await new Promise(r=>server.close(r))})
+  const url=`http://127.0.0.1:${server.address().port}/api/agents/a/debug?section=api`
+  const first=await fetch(url),tag=first.headers.get('etag')
+  let snapshots=0;const original=store.snapshot.bind(store);store.snapshot=(...args)=>{snapshots++;return original(...args)}
+  manager.eventBus.emit('agent:task:update',{name:'b',sessionId:'b-session'})
+  assert.equal((await fetch(url,{headers:{'If-None-Match':tag}})).status,304);assert.equal(snapshots,0)
+  manager.eventBus.emit('agent:task:update',{name:'a',sessionId:'old-session'})
+  assert.equal((await fetch(url,{headers:{'If-None-Match':tag}})).status,304)
+  manager.eventBus.emit('agent:task:update',{name:'a',sessionId:'a-session'})
+  assert.equal((await fetch(url,{headers:{'If-None-Match':tag}})).status,200);assert.equal(snapshots,1)
+})
+
 test('Brain identifies SteveX and the exact connected Minecraft version', () => {
   const agent = fixture().agents.get('a')
   agent.bot = { version: '1.21.11' }

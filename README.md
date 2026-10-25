@@ -118,9 +118,9 @@ npm start
 
 | 技术 | 用途 |
 |------|------|
-| Node.js ≥18 | 运行时 |
+| Node.js ≥22.18.0 | 运行时，直接加载现有 TypeScript 模块 |
 | CommonJS | 模块系统 |
-| mineflayer ^4.37.1 | Minecraft 机器人库 |
+| mineflayer ^4.39.0 | Minecraft 机器人库 |
 | mineflayer-pathfinder ^2.4.5 | 寻路插件 |
 | Express ^5.2.1 | Web 框架 |
 | ws ^8.20.1 | WebSocket 实时推送 |

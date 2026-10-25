@@ -96,8 +96,11 @@ export function mountWorld(container) {
         body:JSON.stringify({uuid:controlledUuid,action:data.action,position:p,mapId:data.mapId})})
       const result=await response.json()
       if(!disposed&&generation===controlGeneration&&requestId===controlSequence)controlStatus(result.output||result.error||JSON.stringify(result))
-    }catch(error){if(!disposed&&generation===controlGeneration&&requestId===controlSequence&&error.name!=='AbortError')controlStatus(error.message)}
-    finally{if(!disposed&&generation===controlGeneration&&requestId===controlSequence)frame.contentWindow.postMessage({...visual,active:false},mapOrigin)}
+      if(!disposed&&generation===controlGeneration&&requestId===controlSequence)frame.contentWindow.postMessage({...visual,active:false},mapOrigin)
+    }catch(error){if(!disposed&&generation===controlGeneration&&requestId===controlSequence&&error.name!=='AbortError'){
+      controlStatus('Connection lost; command state unknown. Check agent before retrying.')
+      frame.contentWindow.postMessage({...visual,active:null},mapOrigin)
+    }}
   }
   async function refreshPlayer() {
     const uuid=selectedUuid, target=popup

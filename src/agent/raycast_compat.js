@@ -1,8 +1,17 @@
 const { Vec3 } = require('vec3')
 const installedVersion = require('mineflayer/package.json').version
+const warnedVersions=new Set()
+function checkRaycastVersion(version,warn=console.warn) {
+  if(version==='4.39.0')return true
+  if(!warnedVersions.has(version)){
+    warnedVersions.add(version)
+    warn(`[compat] Mineflayer ${version}: legacy raycast patch not applied; revalidate cursor raycasts after dependency updates`)
+  }
+  return false
+}
 
 function raycastCompatibility(bot) {
-  if (installedVersion !== '4.39.0') return false
+  if (!checkRaycastVersion(installedVersion)) return false
   const original = bot.blockAtEntityCursor
   // 4.39.0 rejects zero angles and rays from body height rather than lookAt's eye.
   const wrapped = (entity = bot.entity, maxDistance = 256, matcher = null) => {
@@ -17,4 +26,4 @@ function raycastCompatibility(bot) {
   bot.once('end', () => { if (bot.blockAtEntityCursor === wrapped) bot.blockAtEntityCursor = original })
   return true
 }
-module.exports = { raycastCompatibility }
+module.exports = { raycastCompatibility, checkRaycastVersion }

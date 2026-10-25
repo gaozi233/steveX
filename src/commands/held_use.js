@@ -74,9 +74,11 @@ function startUse(bot, hand = 'hand') {
 
 function releaseUse(bot) {
   const requested = hasUse(bot)
-  if (requested) bot.deactivateItem()
-  clearUse(bot)
-  if (requested) bot.usingHeldItem = false
+  try { if (requested) bot.deactivateItem() }
+  finally {
+    clearUse(bot)
+    if (requested) bot.usingHeldItem = false
+  }
   return requested
 }
 

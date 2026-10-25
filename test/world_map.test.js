@@ -69,3 +69,25 @@ test('World unloads in the background, restores a trusted camera and removes lis
   document.hidden=false;events.get('visibilitychange')();assert.equal(frame.src,'http://127.0.0.1:8100/#natural:1:2:3')
   release();assert.equal(events.size,0);assert.equal(windowEvents.size,0)
 })
+
+test('World network failures mark execution unknown rather than reporting completion',async()=>{
+ const source=fs.readFileSync(path.join(__dirname,'../src/web/public/pages/world.js'),'utf8').replace(/^import .*$/gm,'').replace(/^export /gm,'')
+ const events=new Map(),messages=[],status={},button={hidden:true,addEventListener(){},removeEventListener(){}}
+ const frame={src:'',contentWindow:{postMessage:data=>messages.push(data)},remove(){}}
+ const toolbar={appendChild(){}},document={hidden:false,addEventListener(){},removeEventListener(){},createElement:()=>({querySelector:()=>button})}
+ const window={addEventListener:(n,f)=>events.set(n,f),removeEventListener:n=>events.delete(n)}
+ const container={innerHTML:'',querySelector:s=>s==='iframe'?frame:s==='.world-toolbar'?toolbar:s==='[data-control-status]'?status:button}
+ const context=vm.createContext({document,window,AbortController,AbortSignal,URL,setTimeout,clearTimeout,location:{origin:'http://127.0.0.1:8090'},escapeHtml:s=>s,hydrateIcons(){},fetch:async url=>{
+   if(url==='/api/world-map/command')throw Error('offline')
+   return {ok:true,json:async()=>url==='/api/world-map'?{ok:true,enabled:true,url:'http://127.0.0.1:8100/'}:{ok:true,player:{name:'A',online:true}}}
+ }})
+ vm.runInContext(source,context);const release=context.mountWorld(container);await new Promise(r=>setImmediate(r))
+ const uuid='00000000-0000-0000-0000-000000000001'
+ const send=data=>events.get('message')({origin:'http://127.0.0.1:8100',source:frame.contentWindow,data})
+ send({type:'stevex-control-select',uuid});await new Promise(r=>setImmediate(r))
+ send({type:'stevex-map-block',uuid,mapId:'manual',action:'goto',position:{x:1,y:70,z:1}});await new Promise(r=>setImmediate(r))
+ const targetMessages=messages.filter(m=>m.type==='stevex-control-target')
+ assert.equal(targetMessages[0].active,true);assert.equal(targetMessages[1].active,null)
+ assert.ok(!targetMessages.some(m=>m.active===false));assert.match(status.textContent,/state unknown/)
+ release()
+})

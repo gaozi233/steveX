@@ -14,17 +14,17 @@ async function openWindow(bot,target,{entity=false,signal}={}) {
   const method=entity?entityWindowMethod(target):blockMethods[target.name] || 'openBlock'
   if(!method || typeof bot[method]!=='function')return {ok:false,errorCode:'INTERACTION_UNAVAILABLE',error:'Native window initialization unavailable; no fallback click sent'}
   let opened,aborted=false
-  const observed=window=>{opened=window}
+  const observed=window=>{opened=window;if(aborted)closeOpened(window)}
   bot.on('windowOpen',observed)
-  let rejectAbort
-  const abortedRequest=new Promise((_,reject)=>{rejectAbort=reject})
-  const abort=()=>{aborted=true;if(opened&&bot.currentWindow===opened)bot.closeWindow(opened);rejectAbort(signal.reason || Object.assign(new Error('Window opening cancelled'),{name:'AbortError'}))}
+  const closeOpened=window=>{if(window&&bot.currentWindow===window){try{bot.closeWindow(window)}catch{}}}
+  const abort=()=>{aborted=true;closeOpened(opened)}
   signal?.addEventListener('abort',abort,{once:true})
   try {
     const pending=Promise.resolve().then(()=>{signal?.throwIfAborted();return bot[method](target)})
-    pending.then(window=>{if(aborted&&window&&bot.currentWindow===window){try{bot.closeWindow(window)}catch{}}},()=>{})
-    const window=await Promise.race([pending,abortedRequest])
-    if(aborted||signal?.aborted){if(bot.currentWindow===window)bot.closeWindow(window);signal?.throwIfAborted();throw Error('Window opening cancelled')}
+    // Cancellation releases the UI, but successors wait for native initialization
+    // to settle so a late window cannot corrupt the next operation.
+    const window=await pending
+    if(aborted||signal?.aborted){closeOpened(window);signal?.throwIfAborted();throw Error('Window opening cancelled')}
     if(!window||bot.currentWindow!==window)return {ok:false,errorCode:'WINDOW_NOT_CONFIRMED',error:'Native opening returned without the expected active window'}
     return {ok:true,requested:true,confirmed:true,status:'completed',route:'window-open',hand:'hand',
       window:{type:window.type},evidence:['server-window-open','native-window-initialization'],

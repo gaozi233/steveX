@@ -43,6 +43,15 @@ test('entity disappearing during aim is rejected rather than retrying another en
   const f=fixture();f.bot.lookAt=async()=>{delete f.bot.entities[2]}
   assert.equal((await interact(f.bot,['cow'])).errorCode,'TARGET_CHANGED');assert.equal(f.calls.length,0)
 })
+
+test('entity interaction rechecks obstruction and current player position after aiming',async()=>{
+  const f=fixture();let blocked=false
+  f.bot.world.raycast=()=>blocked?{}:null
+  f.bot.lookAt=async()=>{blocked=true}
+  assert.equal((await interact(f.bot,['cow'])).errorCode,'ENTITY_OBSTRUCTED');assert.equal(f.calls.length,0)
+  blocked=false;f.bot.lookAt=async()=>{f.bot.entity.position=new Vec3(0,0,20)}
+  assert.equal((await interact(f.bot,['cow'])).errorCode,'ENTITY_OUT_OF_REACH');assert.equal(f.calls.length,0)
+})
 test('dig stop works directly and malformed subcommands never stop digging',async()=>{
   let stops=0;const dig=require('../src/commands/actions/dig').handler,bot={stopDigging:()=>stops++}
   assert.equal((await dig(bot,['STOP'])).ok,true);assert.equal(stops,1)

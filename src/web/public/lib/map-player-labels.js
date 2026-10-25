@@ -13,7 +13,7 @@
     const viewer=window.bluemap.mapViewer
     overlay.visible=!!target && viewer.map?.data.id===target.mapId
     const player=window.__bpmState?.loadedPlayers?.get(controlled),position=player?.currentPos
-    line.visible=overlay.visible && !!target.active && !!position
+    line.visible=overlay.visible && target.active!==false && !!position
     if(line.visible){
       const points=line.geometry.attributes.position
       points.setXYZ(0,position.x,position.y+1,position.z)
@@ -33,7 +33,9 @@
       outline.renderOrder=line.renderOrder=1000;overlay.add(outline,line);viewer.markers.add(overlay)
       renderEvents=window.bluemap.events;renderEvents.addEventListener('bluemapRenderFrame',updateOverlay)
     }
-    target=data;outline.position.set(data.position.x+.5,data.position.y+.5,data.position.z+.5)
+    target=data
+    line.material.color?.setHex(data.active===null?0xe6a027:0x2785ff)
+    outline.position.set(data.position.x+.5,data.position.y+.5,data.position.z+.5)
     updateOverlay();viewer.redraw()
   }
   function message(event) {
@@ -67,9 +69,14 @@
       mapId:viewer.map.data.id,position:{x:point.x,y:point.y,z:point.z}},parentOrigin)
     return true
   }
-  function pointerDown(event) {down={x:event.clientX,y:event.clientY,button:event.button}}
+  function pointerDown(event) {down={x:event.clientX,y:event.clientY,button:event.button,id:event.pointerId,dragged:false}}
+  function pointerMove(event) {
+    if(down && event.pointerId===down.id && Math.hypot(event.clientX-down.x,event.clientY-down.y)>=5)down.dragged=true
+  }
+  function pointerCancel() {down=null}
   function pointerUp(event) {
-    if(controlled && event.button===2 && down?.button===2 && !event.target.closest?.('[data-stevex-player]') && Math.hypot(event.clientX-down.x,event.clientY-down.y)<5)blockAction(event)
+    if(controlled && event.button===2 && down?.button===2 && event.pointerId===down.id && !down.dragged && !event.target.closest?.('[data-stevex-player]') && Math.hypot(event.clientX-down.x,event.clientY-down.y)<5)blockAction(event)
+    if(event.button===2)down=null
   }
   function context(event) {
     const label=event.target.closest?.('[data-stevex-player]')
@@ -100,7 +107,7 @@
       return
     }
     if (!label) {
-      if(event.type==='click' && controlled && down?.button===0 && Math.hypot(event.clientX-down.x,event.clientY-down.y)<5 && blockAction(event)){
+      if(event.type==='click' && controlled && down?.button===0 && !down.dragged && Math.hypot(event.clientX-down.x,event.clientY-down.y)<5 && blockAction(event)){
         event.preventDefault();event.stopImmediatePropagation();return
       }
       if(event.type==='click')window.parent.postMessage({type:'stevex-player-close'},'*')
@@ -117,11 +124,16 @@
   document.addEventListener('keydown',activate,true)
   document.addEventListener('pointerdown',pointerDown,true)
   document.addEventListener('pointerup',pointerUp,true)
+  document.addEventListener('pointermove',pointerMove,true)
+  document.addEventListener('pointercancel',pointerCancel,true)
+  window.addEventListener('blur',pointerCancel)
   document.addEventListener('contextmenu',context,true)
   window.addEventListener('pagehide',()=>{
     clearInterval(timer);document.removeEventListener('click',activate,true);document.removeEventListener('keydown',activate,true)
     document.removeEventListener('pointerdown',pointerDown,true);document.removeEventListener('contextmenu',context,true)
     document.removeEventListener('pointerup',pointerUp,true)
+    document.removeEventListener('pointermove',pointerMove,true);document.removeEventListener('pointercancel',pointerCancel,true)
+    window.removeEventListener('blur',pointerCancel)
     window.removeEventListener('message',message)
     clearOverlay()
   },{once:true})

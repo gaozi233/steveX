@@ -36,8 +36,10 @@ test('aborted native open closes its late window and does not claim successful o
  const bot=fixture(),controller=new AbortController();let resolve,closed=0
  bot.openBlock=()=>new Promise(r=>{resolve=r});bot.closeWindow=()=>{closed++;bot.currentWindow=null}
  const action=openWindow(bot,{name:'chest'},{signal:controller.signal});await Promise.resolve();controller.abort()
+ let settled=false;action.finally(()=>{settled=true}).catch(()=>{})
+ await Promise.resolve();assert.equal(settled,false,'Cancellation must not release the native settlement barrier')
+ const late={type:'minecraft:generic_9x3'};bot.currentWindow=late;resolve(late)
  await assert.rejects(action)
- const late={type:'minecraft:generic_9x3'};bot.currentWindow=late;resolve(late);await Promise.resolve();await Promise.resolve()
  assert.equal(closed,1);bot.emit('end')
 })
 test('wrong or missing windows reject operations without opening or moving items',async()=>{

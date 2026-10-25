@@ -1,9 +1,10 @@
-function selectEntity(bot, token) {
+function selectEntity(bot, token, { fromEyes = false } = {}) {
+  const origin=fromEyes?bot.entity.position.offset(0,bot.entity.eyeHeight||1.62,0):bot.entity.position
   const name = e => (e.username || e.name || '').toLowerCase()
   const matches = Object.values(bot.entities || {}).filter(e => e.id !== bot.entity.id && e.position &&
     (/^\d+$/.test(token) ? String(e.id) === token : name(e).includes(token.toLowerCase())))
   matches.sort((a,b) => (name(b) === token.toLowerCase()) - (name(a) === token.toLowerCase()) ||
-    bot.entity.position.distanceTo(a.position) - bot.entity.position.distanceTo(b.position) || a.id-b.id)
+    origin.distanceTo(a.position) - origin.distanceTo(b.position) || a.id-b.id)
   return matches[0]
 }
 function aimPoint(entity) { return entity.position.offset(0, Math.min((entity.height || 1)/2, 1), 0) }

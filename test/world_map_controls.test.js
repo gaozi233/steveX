@@ -22,6 +22,17 @@ test('iframe preserves left label popup, selects on right label and ignores drag
  assert.equal(posts.pop().action,'goto')
  handlers.get('pointerdown')(event('pointerdown'));handlers.get('click')(event('click'));const dig=posts.pop()
  assert.equal(dig.action,'dig');assert.equal(dig.position.z,-4);assert.equal(dig.mapId,'manual')
+ for(const button of [0,2]){
+  handlers.get('pointerdown')(event('pointerdown',false,button))
+  handlers.get('pointermove')(event('pointermove',false,button,40))
+  handlers.get('pointermove')(event('pointermove',false,button,10))
+  handlers.get('pointerup')(event('pointerup',false,button))
+  if(button===0)handlers.get('click')(event('click'))
+  assert.ok(!posts.some(p=>p.type==='stevex-map-block'),'dragging out and back must not issue actions')
+ }
+ handlers.get('pointerdown')(event('pointerdown'))
+ handlers.get('pointercancel')();handlers.get('click')(event('click'))
+ assert.ok(!posts.some(p=>p.type==='stevex-map-block'))
  events.get('pagehide')();assert.equal(handlers.size,0);assert.equal(events.has('message'),false)
 })
 
@@ -44,6 +55,7 @@ test('selection visuals follow player positions, keep target after completion an
  send(target);const [outline,line]=objects[0].children;assert.equal(line.visible,true)
  player.currentPos.x=3;render.get('bluemapRenderFrame')();assert.deepEqual(line.geometry.attributes.position[0],[3,71,2])
  send({...target,requestId:1,active:false});assert.equal(line.visible,true)
+ send({...target,active:null});assert.equal(line.visible,true,'Unknown execution must retain a visible connection')
  send({...target,active:false});assert.equal(line.visible,false);assert.equal(objects.length,1)
  assert.equal(outline.position.x,5.5)
  send({type:'stevex-control-player',uuid:null});assert.equal(objects.length,0);assert.equal(render.size,0);assert.equal(labels.style.outline,'');assert.equal(disposed,5)
