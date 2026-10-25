@@ -124,3 +124,28 @@ Lifecycle submission validation: official recursive suite **557/557 passed**;
 the strengthened map dimension/path tests also passed in a final 5/5 focused run.
 Generated command documentation check passed. No Agent cognition, prompt or API
 command semantics were changed.
+
+## Reload Feedback, Follow End and Log Keys
+
+Only the three authorized follow-up findings are addressed in this batch:
+
+- Browser reload checks both HTTP status and the response success field. Failed
+  reloads do not proceed down the success-refresh path. Failed status reads do
+  not mutate the browser's cached agent list. Configs distinguishes a saved file
+  from a failed reload/status refresh instead of falsely claiming full success.
+- A naturally ended follow removes its own listener/goal and clears its display
+  state and background owner. A stale follow callback cannot stop a successor.
+  Failure while installing the follow goal also removes the owned listener.
+- Frontend logs use a null-prototype dictionary, so `__proto__`, `constructor`
+  and `toString` are ordinary independent agent names. Existing per-agent 200-entry
+  limits remain unchanged.
+
+Tests cover HTTP/application/non-JSON reload errors, failed status preservation,
+saved-versus-reload feedback, special-name log bounds, natural follow end,
+stale-owner protection and failed-goal cleanup. Reconnection and interaction-memory
+write scheduling are intentionally unchanged. No Brain or fixed prompt changes,
+production game services or paid models are involved.
+
+Final validation for this batch: `npm test -- --test-concurrency=2` passed
+**562/562**, including nested tests. Generated command documentation and
+whitespace checks passed.

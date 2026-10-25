@@ -6,12 +6,15 @@ import { receivedAgents } from './freshness.js'
 export async function fetchStatus() {
   const res = await fetch('/api/status?view=summary')
   const data = await res.json()
+  if(!res.ok || !Array.isArray(data.agents))throw new Error(data.error || 'Failed to fetch agent status')
   setState({ agents: receivedAgents(data.agents,getState().agents), uptimeSec: data.uptimeSec })
   return data
 }
 
 export async function reloadConfig() {
-  await fetch('/api/reload', { method: 'POST' })
+  const res=await fetch('/api/reload', { method: 'POST' })
+  const data=await res.json().catch(()=>null)
+  if(!res.ok || data?.ok!==true)throw new Error(data?.error || `Config reload failed (HTTP ${res.status})`)
   // Wait a moment for agents to establish connections before checking status
   await new Promise(resolve => setTimeout(resolve, 1500))
   await fetchStatus()

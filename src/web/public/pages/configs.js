@@ -53,6 +53,7 @@ async function saveConfig({ shouldReload = false } = {}) {
   const isCurrent=()=>revision===saveRevision && editor===editorEl && editor.isConnected
 
   let parsedConfig
+  let saved=false
 
   try {
     parsedConfig = JSON.parse(editorEl.value)
@@ -65,6 +66,7 @@ async function saveConfig({ shouldReload = false } = {}) {
     setStatus('Saving...', 'info')
 
     await saveEnvConfig(parsedConfig)
+    saved=true
 
     if (shouldReload) {
       if(isCurrent())setStatus('Reloading...', 'info')
@@ -76,7 +78,7 @@ async function saveConfig({ shouldReload = false } = {}) {
     if(isCurrent())setStatus('Saved successfully.', 'success')
   } catch (err) {
     console.error('[configs] Save failed:', err)
-    if(isCurrent())setStatus(`Save failed: ${err.message}`, 'error')
+    if(isCurrent())setStatus(`${saved?'Saved, but reload/status refresh failed':'Save failed'}: ${err.message}`, 'error')
   }
 }
 

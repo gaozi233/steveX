@@ -5,7 +5,7 @@ const state = {
   uptimeSec: 0,
   wsConnected: false,
   filters: { query: '', status: 'all', sortBy: 'name' },
-  logs: {},          // { [agentName]: LogEntry[] }
+  logs: Object.create(null), // Agent names are dictionary keys, not object members.
   _listeners: []
 }
 
