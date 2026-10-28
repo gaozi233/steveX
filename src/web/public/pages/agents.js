@@ -118,13 +118,13 @@ export function agentCardHtml(agent) {
 
       <div class="agent-body">
         <div class="stats-panel" aria-label="Agent state">
-          <div class="stat-row">
+          <div class="stat-row" data-stat="health">
             <div class="stat-label">Health</div>
             <div class="stat-value"><span data-icon="heart"></span><span class="health-wrap"><span class="health-number">${view.health} / ${view.maxHealth}</span><span class="health-bar" aria-label="Health ${percent}%"><span class="health-fill" style="--health:${percent}%"></span></span></span></div>
           </div>
-          <div class="stat-row"><div class="stat-label">Game Mode</div><div class="stat-value"><span data-icon="gamepad"></span>${escapeHtml(view.mode)}</div></div>
-          <div class="stat-row"><div class="stat-label">Position</div><div class="stat-value"><span data-icon="pin"></span>${escapeHtml(position)}</div></div>
-          <div class="stat-row"><div class="stat-label">Current Action</div><div class="stat-value"><span data-icon="walk"></span>${escapeHtml(view.action)}</div></div>
+          <div class="stat-row" data-stat="mode"><div class="stat-label">Game Mode</div><div class="stat-value"><span data-icon="gamepad"></span>${escapeHtml(view.mode)}</div></div>
+          <div class="stat-row" data-stat="position"><div class="stat-label">Position</div><div class="stat-value"><span data-icon="pin"></span>${escapeHtml(position)}</div></div>
+          <div class="stat-row" data-stat="action"><div class="stat-label">Current Action</div><div class="stat-value"><span data-icon="walk"></span>${escapeHtml(view.action)}</div></div>
         </div>
 
         <div class="command-stack">
@@ -371,9 +371,9 @@ function updateDynamicFields(card, agent) {
     const val = row.querySelector('.stat-value')
     if (!lbl || !val) return
 
-    const name = lbl.textContent.trim()
+    const name = row.dataset.stat
 
-    if (name === 'Health') {
+    if (name === 'health') {
       const healthNumber = row.querySelector('.health-number')
       if (healthNumber) {
         healthNumber.textContent = `${view.health} / ${view.maxHealth}`
@@ -390,17 +390,17 @@ function updateDynamicFields(card, agent) {
       }
     }
 
-    if (name === 'Game Mode') {
+    if (name === 'mode') {
       val.innerHTML = `<span data-icon="gamepad"></span>${escapeHtml(view.mode)}`
       hydrateIcons(val)
     }
 
-    if (name === 'Position') {
+    if (name === 'position') {
       val.innerHTML = `<span data-icon="pin"></span>${escapeHtml(position)}`
       hydrateIcons(val)
     }
 
-    if (name === 'Current Action') {
+    if (name === 'action') {
       val.innerHTML = `<span data-icon="walk"></span>${escapeHtml(view.action)}`
       hydrateIcons(val)
     }

@@ -1255,3 +1255,7 @@ input, textarea, [contenteditable=""], [contenteditable="true"], [contenteditabl
 .world-source { color: var(--muted); margin-left: 12px; }
 .world-frame { display: block; width: 100%; height: max(420px, calc(100dvh - 210px)); border: 1px solid var(--line); border-radius: 4px; background: #dbe8eb; }
 @media (max-width: 640px) { .world-source { display: block; margin-left: 0; } .world-frame { height: 65dvh; min-height: 360px; } }
+
+/* Language selector in the top bar */
+.lang-switch { display: inline-flex; align-items: center; }
+.lang-switch select { min-width: 96px; }

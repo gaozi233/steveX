@@ -14,14 +14,14 @@
       </div>
 
       <nav class="nav-list" aria-label="Primary">
-        <a class="nav-item" href="#"><span data-icon="home"></span>Overview</a>
-        <a class="nav-item active" href="#"><span data-icon="agents"></span>Agents</a>
-        <a class="nav-item" href="#"><span data-icon="world"></span>World</a>
-        <a class="nav-item" href="#"><span data-icon="tasks"></span>Tasks</a>
-        <a class="nav-item" href="#"><span data-icon="capsules"></span>Capsules</a>
-        <a class="nav-item" href="#"><span data-icon="evolution"></span>Evolution</a>
-        <a class="nav-item" href="#"><span data-icon="configs"></span>Configs</a>
-        <a class="nav-item" href="#"><span data-icon="logs"></span>Logs</a>
+        <a class="nav-item" href="#" data-page="overview"><span data-icon="home"></span>Overview</a>
+        <a class="nav-item active" href="#" data-page="agents"><span data-icon="agents"></span>Agents</a>
+        <a class="nav-item" href="#" data-page="world"><span data-icon="world"></span>World</a>
+        <a class="nav-item" href="#" data-page="tasks"><span data-icon="tasks"></span>Tasks</a>
+        <a class="nav-item" href="#" data-page="capsules"><span data-icon="capsules"></span>Capsules</a>
+        <a class="nav-item" href="#" data-page="evolution"><span data-icon="evolution"></span>Evolution</a>
+        <a class="nav-item" href="#" data-page="configs"><span data-icon="configs"></span>Configs</a>
+        <a class="nav-item" href="#" data-page="logs"><span data-icon="logs"></span>Logs</a>
       </nav>
 
       <div class="sidebar-status">
@@ -40,6 +40,7 @@
         <div class="top-actions">
           <span id="uptime">Uptime: 33s</span>
           <span id="ws-indicator" class="ws-online">WS: online</span>
+          <label class="select-wrap lang-switch"><select id="lang" aria-label="Language / 语言"><option value="en">English</option><option value="zh">中文</option></select></label>
           <button id="reload" class="btn ghost" type="button">
             <span data-icon="refresh"></span>
             Reload Config
