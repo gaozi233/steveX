@@ -36,12 +36,25 @@ Run from the repository root, using an owned matching-version vanilla client JAR
 ./scripts/import-web-item-textures.ps1 -ClientJar 'C:/path/to/client.jar' -Version '1.21.11'
 ```
 
+No local client JAR? The official one comes from Mojang's own metadata
+(`version_manifest_v2.json` -> the version entry -> `downloads.client.url`); put
+the downloaded `client.jar` anywhere outside version control and point `-ClientJar`
+at it. Imported textures live in ignored `runs/web-item-textures/<version>/`.
+
+Many blocks ship only per-face textures (`furnace_front/side/top`), so the import
+script also writes a `<name>.png` alias from the most representative face
+(front > side > top > bottom > back > north/south/east/west) when no flat texture
+with the plain block name exists. Aliases never overwrite real textures and the
+count is printed; the panel asks for one name per item, so this is what makes
+furnaces, crafting tables, doors and similar blocks show an icon at all.
+
 Textures are extracted into ignored `runs/web-item-textures/<version>/`, served
 locally, and never sent to third parties. No additional npm dependency or server
 plugin is required. Missing icons show text. Flat block textures are previews,
-not accurate 3D item models; special models (shields, decorated items etc.) may
-show text. Tooltips contain item details, components and durability when known.
-Minecraft assets remain Mojang's property; do not commit the extracted cache.
+not accurate 3D item models; special models (shields, chests, beds, banners and
+decorated items) may show text. Tooltips contain item details, components and
+durability when known. Minecraft assets remain Mojang's property; do not commit
+the extracted cache.
 
 ## Reference and Checks
 

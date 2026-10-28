@@ -21,4 +21,23 @@ try {
     }
   }
 } finally { $zip.Dispose() }
+# Many blocks ship only per-face textures (furnace_front/side/top). The panel asks
+# for one name per item, so alias the most representative face when no flat texture
+# with the plain block name exists. Existing files are never overwritten.
+$faces = @('front', 'side', 'top', 'bottom', 'back', 'north', 'south', 'east', 'west')
+$existing = @{}
+foreach ($file in [IO.Directory]::GetFiles($destination, '*.png')) { $existing[[IO.Path]::GetFileNameWithoutExtension($file)] = $file }
+$aliased = 0
+foreach ($name in @($existing.Keys)) {
+  foreach ($face in $faces) {
+    if (-not $name.EndsWith("_$face")) { continue }
+    $target = $name.Substring(0, $name.Length - $face.Length - 1)
+    if (-not $target -or $existing.ContainsKey($target)) { continue }
+    $copy = Join-Path $destination ($target + '.png')
+    [IO.File]::Copy($existing[$name], $copy, $false)
+    $existing[$target] = $copy
+    $aliased++
+  }
+}
+Write-Output "Aliased $aliased multi-face textures"
 Write-Output "Imported $count textures for $Version to $destination"
