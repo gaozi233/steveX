@@ -1,6 +1,6 @@
 /*
- * brain.js — autonomous LLM loop for SteveX agents.
- * Goal and recent results -> single command per tick; queries are model-selected.
+ * Compatibility task driver for SteveX's single-command planner.
+ * Planning and command execution have independent lifecycles.
  * Config: agent cfg may carry cfg.brain = { enabled, goal, intervalMs }
  */
 const { DeepSeekClient } = require('../llm/deepseek_client')
@@ -8,7 +8,7 @@ const { loadCommands } = require('../commands')
 const { formatCommandCatalog } = require('../commands/catalog')
 const { windowCommands } = require('../commands/window_catalog')
 const { taskLimits, createTask, taskSnapshot } = require('./task_session')
-const { modelUsage } = require('../llm/usage')
+const { CommandPlanner } = require('./command_planner')
 
 class Brain {
   constructor(agent, llmCfg, bus, opts = {}) {
@@ -41,6 +41,8 @@ class Brain {
       && (allowed ? allowed.has(c.name) : c.llmDefaultVisible))
     this.availableCommands = list
     this.refreshCatalog()
+    this.planner = new CommandPlanner(this.llm, bus, { name: agent.name, sessionId: agent.sessionId }, raw => this.pickCommand(raw))
+    this.decisions = new WeakMap()
   }
 
   refreshCatalog() {
@@ -103,56 +105,105 @@ class Brain {
     if (this.history.length > 10) this.history.splice(0, this.history.length - 10)
   }
 
+  async requestDecision({ signal = this.controller.signal, trigger = 'explicit_request' } = {}) {
+    signal = AbortSignal.any([this.controller.signal, signal])
+    if (!this.agent.isOnline()) throw new Error('Agent is offline')
+    if (this.task && this.budgetReason()) throw new Error('Task budget exhausted')
+    if (this.task && ['completed', 'cancelled', 'failed', 'budget_exhausted'].includes(this.task.status)) throw new Error('Task has ended')
+    const task = this.task, revision = task?.revision, generation = this.generation
+    const state = await this.gatherState(signal)
+    signal.throwIfAborted()
+    if (task !== this.task || revision !== task?.revision || generation !== this.generation) throw new Error('Decision context changed')
+    const handle = this.planner.request([
+      { role: 'system', content: this.buildSystem() }, { role: 'user', content: state },
+    ], { signal, trigger, taskId: task?.id ?? null, revision, step: task ? task.calls + 1 : null })
+    if (task) task.calls++
+    const result = handle.result.then(proposal => {
+      const decision = Object.freeze(proposal)
+      this.decisions.set(decision, { task, revision, generation, signal, consumed: false })
+      if (task && !decision.command) task.metrics.invalidReplies++
+      return decision
+    }).finally(() => {
+      const record = handle.snapshot()
+      if (task) {
+        task.metrics.modelMs += record.modelMs
+        if (record.usage) {
+          task.metrics.reportedUsageCalls++
+          for (const [key, value] of Object.entries(record.usage)) task.metrics.usage[key] = (task.metrics.usage[key] || 0) + value
+        }
+        if (task === this.task) this.publishTask()
+      }
+    })
+    result.catch(() => {})
+    return { ...handle, result }
+  }
+
+  submitDecision(decision, options = {}) {
+    const issued = this.decisions.get(decision)
+    if (!issued || issued.consumed) throw new Error('Unknown or already submitted decision')
+    if (issued.signal.aborted || issued.generation !== this.generation || issued.task !== this.task
+      || issued.revision !== this.task?.revision || !this.agent.isOnline()) throw new Error('Decision is stale')
+    this.refreshCatalog()
+    if (!decision.command || !this.pickCommand(decision.command)) throw new Error('Decision command is not currently available')
+    issued.consumed = true
+    const task = issued.task
+    if (task) {
+      task.steps++
+      const query = this.availableCommands.some(c => c.name === decision.command.split(/\s+/)[0] && c.kind === 'query')
+      if (query) {
+        if (task.queries.has(decision.command)) task.metrics.repeatedQueries++
+        task.queries.set(decision.command, (task.queries.get(decision.command) || 0) + 1)
+      }
+    }
+    const started = performance.now()
+    let timing, outcome
+    const execution = { ...options, source: 'brain', signal: options.signal ? AbortSignal.any([issued.signal, options.signal]) : issued.signal,
+      llmRequestId: decision.requestId, contextId: decision.contextId, taskId: decision.taskId,
+      onTiming: values => { timing = values; try { options.onTiming?.(values) } catch {} } }
+    // Minimal agent adapters may still implement only the original Promise API.
+    const handle = this.agent.submitCommand ? this.agent.submitCommand(decision.command, execution)
+      : { callId: null, result: this.agent.executeCommand(decision.command, execution) }
+    const result = handle.result.then(value => { outcome = value; return value }).finally(() => {
+      if (task) {
+        const elapsed = performance.now() - started
+        task.metrics.commandMs += timing?.commandMs ?? elapsed
+        task.metrics.queueMs += timing?.queueMs ?? 0
+        task.metrics.executionMs += timing?.executionMs ?? elapsed
+        if (outcome?.ok === false) task.metrics.failedCommands++
+        if (task === this.task) this.publishTask()
+      }
+    })
+    result.catch(() => {})
+    return { ...handle, result }
+  }
+
   async tick(generation = this.generation, signal = this.controller.signal) {
-    let trace, pending = false
+    let trace
     const task = this.task, revision = task?.revision
     const timing = { modelMs: 0, commandMs: 0, queueMs: 0, executionMs: 0 }
-    let usage = null, result, invalidReply = false, superseded = false, executionError = null
+    let usage = null, result, superseded = false, executionError = null
     try {
       if (!this.active(generation, signal)) return
-      const state = await this.gatherState(signal)
-      if (!this.active(generation, signal)) return
-      const messages = [
-        { role: 'system', content: this.buildSystem() },
-        { role: 'user', content: state },
-      ]
-      trace = { name: this.agent.name, sessionId: this.agent.sessionId, requestId: require('node:crypto').randomUUID(), model: this.llm.model,
-        contextId:require('node:crypto').randomUUID(),
-        taskId: task?.id ?? null, step: task ? task.calls + 1 : null }
-      pending = true
-      this.bus.emit('agent:llm:input', { ...trace, input: state, prompt: state, messages, timestamp: Date.now() })
-      if (task) task.calls++
+      const request = await this.requestDecision({ signal, trigger: this.nextTrigger || 'explicit_step' })
+      trace = request.snapshot()
       const modelStarted = performance.now()
-      let out
-      try { out = await this.llm.chat(messages, { signal, onUsage: value => { usage = modelUsage(value) } }) }
-      finally { timing.modelMs = performance.now() - modelStarted }
-      pending = false
-      if (!this.active(generation, signal)) {
-        this.bus.emit('agent:llm:error', { ...trace, cancelled: true, error: 'Brain stopped before response was accepted', timestamp: Date.now() })
-        return
-      }
-      const cmd = this.pickCommand(out)
-      this.bus.emit('agent:llm:output', { ...trace, output: out, response: out, command: cmd, timestamp: Date.now() })
+      let decision
+      try { decision = await request.result }
+      finally { timing.modelMs = performance.now() - modelStarted; usage = request.snapshot().usage ?? null }
+      usage = decision.usage
+      if (!this.active(generation, signal)) return
+      const cmd = decision.command
       if (task && task.revision !== revision) { superseded = true; return { ok: true, superseded: true } }
       if (!cmd) {
-        invalidReply = true
-        this.remember('(no valid command)', out)
+        this.remember('(no valid command)', decision.output)
         return { ok: false, error: 'Model did not return one valid command' }
-      }
-      if (task) {
-        task.steps++
-        const query = this.availableCommands.some(c => c.name === cmd.split(/\s+/)[0] && c.kind === 'query')
-        if (query) {
-          if (task.queries.has(cmd)) task.metrics.repeatedQueries++
-          task.queries.set(cmd, (task.queries.get(cmd) || 0) + 1)
-        }
       }
       const commandStarted = performance.now()
       let measured = false, res
       try {
-        res = await this.agent.executeCommand(cmd, { source: 'brain', signal,
-          llmRequestId:trace.requestId,contextId:trace.contextId,taskId:trace.taskId,
+        const execution = this.submitDecision(decision, {
           onTiming: values => { Object.assign(timing, values); measured = true } })
+        res = await execution.result
         result = res
       } finally {
         timing.commandMs = performance.now() - commandStarted
@@ -164,7 +215,6 @@ class Brain {
       console.log(`[brain](${this.agent.name}) ${cmd} -> ${String(outcome).slice(0, 100)}`)
       return { ok: res.ok !== false, command: cmd, result: res }
     } catch (e) {
-      if (pending) this.bus.emit('agent:llm:error', { ...trace, cancelled: signal.aborted || !this.active(generation, signal), error: e.message, timestamp: Date.now() })
       if (!this.active(generation, signal)) return
       this.lastError = require('../utils/redact').redact(e.message, [this.llm.apiKey])
       executionError = this.lastError
@@ -172,15 +222,6 @@ class Brain {
       return { ok: false, error: this.lastError }
     } finally {
       if (trace) {
-        if (task) {
-          for (const key of ['modelMs', 'commandMs', 'queueMs', 'executionMs']) task.metrics[key] += timing[key]
-          if (invalidReply) task.metrics.invalidReplies++
-          if (result?.ok === false) task.metrics.failedCommands++
-          if (usage) {
-            task.metrics.reportedUsageCalls++
-            for (const [key, value] of Object.entries(usage)) task.metrics.usage[key] = (task.metrics.usage[key] || 0) + value
-          }
-        }
         this.bus.emit('agent:step:done', { ...trace, timings: timing, usage, result, error: executionError,
           cancelled: !this.active(generation, signal), superseded, timestamp: Date.now() })
         this.publishTask()
@@ -217,9 +258,9 @@ class Brain {
       this.task.messages.push(message.trim())
       this.task.revision++
       this.publishTask()
-      if (this.running || this.inFlight) return { ok: true, status: 'queued', mode: this.task.mode, task: this.getTaskStatus() }
+      if (this.running || this.inFlight || this.planner.pending) return { ok: true, status: 'queued', mode: this.task.mode, task: this.getTaskStatus() }
     } else {
-      if (this.running || this.inFlight) return { ok: false, errorCode: 'BRAIN_BUSY', error: 'Planner is busy; cancel it and wait before starting a new task' }
+      if (this.running || this.inFlight || this.planner.pending) return { ok: false, errorCode: 'BRAIN_BUSY', error: 'Planner is busy; cancel it and wait before starting a new task' }
       let checked
       try { checked = taskLimits(limits, this.taskDefaults) }
       catch (error) { return { ok: false, errorCode: 'INVALID_TASK', error: error.message } }
@@ -246,7 +287,7 @@ class Brain {
 
   async runTask(mode) {
     if (!['once', 'continuous'].includes(mode)) return { ok: false, errorCode: 'INVALID_TASK', error: 'Expected once or continuous' }
-    if (this.running || this.inFlight) return { ok: false, errorCode: 'BRAIN_BUSY', error: 'Planner is busy or an old operation is still settling' }
+    if (this.running || this.inFlight || this.planner.pending) return { ok: false, errorCode: 'BRAIN_BUSY', error: 'Planner is busy or an old operation is still settling' }
     if (!this.agent.isOnline()) return { ok: false, errorCode: 'AGENT_OFFLINE', error: 'Agent is offline' }
     if (!this.llm.apiKey) return { ok: false, errorCode: 'MISSING_API_KEY', error: 'LLM disabled: missing API key' }
     const exhausted = this.budgetReason()
@@ -254,6 +295,7 @@ class Brain {
     this.task.status = 'running'
     this.task.reason = null
     this.task.mode = mode
+    this.nextTrigger = 'task_requested'
     this.task.consecutiveFailures = 0
     this.lastError = null
     this.running = true
@@ -263,6 +305,7 @@ class Brain {
     this.deadlineTimer = setTimeout(() => this.halt('budget_exhausted', 'max_duration'), Math.max(1, this.task.deadlineAt - Date.now()))
     this.publishTask()
     if (mode === 'continuous') {
+      this.nextTrigger = 'task_started'
       this.schedule(generation, signal, 0)
       return { ok: true, mode, status: 'started', task: this.getTaskStatus(), goal: this.goal }
     }
@@ -285,7 +328,7 @@ class Brain {
   start() {
     if (this.running) return true
     if (!this.llm.apiKey) { this.lastError = 'LLM disabled: missing API key'; return false }
-    if (this.inFlight) { this.lastError = 'Planner is still settling'; return false }
+    if (this.inFlight || this.planner.pending) { this.lastError = 'Planner is still settling'; return false }
     this.task = createTask(this.goal, { ...this.taskDefaults })
     // Config-enabled brains may start while the Minecraft connection is spawning.
     this.running = true
@@ -294,6 +337,7 @@ class Brain {
     this.task.status = 'running'
     this.task.mode = 'continuous'
     this.lastError = null
+    this.nextTrigger = 'task_started'
     this.deadlineTimer = setTimeout(() => this.halt('budget_exhausted', 'max_duration'), this.task.limits.maxDurationMs)
     this.schedule(generation, this.controller.signal, 0)
     this.publishTask()
@@ -332,6 +376,7 @@ class Brain {
       if (this.task.consecutiveFailures >= this.task.limits.maxConsecutiveFailures) { this.halt('blocked', 'consecutive_failures'); return }
       this.publishTask()
       const delay = this.task.consecutiveFailures ? Math.min(10000, this.failureBackoffMs * 2 ** (this.task.consecutiveFailures - 1)) : 0
+      this.nextTrigger = result?.superseded ? 'task_followup' : result?.ok === false ? 'step_failed' : 'command_settled'
       this.schedule(generation, signal, delay)
     }, delayMs)
   }
@@ -340,6 +385,7 @@ class Brain {
     this.running = false
     this.generation++
     this.controller.abort(new Error('Brain stopped'))
+    this.planner.cancel('Brain stopped')
     this.agent.stopBrainActions?.()
     if (this.timer) clearTimeout(this.timer)
     this.timer = null

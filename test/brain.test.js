@@ -41,16 +41,18 @@ function activeBrain(agent = createAgent()) {
 test('stop during LLM request prevents a late command even if the provider ignores abort', async () => {
   const commands = []
   const brain = activeBrain({ name: 'late', executeCommand: async cmd => { commands.push(cmd); return { ok: true, output: 'ok' } } })
-  let reply, entered
+  let reply, entered, modelSignal
   const started = new Promise(resolve => { entered = resolve })
   brain.llm.chat = async (messages, { signal }) => {
-    assert.equal(signal, brain.controller.signal)
+    assert.equal(signal.aborted, false)
+    modelSignal = signal
     entered()
     return new Promise(resolve => { reply = resolve })
   }
   const work = brain.tick()
   await started
   brain.stop()
+  assert.equal(modelSignal.aborted, true)
   reply('say stale')
   await work
   assert.equal(commands.includes('say stale'), false)
@@ -76,9 +78,10 @@ test('a stopped generation cannot execute after restart', async () => {
   const work = brain.tick()
   await started
   brain.stop()
-  assert.equal(brain.start(), true)
+  assert.equal(brain.start(), false)
   reply('say old-generation')
   await work
+  assert.equal(brain.start(), true)
   brain.stop()
   assert.equal(commands.includes('say old-generation'), false)
 })
@@ -117,7 +120,7 @@ test('Brain executes only model-selected queries and retains their results for t
     assert.deepEqual(commands, calls === 0 ? [] : ['inventory'])
     assert.doesNotMatch(messages[1].content, /STATE:/)
     if (calls++ === 0) return 'inventory'
-    assert.match(messages[1].content, /inventory -> Inventory: oak_log x2/)
+    assert.match(messages[1].content, /inventory -> .*Inventory: oak_log x2/)
     return 'not a command'
   }
   await brain.tick()

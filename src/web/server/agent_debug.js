@@ -77,6 +77,7 @@ class AgentDebugStore {
       if ((data.messages?.length || 0) > messages.length) truncated = true
       turn = { requestId: data.requestId,contextId:typeof data.contextId==='string'?this.clean(data.contextId).slice(0,100):'context:'+data.requestId,
         model: this.clean(data.model), taskId: data.taskId ?? null, step: data.step ?? null, startedAt: data.timestamp || Date.now(),
+        trigger: typeof data.trigger === 'string' ? this.clean(data.trigger).slice(0, 100) : null,
         status: 'pending', messages, inputTruncated: truncated }
       context.turns.push(turn)
       if (context.turns.length > 10) context.turns.shift()
@@ -95,6 +96,8 @@ class AgentDebugStore {
       turn.finishedAt = data.timestamp || Date.now()
       turn.durationMs = Math.max(0, turn.finishedAt - turn.startedAt)
       if (kind === 'output') {
+        turn.usage = data.usage ?? null
+        if (Number.isFinite(data.modelMs)) turn.timings = { modelMs: data.modelMs }
         const response = this.clean(data.response)
         turn.response = response.slice(0, MAX_TEXT)
         turn.outputTruncated = response.length > MAX_TEXT

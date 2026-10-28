@@ -20,7 +20,7 @@ export function traceHtml(turns) {
   return [...turns].reverse().map(turn => `<details class="llm-turn" data-request-id="${escapeHtml(turn.requestId)}">
     <summary><span>${escapeHtml(turn.model)}</span><span>${escapeHtml(turn.status)}</span><time>${escapeHtml(new Date(turn.startedAt).toLocaleTimeString())}</time>${turn.durationMs !== undefined ? `<span>${turn.durationMs} ms</span>` : ''}</summary>
     <dl class="trace-identities"><dt>Request ID</dt><dd><code>${escapeHtml(turn.requestId || 'Not recorded')}</code></dd><dt>Context</dt><dd>${traceReference('context',turn.contextId)}</dd>
-    <dt>API calls</dt><dd>${turn.callIds?.length?turn.callIds.map(id=>traceReference('api',id)).join(' '):'No explicit links recorded'}</dd></dl>
+    <dt>API calls</dt><dd>${turn.callIds?.length?turn.callIds.map(id=>traceReference('api',id)).join(' '):'No explicit links recorded'}</dd>${turn.trigger ? `<dt>Trigger</dt><dd>${escapeHtml(turn.trigger)}</dd>` : ''}</dl>
     ${turn.inputTruncated || turn.outputTruncated ? '<p class="inspector-warning">Display limit reached; this record is truncated.</p>' : ''}
     <h4>Input</h4>${turn.messages.map(message => `<details class="llm-message"${message.role === 'user' ? ' open' : ''}><summary>${escapeHtml(message.role)}</summary><pre>${escapeHtml(message.content)}</pre></details>`).join('')}
     <h4>Output</h4><pre class="llm-response">${escapeHtml(turn.response ?? turn.error ?? 'Waiting for response...')}</pre>

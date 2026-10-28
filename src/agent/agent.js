@@ -28,6 +28,8 @@ class SteveXAgent {
     this.connecting = false
     this.queryNames = options.queryNames || new Set()
     this.executor = new ActionExecutor(() => this.stopPhysicalActions())
+    const { CommandRuntime } = require('./command_runtime')
+    this.commandRuntime = new CommandRuntime((input, options) => this._performCommand(input, options))
     this.renderService = options.renderService || null
     this.observationRevision = 0
     this.sessionId = require('node:crypto').randomUUID()
@@ -88,6 +90,7 @@ class SteveXAgent {
     const onDisconnect = (reason) => {
       this.interactionMemory.close()
       this.brainLoop?.stop()
+      this.commandRuntime.close()
       this.executor.close()
       this.stopPhysicalActions()
       this.connecting = false
@@ -119,9 +122,26 @@ class SteveXAgent {
    * @returns {Promise<{ok:boolean,output?:string,error?:string}>}
    */
   async executeCommand(input, options = {}) {
+    let handle
+    try { handle = this.submitCommand(input, options) }
+    catch (error) {
+      const name = typeof input === 'string' ? input.trim().split(/\s+/)[0].toLowerCase() : ''
+      return exceptionFailure(name, error, options.signal)
+    }
+    return handle.result
+  }
+
+  submitCommand(input, options = {}) {
+    return this.commandRuntime.submit(input, options)
+  }
+
+  getCommandStatus(callId) { return this.commandRuntime.get(callId) }
+  cancelCommand(callId, reason) { return this.commandRuntime.cancel(callId, reason) }
+
+  async _performCommand(input, options = {}) {
     const startedAt = performance.now()
     const parts=typeof input==='string'?input.trim().split(/\s+/):[]
-    const trace={name:this.name,sessionId:this.sessionId,callId:require('node:crypto').randomUUID(),
+    const trace={name:this.name,sessionId:this.sessionId,callId:options.callId,
       apiName:parts[0]?.toLowerCase() || '',arguments:{raw:typeof input==='string'?input:'[non-string input]',positional:parts.slice(1)},
       source:options.source || 'manual',llmRequestId:options.llmRequestId || null,contextId:options.contextId || null,
       taskId:options.taskId || null,nodeId:options.nodeId || null,parentCallId:options.parentCallId || null}
@@ -130,14 +150,14 @@ class SteveXAgent {
     emit('start')
     try {
       result=await this._executeCommand(input, { ...options, onTiming: timing => { measured = timing },
-        onCallStarted:()=>{if(!running){running=true;operationStarted=performance.now();emit('running')}} })
+        onCallStarted:()=>{if(!running){running=true;operationStarted=performance.now();options.onRuntimeStarted?.();emit('running')}} })
       return result
     } catch(cause) {
       error=cause
       throw cause
     } finally {
       const commandMs = performance.now() - startedAt
-      emit('done',{result,error:error?.message,cancelled:error?.name==='AbortError' || !!result?.cancelled,
+      emit('done',{result,error:error?.message,cancelled:!!options.signal?.aborted || error?.name==='AbortError' || !!result?.cancelled,
         timings:{queueMs:measured?.queueMs ?? 0,executionMs:measured?.executionMs ?? (running?performance.now()-operationStarted:0),commandMs}})
       try { options.onTiming?.({ queueMs: measured?.queueMs ?? 0, executionMs: measured?.executionMs ?? commandMs, commandMs }) } catch {}
     }
@@ -302,6 +322,7 @@ class SteveXAgent {
       this.brainLoop = null
     }
     this.executor.close()
+    this.commandRuntime.close()
     this.stopPhysicalActions()
 
     if (this.bot) {

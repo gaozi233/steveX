@@ -63,7 +63,7 @@ test('Brain resolves only an explicitly configured environment key without addin
 test('Brain records the actual system/user messages and matches raw response by request/session', async t => {
   const manager = fixture(), agent = manager.agents.get('a'), store = getDebugStore(manager)
   t.after(() => store.close())
-  const brain = new Brain(agent, {}, manager.eventBus, { goal: 'inspect inventory' })
+  const brain = new Brain(agent, agent.config.llm, manager.eventBus, { goal: 'inspect inventory' })
   brain.running = true
   let sent
   brain.llm.chat = async messages => { sent = structuredClone(messages); return 'pos' }
